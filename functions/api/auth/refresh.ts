@@ -1,13 +1,23 @@
 // POST /api/auth/refresh
-// Body: { token: <expired-or-soon-to-expire GitHub access token> }
+// Body:
+//   Web callers    → { token: <expired GitHub access token> }
+//   Native callers → { refresh_token: <current refresh token> }
 //
 // Middleware skips /api/auth/* so this endpoint runs without a valid Bearer.
-// The client identifies its session by handing back the (possibly already
-// rejected) access token; we hash it and look up the matching refresh token
-// row, then ask GitHub for a fresh pair. Both tokens rotate.
 //
-// Returns { token } on success or 401 on any failure — the client should
-// treat a failure as a hard logout.
+// Web flow: the browser never holds a refresh token; we hash the access token
+// it hands us, look up the DB row, decrypt the stored refresh token, and ask
+// GitHub for a fresh pair. Both tokens rotate in the DB; response is just
+// { token } — the browser never sees the refresh token.
+//
+// Native flow (macOS device flow): the app holds the refresh token in the
+// Keychain because unticket's server never saw the initial pair (device flow
+// goes GitHub → app directly). We use the App client_secret server-side to
+// swap the refresh token for a fresh pair and return BOTH so the app can
+// rotate its Keychain. No DB row is written or required.
+//
+// Returns 401 on any hard failure — the client should treat it as a full
+// logout.
 
 import { z } from "zod";
 import {
@@ -32,11 +42,18 @@ interface Ctx {
   request: Request;
 }
 
-// Body schema — replaces the hand-rolled `typeof token === "string"` check.
-// `.min(1)` mirrors the original truthiness guard (empty string was rejected).
-const RefreshBody = z.object({
-  token: z.string().min(1, "Missing access token"),
-});
+// Body schema — accepts either `token` (web: expired access token, we look
+// up the DB row by its hash) OR `refresh_token` (native: refresh token used
+// directly with the server-held client_secret). At least one is required.
+// `.min(1)` mirrors the original truthiness guard (empty strings rejected).
+const RefreshBody = z
+  .object({
+    token: z.string().min(1).optional(),
+    refresh_token: z.string().min(1).optional(),
+  })
+  .refine((v) => v.token || v.refresh_token, {
+    message: "Missing token or refresh_token",
+  });
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
   const clientId = context.env.GITHUB_APP_CLIENT_ID;
@@ -55,8 +72,46 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   }
   const parsed = validate(RefreshBody, rawBody);
   if (!parsed.ok) return parsed.response;
-  const expiredToken = parsed.data.token;
 
+  // Native flow (device flow / Mac app): client holds the refresh token
+  // because the unticket callback never saw the initial pair. Skip the DB
+  // lookup and swap directly.
+  if (parsed.data.refresh_token) {
+    const result = await refreshWithGitHub({
+      clientId,
+      clientSecret,
+      refreshToken: parsed.data.refresh_token,
+    });
+    if (result.transportError) {
+      console.error("[auth/refresh:native]", result.transportError);
+      return jsonError("Refresh temporarily unavailable", 503);
+    }
+    if (result.error) {
+      console.error(
+        "[auth/refresh:native] github error:",
+        result.error,
+        result.errorDescription,
+      );
+      return jsonError("Refresh rejected", 401);
+    }
+    return new Response(
+      JSON.stringify({
+        token: result.accessToken,
+        refresh_token: result.refreshToken,
+        expires_in: result.expiresInSec,
+        refresh_token_expires_in: result.refreshTokenExpiresInSec,
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
+  const expiredToken = parsed.data.token!;
   const row = await findOAuthRow(context.env.DB, expiredToken);
   if (!row || !row.encrypted_refresh_token) {
     return jsonError("Unknown session", 401);

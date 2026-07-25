@@ -179,6 +179,52 @@ describe("POST /api/auth/refresh", () => {
     expect(db._rows.has(hash)).toBe(true);
   });
 
+  it("native flow: swaps refresh_token directly and returns both new values", async () => {
+    // Device-flow clients (Mac app) hand in refresh_token — no DB row exists
+    // because unticket's callback never saw the initial pair.
+    const db = makeDb();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          access_token: "new-access",
+          refresh_token: "rt-rotated",
+          expires_in: 28800,
+          refresh_token_expires_in: 15897600,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const res = await onRequestPost(makeCtx(db, { refresh_token: "rt-native" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.token).toBe("new-access");
+    expect(body.refresh_token).toBe("rt-rotated");
+
+    // Sent to GitHub with the client's refresh_token verbatim.
+    const call = fetchSpy.mock.calls[0];
+    const sentBody = JSON.parse(call[1].body);
+    expect(sentBody.grant_type).toBe("refresh_token");
+    expect(sentBody.refresh_token).toBe("rt-native");
+
+    // No DB row written or read — device flow is stateless server-side.
+    expect(db._rows.size).toBe(0);
+  });
+
+  it("native flow: 401 when GitHub rejects the refresh_token", async () => {
+    const db = makeDb();
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ error: "bad_refresh_token" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const res = await onRequestPost(makeCtx(db, { refresh_token: "rt-bad" }));
+    expect(res.status).toBe(401);
+  });
+
   it("401s and clears the row when the refresh token's TTL has expired", async () => {
     const db = makeDb();
     const past = new Date(Date.now() - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");

@@ -79,12 +79,14 @@ export function useCreateFeature() {
       title: string;
       status: FeatureStatus;
       owners?: string[];
+      backlog?: boolean;
     }) =>
       ghCreateFeature(selectedOrg!, args.title, args),
-    // Optimistic: drop a pending card into the target column immediately, then
-    // swap it for the real feature once GitHub assigns an issue number. Without
-    // this the user waits ~2s for the synchronous GitHub round-trip before the
-    // card appears. Mirrors the optimistic update/delete hooks below.
+    // Optimistic: drop a pending card into the target column (or the backlog
+    // list) immediately, then swap it for the real feature once GitHub
+    // assigns an issue number. Without this the user waits ~2s for the
+    // synchronous GitHub round-trip before the card appears. Mirrors the
+    // optimistic update/delete hooks below.
     onMutate: async (args) => {
       await qc.cancelQueries({ queryKey: ["features", selectedOrg] });
       const tempId = nextTempFeatureId--;
@@ -94,6 +96,7 @@ export function useCreateFeature() {
         owners: args.owners ?? [],
         status: args.status,
         pending: true,
+        ...(args.backlog ? { backlog: true } : {}),
       };
       qc.setQueryData<Feature[]>(["features", selectedOrg], (old) =>
         old ? [...old, optimistic] : [optimistic],

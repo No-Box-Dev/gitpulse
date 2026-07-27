@@ -125,12 +125,14 @@ export async function createFeature(
   opts: {
     status: FeatureStatus;
     owners?: string[];
+    backlog?: boolean;
   },
 ): Promise<Feature> {
   return apiPost<Feature>("/api/features", {
     title,
     status: opts.status,
     owners: opts.owners ?? [],
+    ...(opts.backlog ? { backlog: true } : {}),
   });
 }
 

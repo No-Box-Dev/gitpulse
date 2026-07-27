@@ -45,6 +45,10 @@ const CreateFeatureBody = z.object({
   owners: z.array(z.unknown()).optional(),
   // Validated by sanitizeSpecLinks (http/https only) before storage.
   specLinks: z.array(z.unknown()).optional(),
+  // Optional — attaches the `backlog` label at create time so a new
+  // feature can be created directly into the backlog view. Otherwise the
+  // caller would have to POST + PATCH to get the same result.
+  backlog: z.boolean().optional(),
 }).passthrough();
 
 // Explicit projection — never SELECT * so adding a column doesn't silently leak it.
@@ -134,10 +138,11 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       ...(specLinks.length > 0 ? { specLinks } : {}),
     });
 
+    const backlog = payload?.backlog === true;
     const ghIssue = await createFeatureIssue(token, orgLogin, {
       title,
       body,
-      labels: buildFeatureLabels(status),
+      labels: buildFeatureLabels(status, backlog),
       ...(owners.length > 0 ? { assignees: owners } : {}),
     });
 

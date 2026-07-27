@@ -259,6 +259,10 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
     createFeatureMut.mutate({ title, status: stages[0]?.id ?? "todo" });
   };
 
+  const addBacklogFeature = (title: string) => {
+    createFeatureMut.mutate({ title, status: stages[0]?.id ?? "todo", backlog: true });
+  };
+
   const handleCleanDone = async () => {
     if (doneCount === 0 || !lastStage) return;
     const ok = await confirm({
@@ -329,6 +333,7 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
         onDelete={deleteFeature}
         onOpenDetail={openDetail}
         onAdd={addFeature}
+        onAddBacklog={addBacklogFeature}
         onToggleBacklog={toggleBacklog}
         isAdmin={isAdmin}
         onCleanDone={handleCleanDone}
@@ -389,6 +394,7 @@ interface FeaturesViewProps {
   onDelete: (id: number) => void;
   onOpenDetail: (f: Feature) => void;
   onAdd: (title: string) => void;
+  onAddBacklog: (title: string) => void;
   onToggleBacklog: (f: Feature) => void;
   isAdmin: boolean;
   onCleanDone: () => void;
@@ -403,7 +409,7 @@ function FeaturesView({
   searchQuery, setSearchQuery, meOnly, setMeOnly, selectedPersons, setSelectedPersons,
   personPills, allPeopleNames,
   sortBy, setSortBy, dragOverCol, onDragStart, onDragOver, onDragLeave, onDrop,
-  onUpdate, onDelete, onOpenDetail, onAdd, onToggleBacklog, isAdmin,
+  onUpdate, onDelete, onOpenDetail, onAdd, onAddBacklog, onToggleBacklog, isAdmin,
   onCleanDone, doneCount, cleanDonePending, cleanDoneTitle,
 }: FeaturesViewProps) {
   return (
@@ -494,6 +500,7 @@ function FeaturesView({
           stages={stages}
           onOpenDetail={onOpenDetail}
           onRestore={onToggleBacklog}
+          onAdd={onAddBacklog}
         />
       ) : (
         /* Kanban columns — fixed-width tracks so >4 stages scroll horizontally
@@ -565,9 +572,10 @@ interface BacklogListProps {
   stages: BoardStage[];
   onOpenDetail: (f: Feature) => void;
   onRestore: (f: Feature) => void;
+  onAdd: (title: string) => void;
 }
 
-function BacklogList({ features, stages, onOpenDetail, onRestore }: BacklogListProps) {
+function BacklogList({ features, stages, onOpenDetail, onRestore, onAdd }: BacklogListProps) {
   const stageLookup = useMemo(() => {
     const m = new Map<string, BoardStage>();
     stages.forEach((s) => m.set(s.id, s));
@@ -576,15 +584,23 @@ function BacklogList({ features, stages, onOpenDetail, onRestore }: BacklogListP
 
   if (features.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-stone-200 bg-white/50 px-6 py-16 text-center text-sm text-stone-500">
-        Nothing in the backlog. Send a feature here from Features when you want
-        to park it out of sight without losing it.
+      <div className="space-y-3">
+        <div className="rounded-xl border border-stone-200 bg-white px-4 py-3">
+          <AddFeatureInput onAdd={onAdd} />
+        </div>
+        <div className="rounded-xl border border-dashed border-stone-200 bg-white/50 px-6 py-16 text-center text-sm text-stone-500">
+          Nothing in the backlog. Add one above, or send a feature here from
+          Features when you want to park it out of sight without losing it.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <div className="px-4 py-3 border-b border-stone-100">
+        <AddFeatureInput onAdd={onAdd} />
+      </div>
       <ul className="divide-y divide-stone-100">
         {features.map((f) => {
           const stage = stageLookup.get(f.status);

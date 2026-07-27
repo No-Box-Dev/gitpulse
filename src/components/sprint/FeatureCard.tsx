@@ -121,7 +121,7 @@ export function FeatureCard({
           {onSendToBacklog && (
             <button
               onClick={stop(() => onSendToBacklog(feature))}
-              className="p-1 text-stone-300 hover:text-accent cursor-pointer rounded hover:bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="p-1 text-stone-400 hover:text-accent cursor-pointer rounded hover:bg-accent/10"
               title="Send to backlog"
               aria-label={`Send ${feature.title} to backlog`}
             >

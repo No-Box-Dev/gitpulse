@@ -187,6 +187,32 @@ describe("POST /api/features", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("attaches the backlog label when body has backlog:true", async () => {
+    global.fetch
+      .mockResolvedValueOnce(LABELS_OK_RESPONSE)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          number: 8, title: "Later", state: "open",
+          body: "",
+          assignees: [],
+          labels: [{ name: "unticket" }, { name: "feature" }, { name: "backlog" }],
+          html_url: "u", created_at: "t", updated_at: "t",
+        }),
+      });
+    const db = makeDb({ allResult: { results: [] } });
+    const res = await onRequestPost(makeCtx({
+      db, method: "POST",
+      body: { title: "Later", status: "todo", backlog: true },
+    }));
+    expect(res.status).toBe(201);
+
+    // GitHub create was called with a labels array that includes "backlog".
+    const createCall = global.fetch.mock.calls[1];
+    const sentBody = JSON.parse(createCall[1].body);
+    expect(sentBody.labels).toContain("backlog");
+  });
 });
 
 describe("PATCH /api/features/:number", () => {

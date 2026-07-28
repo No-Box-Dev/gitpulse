@@ -13,6 +13,14 @@ export async function onRequestGet(context) {
   const actorId = url.searchParams.get("actor_id");
   const before = url.searchParams.get("before");
   const limit = clampLimit(url.searchParams.get("limit"), 50, 200);
+  // PR-scoped filter for the Timeline view: pass `repo` + `pr_number` to
+  // pull every event for a single pull request in one call. Both must be
+  // present together — `pr_number` alone across repos is meaningless.
+  const repo = url.searchParams.get("repo");
+  const prNumberRaw = url.searchParams.get("pr_number");
+  const prNumber = prNumberRaw && Number.isFinite(parseInt(prNumberRaw, 10))
+    ? parseInt(prNumberRaw, 10)
+    : null;
   // Comma-separated allowlist of raw event types that a narrative was
   // produced from. Used by the Posts feed to show only "shipped" events
   // (PR merged, issue closed) without burning DB rows on opens/reviews.
@@ -27,6 +35,13 @@ export async function onRequestGet(context) {
   if (type) { sql += " AND type = ?"; binds.push(type); }
   if (projectId) { sql += " AND project_id = ?"; binds.push(projectId); }
   if (actorId) { sql += " AND actor_id = ?"; binds.push(actorId); }
+  if (repo && prNumber != null) {
+    // Match either the top-level events.repo column (populated on newer
+    // rows) OR the number embedded in payload_json.pr.number — older
+    // rows only have the latter.
+    sql += " AND repo = ? AND CAST(json_extract(payload_json, '$.pr.number') AS INTEGER) = ?";
+    binds.push(repo, prNumber);
+  }
   if (triggerTypes.length > 0) {
     const placeholders = triggerTypes.map(() => "?").join(",");
     sql += ` AND json_extract(payload_json, '$.trigger_type') IN (${placeholders})`;

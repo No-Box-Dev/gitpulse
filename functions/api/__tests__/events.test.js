@@ -83,6 +83,22 @@ describe("GET /api/events", () => {
     expect(binds).toContain(42);
   });
 
+  it("appends repo + pr_number filter when both provided", async () => {
+    const db = makeDb();
+    await listEvents(makeCtx({ db, url: "http://x/api/events?repo=unticket&pr_number=42" }));
+    const { sql, binds } = db._calls.all[0];
+    expect(sql).toMatch(/repo = \? AND CAST\(json_extract\(payload_json, '\$\.pr\.number'\) AS INTEGER\) = \?/);
+    expect(binds).toContain("unticket");
+    expect(binds).toContain(42);
+  });
+
+  it("ignores pr_number without repo (both required)", async () => {
+    const db = makeDb();
+    await listEvents(makeCtx({ db, url: "http://x/api/events?pr_number=42" }));
+    const { sql } = db._calls.all[0];
+    expect(sql).not.toMatch(/pr\.number/);
+  });
+
   it("clamps limit to [1, 200] with default 50", async () => {
     const db = makeDb();
     // limit=999 → 200, last bind value is the limit

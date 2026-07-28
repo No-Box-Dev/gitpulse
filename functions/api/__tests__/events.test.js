@@ -83,13 +83,19 @@ describe("GET /api/events", () => {
     expect(binds).toContain(42);
   });
 
-  it("appends repo + pr_number filter when both provided", async () => {
+  it("appends repo + pr_number filter matching pr.number OR pr_number", async () => {
     const db = makeDb();
     await listEvents(makeCtx({ db, url: "http://x/api/events?repo=unticket&pr_number=42" }));
     const { sql, binds } = db._calls.all[0];
-    expect(sql).toMatch(/repo = \? AND CAST\(json_extract\(payload_json, '\$\.pr\.number'\) AS INTEGER\) = \?/);
+    expect(sql).toMatch(/repo = \?/);
+    // Raw github events store the number at $.pr.number
+    expect(sql).toMatch(/\$\.pr\.number/);
+    // Narrator rows (pr_narrative, narrative, release_notes) store it
+    // at $.pr_number
+    expect(sql).toMatch(/\$\.pr_number/);
     expect(binds).toContain("unticket");
-    expect(binds).toContain(42);
+    // Bound twice — once per branch of the OR
+    expect(binds.filter((b) => b === 42)).toHaveLength(2);
   });
 
   it("ignores pr_number without repo (both required)", async () => {

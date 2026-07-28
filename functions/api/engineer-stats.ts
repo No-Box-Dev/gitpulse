@@ -4,6 +4,7 @@
 // O(members x PRs) filters in the browser). All per-member counts are computed
 // server-side in a single DB.batch and returned as maps keyed by GitHub login:
 //   - openPRs:         open PRs authored by the member                (grid + detail)
+//   - openNonDraftPRs: subset of openPRs excluding drafts             (grid — surface signal-vs-noise)
 //   - reviewing:       open non-draft PRs awaiting their review        (grid + detail)
 //   - approvalsGiven:  approvals submitted on other people's PRs       (grid + detail)
 //   - mergesOfOthers:  merges of other people's PRs                    (grid + detail)
@@ -48,12 +49,19 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     : "0";
   const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [openPRs, reviewing, approvals, merges, assigned, lifetime, recent, lifetimeCommits, recentCommits, closed, coverage, audits] =
+  const [openPRs, openNonDraftPRs, reviewing, approvals, merges, assigned, lifetime, recent, lifetimeCommits, recentCommits, closed, coverage, audits] =
     await db.batch([
       db
         .prepare(
           `SELECT author AS login, COUNT(*) AS c FROM pull_requests
            WHERE org_id = ? AND state = 'open' AND author IS NOT NULL AND ${repoIn}
+           GROUP BY author`,
+        )
+        .bind(orgId, ...activeRepos),
+      db
+        .prepare(
+          `SELECT author AS login, COUNT(*) AS c FROM pull_requests
+           WHERE org_id = ? AND state = 'open' AND draft = 0 AND author IS NOT NULL AND ${repoIn}
            GROUP BY author`,
         )
         .bind(orgId, ...activeRepos),
@@ -251,6 +259,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 
   return jsonResponse({
     openPRs: toCountMap(openPRs.results),
+    openNonDraftPRs: toCountMap(openNonDraftPRs.results),
     reviewing: toCountMap(reviewing.results),
     approvalsGiven: toCountMap(approvals.results),
     mergesOfOthers: toCountMap(merges.results),

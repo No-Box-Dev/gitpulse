@@ -36,11 +36,16 @@ export async function onRequestGet(context) {
   if (projectId) { sql += " AND project_id = ?"; binds.push(projectId); }
   if (actorId) { sql += " AND actor_id = ?"; binds.push(actorId); }
   if (repo && prNumber != null) {
-    // Match either the top-level events.repo column (populated on newer
-    // rows) OR the number embedded in payload_json.pr.number — older
-    // rows only have the latter.
-    sql += " AND repo = ? AND CAST(json_extract(payload_json, '$.pr.number') AS INTEGER) = ?";
-    binds.push(repo, prNumber);
+    // Match either payload_json.pr.number (raw github events, e.g.
+    // github:pr:opened / merged / review:*) OR payload_json.pr_number
+    // (narrator-written rows: pr_narrative, narrative, release_notes —
+    // narrator.js stores it at the top level, not nested under pr).
+    // Both are needed to return the full timeline.
+    sql += ` AND repo = ? AND (
+      CAST(json_extract(payload_json, '$.pr.number') AS INTEGER) = ?
+      OR CAST(json_extract(payload_json, '$.pr_number') AS INTEGER) = ?
+    )`;
+    binds.push(repo, prNumber, prNumber);
   }
   if (triggerTypes.length > 0) {
     const placeholders = triggerTypes.map(() => "?").join(",");

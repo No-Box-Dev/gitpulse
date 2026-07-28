@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy — Unticket</title>
+  <meta name="description" content="What data Unticket collects, stores, and shares.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="brand" href="/"><img src="favicon.svg" alt="" width="24" height="24"><span>Unticket</span></a>
+    <div class="nav-links"><a href="/">Home</a></div>
+  </nav>
+
+  <main class="legal">
+    <h1>Privacy</h1>
+    <p class="updated">Last updated: 2026-07-28</p>
+
+    <p>
+      Unticket is a macOS menubar app and a workspace at unticket.ai that
+      mirror your GitHub organization's PR + issue activity. This document
+      describes what data we collect, where it lives, and who can access it.
+    </p>
+
+    <h2>What we store</h2>
+    <ul>
+      <li>
+        <strong>Your GitHub OAuth token</strong> — issued by GitHub when you
+        sign in via the Unticket GitHub App. On the macOS app it's stored in
+        your local Keychain, gated by the app sandbox. On the web workspace
+        it's stored server-side, encrypted at rest with per-workspace keys.
+      </li>
+      <li>
+        <strong>Your GitHub organization's PR + issue metadata</strong> —
+        titles, authors, timestamps, labels, review + merge state. Fetched
+        via the GitHub App installation, cached in our database so the app
+        doesn't hit GitHub on every open.
+      </li>
+      <li>
+        <strong>AI-narrated post text</strong> — first-person summaries
+        generated when a PR is opened or merged. Stored alongside the
+        underlying event.
+      </li>
+    </ul>
+
+    <h2>What we don't store</h2>
+    <ul>
+      <li>PR diffs, file contents, or any source code.</li>
+      <li>Third-party analytics or telemetry — we don't run Google Analytics,
+      Mixpanel, or the equivalent. No pixel trackers.</li>
+      <li>Your GitHub password. We never see it.</li>
+    </ul>
+
+    <h2>Who sees your data</h2>
+    <p>
+      Only members of your unticket.ai workspace (people who have signed in
+      with a GitHub account that's a member of the same org) can see your
+      org's feed. No public feed exposes any data by default.
+    </p>
+
+    <h2>Data retention</h2>
+    <p>
+      When you sign out of the macOS app, the token is deleted from the
+      Keychain. When you disconnect the unticket GitHub App from your
+      organization, we delete the org's cached data within 30 days.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions? Email <a href="mailto:hello@noboxdev.com">hello@noboxdev.com</a>.
+    </p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="footer-brand"><img src="favicon.svg" alt="" width="20" height="20"><span>Unticket</span></div>
+      <div class="footer-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://app.unticket.ai">Sign in</a></div>
+    </div>
+  </footer>
+</body>
+</html>

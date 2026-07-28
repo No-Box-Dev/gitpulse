@@ -1,0 +1,28 @@
+<svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- No-Box-Dev family gradient (same diagonal as NoxKey so the two apps -->
+  <!-- clearly belong to the same suite when they sit next to each other). -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FE795D"/>
+      <stop offset="100%" stop-color="#9B78F4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="225" fill="url(#bg)"/>
+
+  <!-- Feed-specific mark: three stacked post cards. Front card is fully -->
+  <!-- opaque; the two behind fade back to suggest depth + "more posts". -->
+  <g transform="translate(212 260)">
+    <rect x="0"   y="0"   width="600" height="130" rx="24" fill="white" opacity="0.35"/>
+    <rect x="0"   y="170" width="600" height="130" rx="24" fill="white" opacity="0.65"/>
+    <rect x="0"   y="340" width="600" height="130" rx="24" fill="white"/>
+    <!-- Two lines of "content" inside the front card so it reads as a post -->
+    <!-- and not just a plain rectangle. -->
+    <rect x="40"  y="376" width="360" height="16" rx="8" fill="#9B78F4" opacity="0.85"/>
+    <rect x="40"  y="410" width="260" height="16" rx="8" fill="#9B78F4" opacity="0.55"/>
+  </g>
+
+  <!-- Notification dot in the top-right corner of the front card — the -->
+  <!-- "new activity" cue the whole app is built around. -->
+  <circle cx="792" cy="620" r="52" fill="#FE795D"/>
+  <circle cx="792" cy="620" r="52" fill="none" stroke="white" stroke-width="16"/>
+</svg>

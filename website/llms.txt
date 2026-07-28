@@ -1,0 +1,29 @@
+# Unticket
+
+> A macOS menubar client for your GitHub team's PR activity. Turns your
+> org's PR + issue flow into a live, AI-narrated feed you can glance at
+> without opening the browser.
+
+## Product
+
+- Menubar-first macOS app: three-mode feed (Opened / Merged / Notes)
+- Current tab shows a per-person view of open PRs, review requests, and
+  assigned issues with counts
+- PR detail with a toggle between the GitHub page and unticket's release
+  notes
+- Multi-account (multiple GitHub identities) + multi-org support
+- Global hotkey ⌘⇧X to open from anywhere
+- Full native window when you want the big view
+- Free on the Mac App Store
+
+## Backend
+
+- Workspace at app.unticket.ai — Cloudflare Workers + D1
+- Connects to GitHub via a GitHub App installation
+- Data flows GitHub → workspace → app; nothing exposed publicly
+
+## Docs
+
+- [Home](https://unticket.ai/)
+- [Privacy](https://unticket.ai/privacy.html)
+- [Terms](https://unticket.ai/terms.html)

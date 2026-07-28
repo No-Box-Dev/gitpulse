@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unticket — Your team's PR feed in the menubar</title>
+  <meta name="description" content="Unticket turns your GitHub org's PR activity into a live, narrated feed. See what your team ships without opening a browser.">
+  <meta name="theme-color" content="#FAFAF9">
+  <link rel="canonical" href="https://unticket.ai/">
+  <meta property="og:title" content="Unticket — Your team's PR feed in the menubar">
+  <meta property="og:description" content="A live, narrated feed of every PR your team opens, reviews, and ships — right in your macOS menubar.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://unticket.ai/">
+  <meta property="og:image" content="https://unticket.ai/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Unticket — Your team's PR feed in the menubar">
+  <meta name="twitter:description" content="A live, narrated feed of every PR your team opens, reviews, and ships.">
+  <meta name="twitter:image" content="https://unticket.ai/og-image.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "Unticket",
+        "url": "https://unticket.ai",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": "Unticket is a menubar-first macOS client that turns your GitHub org's PR activity into a live, AI-narrated feed. See every PR your team opens, reviews, and ships without leaving the menubar.",
+        "author": { "@type": "Organization", "name": "NoBoxDev", "url": "https://noboxdev.com" },
+        "featureList": [
+          "Live feed of every PR — opened, merged, release notes",
+          "AI-narrated updates so scanning is fast",
+          "Current tab: per-person counts of open PRs, review requests, assigned issues",
+          "PR detail with GitHub / Notes toggle",
+          "Multi-account and multi-org support",
+          "Global hotkey (⌘⇧X) to open from anywhere",
+          "Full native window when you want the big view"
+        ],
+        "keywords": "GitHub, pull requests, PR feed, menubar app, macOS developer tools, team activity, code review",
+        "isAccessibleForFree": true
+      },
+      {
+        "@type": "Organization",
+        "name": "NoBoxDev",
+        "url": "https://noboxdev.com",
+        "description": "Indie software studio building developer tools for macOS. Products include NoxKey (secrets manager), NoxTerm (terminal manager), Unticket (team PR feed).",
+        "sameAs": ["https://github.com/No-Box-Dev"]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Unticket?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Unticket is a macOS menubar client for your GitHub team's PR activity. It shows you every PR opened, merged, and released across your org's repositories as a live, AI-narrated feed — plus per-person counts of open work — without you having to open the browser."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need an account?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Unticket connects to a workspace at unticket.ai (free to create). Sign in with the GitHub account that's a member of the organizations you want the feed for."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How much does it cost?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The macOS app is free. The unticket.ai workspace has a free tier that covers most small teams."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What data does it store?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Only your GitHub OAuth token, stored in the macOS Keychain gated by the app sandbox. No third-party analytics, no telemetry. All PR data flows through your unticket.ai workspace, which mirrors your GitHub org."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="brand" href="/">
+      <img src="favicon.svg" alt="" width="24" height="24">
+      <span>Unticket</span>
+    </a>
+    <div class="nav-links">
+      <a href="https://app.unticket.ai">Sign in</a>
+      <a href="#download" class="cta-nav">Download</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <h1>Your team's PRs, in your menubar.</h1>
+    <p class="lede">
+      A live, narrated feed of every PR your team opens, reviews, and ships —
+      right in the macOS menubar. No more browser tab archaeology to figure out
+      what shipped today.
+    </p>
+    <div class="hero-ctas" id="download">
+      <a class="btn btn-primary" href="https://apps.apple.com/app/unticket">
+        Download for macOS
+      </a>
+      <a class="btn btn-secondary" href="https://app.unticket.ai">
+        Try the web app
+      </a>
+    </div>
+    <p class="hero-note">
+      macOS 14+ · Free · Mac App Store
+    </p>
+  </header>
+
+  <section class="features">
+    <h2>What you get</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Live PR feed</h3>
+        <p>
+          Every PR your team opens, merges, and releases becomes a first-person
+          post — narrated by AI so scanning is fast and reads like a Slack
+          channel, not a diff-viewer.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Current — who's shipping</h3>
+        <p>
+          A per-person view of open PRs, review requests, and assigned issues.
+          Counts on every row so you can see who's blocked, who's shipping,
+          and who has stuff waiting on you.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Full app when you need it</h3>
+        <p>
+          Global ⌘⇧X opens the menubar popover from anywhere. When you want
+          the bigger view, open the full window — same feed, more room.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Multi-account, multi-org</h3>
+        <p>
+          Sign in with more than one GitHub identity. Switch between orgs
+          instantly. Every account has its own Keychain slot and its own
+          preferences remembered.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Admin controls inline</h3>
+        <p>
+          Admins can manage tracked repos, team visibility, and trigger sync
+          directly from the app. No need to bounce to the browser to hide
+          someone from the feed or park a repo.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>PR detail with source toggle</h3>
+        <p>
+          Click any PR anywhere in the app to open the detail view. Toggle
+          between the release notes (rendered from unticket) and the GitHub
+          page (embedded, signed in).
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-band">
+    <h2>Ready to try it?</h2>
+    <p>Free on the Mac App Store. Works with any GitHub org that has the unticket app installed.</p>
+    <a class="btn btn-primary btn-large" href="https://apps.apple.com/app/unticket">
+      Download for macOS
+    </a>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <img src="favicon.svg" alt="" width="20" height="20">
+        <span>Unticket</span>
+      </div>
+      <div class="footer-links">
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/changelog.html">Changelog</a>
+        <a href="https://app.unticket.ai">Sign in</a>
+        <a href="https://github.com/No-Box-Dev">GitHub</a>
+      </div>
+      <div class="footer-tag">
+        <a href="https://noboxdev.com">Made by NoBoxDev</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

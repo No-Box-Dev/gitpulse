@@ -281,6 +281,19 @@ export async function syncCommits(db, token, orgId, orgLogin, repo, since) {
     [409],
   );
 
+  // Fresh backfill (no `since` cursor → force sync OR first-ever sync
+  // of this repo): wipe existing rows before re-inserting. This scrubs
+  // historical non-default-branch commits that landed via the pre-fix
+  // webhook path. Delete AFTER the fetch succeeds so a network failure
+  // doesn't leave the table empty. On a first-ever sync there are no
+  // rows to delete, so the DELETE is a cheap no-op.
+  if (!since) {
+    await db
+      .prepare("DELETE FROM github_commits WHERE org_id = ? AND repo = ?")
+      .bind(orgId, repo)
+      .run();
+  }
+
   const stmt = db.prepare(
     `INSERT INTO github_commits
        (org_id, repo, sha, author, author_avatar, authored_at, committed_at, html_url, message)

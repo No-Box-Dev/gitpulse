@@ -208,7 +208,20 @@ export async function storeEvent(db, ghEvent, deliveryId, payload, ownerId) {
   // Keep commit statistics current between repository syncs. Push payloads
   // expose GitHub's resolved author username when one is available; the
   // periodic default-branch sync later fills any unresolved identities.
-  if (ghEvent === "push" && repo && org && Array.isArray(payload.commits) && payload.commits.length > 0) {
+  //
+  // ONLY count pushes to the default branch. Squash-merged PRs produce
+  // one commit on default (that's the "shipped" work) plus N commits
+  // that already exist on the feature branch — if we ingested pushes to
+  // any branch, we'd double-count every PR (N feature-branch pushes +
+  // 1 default-branch squash commit). syncCommits (repo backfill) is
+  // already default-branch-only via GitHub's default `/commits` endpoint,
+  // so this gate brings the webhook path in line.
+  const pushedRef = payload.ref;                                    // "refs/heads/<branch>"
+  const defaultBranch = payload.repository?.default_branch;         // "develop", "main", etc.
+  const isDefaultBranchPush = typeof pushedRef === "string"
+    && typeof defaultBranch === "string"
+    && pushedRef === `refs/heads/${defaultBranch}`;
+  if (ghEvent === "push" && isDefaultBranchPush && repo && org && Array.isArray(payload.commits) && payload.commits.length > 0) {
     const orgRow = await db
       .prepare("SELECT id FROM orgs WHERE lower(github_login) = lower(?) LIMIT 1")
       .bind(ownerId)

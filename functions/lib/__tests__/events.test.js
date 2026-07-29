@@ -171,7 +171,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-2", {
       ref: "refs/heads/main",
       commits: [{ id: "c1", message: "fix", author: { name: "x" } }],
-      repository: { name: "unticket", owner: { login: "no-box-dev" } },
+      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "octocat", id: 5 },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
@@ -184,11 +184,29 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-3", {
       ref: "refs/heads/main",
       commits: [{}, {}, {}],
-      repository: { name: "unticket", owner: { login: "no-box-dev" } },
+      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "x", id: 1 },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
     expect(eventInsert.binds[7]).toContain("(3 commits)");
+  });
+
+  it("does NOT insert commits for pushes to non-default branches (squash-merge dedup)", async () => {
+    // Squash-merged PR: feature branch has N pre-squash commits + the
+    // squash commit lands on default. If we ingested pushes to any
+    // branch, we'd count the feature commits AND the squash commit.
+    // Default-branch-only gate is what keeps the count honest.
+    const db = makeDb();
+    await storeEvent(db, "push", "del-feat", {
+      ref: "refs/heads/feature/x",
+      commits: [{ id: "c1" }, { id: "c2" }, { id: "c3" }],
+      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
+      sender: { login: "octocat", id: 5 },
+    }, "owner-1");
+    // Event row still inserted (the push itself is real activity), but
+    // no github_commits row goes in for a non-default push.
+    expect(db._calls.runs.some((r) => r.sql.includes("INSERT INTO events"))).toBe(true);
+    expect(db._calls.runs.some((r) => r.sql.includes("INSERT INTO github_commits"))).toBe(false);
   });
 
   it("builds release summary with tag name", async () => {
@@ -212,7 +230,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-5", {
       ref: "refs/heads/main",
       commits,
-      repository: { name: "unticket", owner: { login: "no-box-dev" } },
+      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "x", id: 1 },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));

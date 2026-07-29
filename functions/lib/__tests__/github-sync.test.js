@@ -41,6 +41,7 @@ import {
   syncRepos,
   syncMembers,
   syncRepo,
+  syncCommits,
   decideReconcileAction,
 } from "../github-sync.js";
 
@@ -551,6 +552,38 @@ describe("syncMembers", () => {
     expect(result).toEqual(["alice"]);
     // The INSERT SQL hardcodes 'human' as the kind.
     expect(db._calls.batches[0][0].sql).toContain("'human'");
+  });
+});
+
+describe("syncCommits", () => {
+  it("wipes existing rows for the (org, repo) when since is null (force resync)", async () => {
+    // GitHub returns two commits — those get inserted after the wipe.
+    fetch.mockResolvedValueOnce({
+      ok: true, headers: { get: () => null },
+      json: async () => [
+        { sha: "aaa", commit: { author: { date: "t" }, message: "m" } },
+        { sha: "bbb", commit: { author: { date: "t" }, message: "m" } },
+      ],
+    });
+    const db = makeDb();
+    await syncCommits(db, "tok", "org-1", "no-box-dev", "api", null);
+    // The wipe runs before the batch of inserts.
+    const wipe = db._calls.runs.find((r) =>
+      r.sql.includes("DELETE FROM github_commits") && r.sql.includes("org_id = ? AND repo = ?")
+    );
+    expect(wipe).toBeTruthy();
+    expect(wipe.binds).toEqual(["org-1", "api"]);
+  });
+
+  it("does NOT wipe when since is provided (incremental sync)", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true, headers: { get: () => null },
+      json: async () => [],
+    });
+    const db = makeDb();
+    await syncCommits(db, "tok", "org-1", "no-box-dev", "api", "2026-01-01T00:00:00Z");
+    const wipe = db._calls.runs.find((r) => r.sql.includes("DELETE FROM github_commits"));
+    expect(wipe).toBeUndefined();
   });
 });
 

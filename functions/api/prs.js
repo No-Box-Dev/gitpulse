@@ -4,7 +4,7 @@ import { getActiveRepoNames } from "../lib/inactive-repos";
 // Explicit projection — never SELECT * so adding a column doesn't silently leak it.
 const PR_COLUMNS = [
   "id", "repo", "number", "title", "state", "author", "author_avatar",
-  "draft", "head_ref", "base_ref", "merged_at",
+  "draft", "head_ref", "head_sha", "base_ref", "merged_at",
   "created_at", "updated_at", "html_url",
   "requested_reviewers_json", "labels_json",
 ].join(", ");

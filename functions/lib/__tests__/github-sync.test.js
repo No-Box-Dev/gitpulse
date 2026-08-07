@@ -202,6 +202,18 @@ describe("upsertPR", () => {
     });
     expect(db._calls.runs[1].binds[7]).toBe(0);
   });
+
+  it("persists the exact PR head SHA", async () => {
+    const db = makeDb();
+    const headSha = "a".repeat(40);
+    await upsertPR(db, "org", "api", {
+      number: 1, title: "x", state: "open", draft: false,
+      user: { login: "x" }, head: { ref: "feature", sha: headSha },
+      created_at: "a", updated_at: "b", html_url: "u",
+    });
+    expect(db._calls.runs[0].binds[9]).toBe(headSha);
+    expect(db._calls.runs[0].sql).toContain("head_sha = excluded.head_sha");
+  });
 });
 
 describe("upsertMember + removeMember", () => {

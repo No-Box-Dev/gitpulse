@@ -22,6 +22,7 @@
 //     actor: { login, name, avatarUrl },
 //     repo: string,
 //     summary: string,
+//     technicalSummary: string,
 //     pr: { number, title, url } | null
 //   }
 //
@@ -68,6 +69,7 @@ interface FeedEvent {
   actor: PublicActor;
   repo: string;
   summary: string;
+  technicalSummary: string;
   pr: PublicPR | null;
 }
 
@@ -134,7 +136,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   }
 
   const sql = `
-    SELECT id, type, created_at, repo, summary, payload_json
+    SELECT id, type, created_at, repo, summary, technical_summary, payload_json
     FROM events
     WHERE ${conds.join(" AND ")}
     ORDER BY created_at DESC, id DESC
@@ -161,6 +163,7 @@ interface RawRow {
   created_at: string;
   repo: string | null;
   summary: string | null;
+  technical_summary: string | null;
   payload_json: string | null;
 }
 
@@ -181,6 +184,7 @@ function mapRow(row: unknown, mode: PublicType): FeedEvent {
     },
     repo: r.repo ?? "",
     summary: r.summary ?? "",
+    technicalSummary: r.technical_summary ?? "",
     pr: pr
       ? {
           number: Number(pr.number ?? 0),

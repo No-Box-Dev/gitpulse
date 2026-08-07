@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth";
 import type { FeedActor, FeedEvent, FeedProject } from "@/lib/noxlink-api";
 
 const PAGE_SIZE = 25;
+type SummaryStyle = "social" | "technical";
 
 export function PostsTab() {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export function PostsTab() {
   const [meOnly, setMeOnly] = useState(false);
   const [projectFilter, setProjectFilter] = useState<string>("");
   const [mode, setMode] = useState<FeedMode>("post");
+  const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>("social");
   const meActorId = (actors.data ?? []).find(
     (a) => a.github_login?.toLowerCase() === user?.login.toLowerCase(),
   )?.id;
@@ -116,7 +118,12 @@ export function PostsTab() {
           </button>
         )}
         <div className="ml-auto">
-          <FeedModeToggle mode={mode} onChange={setMode} />
+          <div className="flex items-center gap-2">
+            {mode !== "release_notes" && (
+              <SummaryStyleToggle value={summaryStyle} onChange={setSummaryStyle} />
+            )}
+            <FeedModeToggle mode={mode} onChange={setMode} />
+          </div>
         </div>
       </div>
 
@@ -138,6 +145,7 @@ export function PostsTab() {
               event={event}
               actor={event.actor_id ? actorById.get(event.actor_id) ?? null : null}
               project={event.project_id ? projectById.get(event.project_id) ?? null : null}
+              summaryStyle={mode === "release_notes" ? "social" : summaryStyle}
             />
           ))}
           <div className="flex justify-center pt-2 pb-6">
@@ -157,6 +165,39 @@ export function PostsTab() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function SummaryStyleToggle({
+  value,
+  onChange,
+}: {
+  value: SummaryStyle;
+  onChange: (value: SummaryStyle) => void;
+}) {
+  return (
+    <div
+      className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-100 p-0.5"
+      role="group"
+      aria-label="Summary style"
+    >
+      {(["social", "technical"] as const).map((style) => (
+        <button
+          key={style}
+          type="button"
+          aria-pressed={value === style}
+          onClick={() => onChange(style)}
+          className={
+            "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors " +
+            (value === style
+              ? "bg-white text-stone-900 shadow-sm"
+              : "text-stone-500 hover:text-stone-800")
+          }
+        >
+          {style === "social" ? "Social" : "Technical"}
+        </button>
+      ))}
     </div>
   );
 }
@@ -207,9 +248,10 @@ interface PostCardProps {
   event: FeedEvent;
   actor: FeedActor | null;
   project: FeedProject | null;
+  summaryStyle: SummaryStyle;
 }
 
-function PostCard({ event, actor, project }: PostCardProps) {
+function PostCard({ event, actor, project, summaryStyle }: PostCardProps) {
   const meta = parsePayload(event.payload_json);
   const actorLabel = actor?.name || actor?.github_login || event.actor_id || "unknown";
   const projectKey = (project?.repo || project?.slug || project?.name || "").toLowerCase();
@@ -222,6 +264,9 @@ function PostCard({ event, actor, project }: PostCardProps) {
   const triggerEventId = typeof meta.trigger_event_id === "number" ? meta.trigger_event_id : null;
   const [expanded, setExpanded] = useState(false);
   const expandable = triggerEventId != null;
+  const displayedSummary = summaryStyle === "technical"
+    ? (event.technical_summary || buildLegacyTechnicalSummary(event, project))
+    : (event.summary || "(no summary)");
 
   return (
     <article
@@ -259,7 +304,7 @@ function PostCard({ event, actor, project }: PostCardProps) {
       <hr className="mt-3 mb-4 border-stone-100" />
 
       <div className="text-[15px] leading-relaxed text-stone-800 whitespace-pre-wrap break-words">
-        {event.summary || "(no summary)"}
+        {displayedSummary}
       </div>
 
       {expanded && triggerEventId != null && (
@@ -279,6 +324,16 @@ function PostCard({ event, actor, project }: PostCardProps) {
       ) : null}
     </article>
   );
+}
+
+function buildLegacyTechnicalSummary(event: FeedEvent, project: FeedProject | null): string {
+  const what = event.summary?.trim() || "Updates this pull request";
+  const area = project?.name || project?.repo || event.repo || "the project";
+  return [
+    `What it does: ${what}`,
+    "How it works: The detailed implementation is in the pull request.",
+    `What it touches: ${area}`,
+  ].join("\n");
 }
 
 function PrDetails({

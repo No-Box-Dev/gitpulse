@@ -30,7 +30,7 @@ export async function onRequestGet(context) {
     .filter(Boolean);
 
   let sql =
-    "SELECT id, delivery_id, source, type, actor_id, project_id, org, repo, summary, payload_json, created_at FROM events WHERE owner_id = ?";
+    "SELECT id, delivery_id, source, type, actor_id, project_id, org, repo, summary, technical_summary, payload_json, created_at FROM events WHERE owner_id = ?";
   const binds = [orgLogin];
   if (type) { sql += " AND type = ?"; binds.push(type); }
   if (projectId) { sql += " AND project_id = ?"; binds.push(projectId); }

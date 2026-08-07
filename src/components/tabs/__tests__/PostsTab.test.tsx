@@ -78,6 +78,7 @@ describe("PostsTab", () => {
                 actor_id: "a1",
                 project_id: "p1",
                 summary: "Shipped a new feature",
+                technical_summary: "What it does: Adds a feature\nHow it works: Updates the API\nWhat it touches: API routes",
                 payload_json: "{}",
                 created_at: new Date().toISOString(),
                 org: "x",
@@ -94,6 +95,35 @@ describe("PostsTab", () => {
     renderTab();
     expect(screen.getByText("Shipped a new feature")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
+  });
+
+  it("switches Opened and Merged cards between social and technical copy without refetching", () => {
+    mActors.mockReturnValue({ data: [], isLoading: false });
+    mProjects.mockReturnValue({ data: [], isLoading: false });
+    mPosts.mockReturnValue({
+      data: {
+        pages: [{ events: [{
+          id: 1,
+          actor_id: null,
+          project_id: null,
+          summary: "I fixed duplicate charges.",
+          technical_summary: "What it does: Stops duplicate charges\nHow it works: Reuses payment attempts\nWhat it touches: Billing retries",
+          payload_json: "{}",
+          created_at: new Date().toISOString(),
+          org: "x",
+          repo: "billing",
+        }] }],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+    });
+    renderTab();
+
+    expect(screen.getByText("I fixed duplicate charges.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Technical" }));
+    expect(screen.getByText(/What it does: Stops duplicate charges/)).toBeInTheDocument();
+    expect(mPosts).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "post" }));
   });
 
   it("renders 'Failed to load feed' on error", () => {

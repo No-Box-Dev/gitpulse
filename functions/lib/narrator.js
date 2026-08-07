@@ -38,6 +38,7 @@ import {
 } from "./slack";
 
 const MAX_OUTPUT_LENGTH = 800;
+const MAX_TECHNICAL_OUTPUT_LENGTH = 1200;
 // Release notes are inherently more verbose than chat posts (structured
 // sections + recommendations). Give them a bigger budget so multi-line
 // notes don't get truncated mid-sentence.
@@ -101,10 +102,16 @@ export async function narrateEvent(env, eventId) {
   const orgId = await resolveOrgId(env.DB, row.owner_id);
   const reused = await findExistingPrNarrative(env.DB, row.owner_id, row.repo, prNumber);
   let summary;
+  let technicalSummary;
   let model;
   let source;
   if (reused) {
     summary = reused.summary;
+    technicalSummary = reused.technicalSummary || buildFallbackTechnicalSummary({
+      projectName: project.name,
+      eventSummary: row.summary,
+      payload: triggerPayload,
+    });
     model = `reused:${reused.model}`;
     source = "narrator-reused";
   } else {
@@ -125,10 +132,13 @@ export async function narrateEvent(env, eventId) {
     source = "narrator";
 
     if (text) {
-      const trimmed = text.trim();
-      summary = trimmed.length > MAX_OUTPUT_LENGTH
-        ? trimmed.slice(0, MAX_OUTPUT_LENGTH - 1).trimEnd() + "…"
-        : trimmed;
+      const generated = parseNarrativeOutput(text, {
+        projectName: project.name,
+        eventSummary: row.summary,
+        payload: triggerPayload,
+      });
+      summary = limitText(generated.social, MAX_OUTPUT_LENGTH);
+      technicalSummary = limitText(generated.technicalSummary, MAX_TECHNICAL_OUTPUT_LENGTH);
       model = llmConfig.model;
     } else {
       // LLM unavailable (no key, timeout, HTTP error, model rejected the
@@ -138,6 +148,11 @@ export async function narrateEvent(env, eventId) {
       // model name) rather than failing silently and forever.
       if (!row.summary) return;
       summary = row.summary;
+      technicalSummary = buildFallbackTechnicalSummary({
+        projectName: project.name,
+        eventSummary: row.summary,
+        payload: triggerPayload,
+      });
       model = "fallback";
       await recordFailure(env.DB, {
         ownerId: row.owner_id,
@@ -154,8 +169,8 @@ export async function narrateEvent(env, eventId) {
   // spend; this clause is the at-most-once guarantee for concurrent
   // writers that both pass the SELECT.
   const insertResult = await env.DB.prepare(
-    `INSERT INTO events (source, type, actor_id, project_id, org, repo, summary, payload_json, owner_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (source, type, actor_id, project_id, org, repo, summary, technical_summary, payload_json, owner_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT DO NOTHING`
   ).bind(
     source,
@@ -165,6 +180,7 @@ export async function narrateEvent(env, eventId) {
     row.org,
     row.repo,
     summary,
+    technicalSummary,
     JSON.stringify({
       trigger_event_id: row.id,
       trigger_type: row.type,
@@ -390,16 +406,25 @@ export async function narratePrOpened(env, eventId) {
   const text = await completeNarrative(llmConfig, PR_OPENED_SYSTEM, userMessage);
 
   let summary;
+  let technicalSummary;
   let model;
   if (text) {
-    const trimmed = text.trim();
-    summary = trimmed.length > MAX_OUTPUT_LENGTH
-      ? trimmed.slice(0, MAX_OUTPUT_LENGTH - 1).trimEnd() + "…"
-      : trimmed;
+    const generated = parseNarrativeOutput(text, {
+      projectName: project.name,
+      eventSummary: row.summary,
+      payload: triggerPayload,
+    });
+    summary = limitText(generated.social, MAX_OUTPUT_LENGTH);
+    technicalSummary = limitText(generated.technicalSummary, MAX_TECHNICAL_OUTPUT_LENGTH);
     model = llmConfig.model;
   } else {
     if (!row.summary) return;
     summary = row.summary;
+    technicalSummary = buildFallbackTechnicalSummary({
+      projectName: project.name,
+      eventSummary: row.summary,
+      payload: triggerPayload,
+    });
     model = "fallback";
     await recordFailure(env.DB, {
       ownerId: row.owner_id,
@@ -410,8 +435,8 @@ export async function narratePrOpened(env, eventId) {
   }
 
   const insertResult = await env.DB.prepare(
-    `INSERT INTO events (source, type, actor_id, project_id, org, repo, summary, payload_json, owner_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (source, type, actor_id, project_id, org, repo, summary, technical_summary, payload_json, owner_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT DO NOTHING`
   ).bind(
     "pr-opened-narrator",
@@ -421,6 +446,7 @@ export async function narratePrOpened(env, eventId) {
     row.org,
     row.repo,
     summary,
+    technicalSummary,
     JSON.stringify({
       trigger_event_id: row.id,
       trigger_type: row.type,
@@ -453,7 +479,7 @@ export async function narratePrOpened(env, eventId) {
 // the feed doesn't stay stuck on the raw title.
 async function findExistingPrNarrative(db, ownerId, repo, prNumber) {
   const row = await db.prepare(
-    `SELECT summary, json_extract(payload_json, '$.model') AS model
+    `SELECT summary, technical_summary, json_extract(payload_json, '$.model') AS model
        FROM events
        WHERE owner_id = ? AND repo = ? AND type = 'pr_narrative'
          AND CAST(json_extract(payload_json, '$.pr_number') AS INTEGER) = ?
@@ -461,7 +487,92 @@ async function findExistingPrNarrative(db, ownerId, repo, prNumber) {
   ).bind(ownerId, repo, prNumber).first();
   if (!row?.summary) return null;
   if (row.model === "fallback") return null;
-  return { summary: row.summary, model: row.model ?? "unknown" };
+  return {
+    summary: row.summary,
+    technicalSummary: row.technical_summary ?? null,
+    model: row.model ?? "unknown",
+  };
+}
+
+// Narrators ask for a JSON pair so social + technical copy cost one LLM call.
+// Plain text remains accepted for older/custom providers; the social text is
+// preserved and the technical view gets a deterministic three-line fallback.
+export function parseNarrativeOutput(text, context) {
+  const raw = String(text ?? "").trim();
+  let parsed = null;
+  const unfenced = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const candidates = [unfenced];
+  const firstBrace = unfenced.indexOf("{");
+  const lastBrace = unfenced.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(unfenced.slice(firstBrace, lastBrace + 1));
+  }
+  for (const candidate of candidates) {
+    try {
+      parsed = JSON.parse(candidate);
+      break;
+    } catch {
+      // Try the next candidate. Some providers preface otherwise-valid JSON.
+    }
+  }
+
+  const social = typeof parsed?.social === "string" && parsed.social.trim()
+    ? parsed.social.trim()
+    : raw;
+  const technicalSummary = normalizeTechnicalSummary(parsed?.technical)
+    || buildFallbackTechnicalSummary(context);
+  return { social, technicalSummary };
+}
+
+function normalizeTechnicalSummary(value) {
+  const lines = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/\r?\n/)
+      : [];
+  const cleaned = lines
+    .map((line) => String(line).replace(/^[-*\d.)\s]+/, "").trim())
+    .filter(Boolean);
+  if (cleaned.length !== 3) return null;
+
+  const labels = ["What it does", "How it works", "What it touches"];
+  return cleaned.map((line, index) => {
+    const content = line.replace(/^(what it does|how it works|what it touches)\s*:\s*/i, "");
+    return `${labels[index]}: ${content}`;
+  }).join("\n");
+}
+
+function buildFallbackTechnicalSummary({ projectName, eventSummary, payload }) {
+  const pr = payload?.pr ?? {};
+  const title = cleanSentence(pr.title || eventSummary || "Updates this pull request");
+  const bodyLine = typeof pr.body === "string"
+    ? pr.body.split(/\r?\n/).map(cleanSentence).find((line) => line.length > 12)
+    : "";
+  const how = bodyLine || "Updates the implementation described by the pull request";
+  const stats = typeof pr.changed_files === "number"
+    ? ` across ${pr.changed_files} changed file${pr.changed_files === 1 ? "" : "s"}`
+    : "";
+  const area = cleanSentence(projectName || "the project");
+  return [
+    `What it does: ${title}`,
+    `How it works: ${how}`,
+    `What it touches: ${area}${stats}`,
+  ].join("\n");
+}
+
+function cleanSentence(value) {
+  return String(value ?? "")
+    .replace(/^[-*#\s]+/, "")
+    .replace(/^PR\s+#\d+\s*:\s*/i, "")
+    .trim()
+    .replace(/[.!?]+$/, "");
+}
+
+function limitText(text, maxLength) {
+  const trimmed = String(text ?? "").trim();
+  return trimmed.length > maxLength
+    ? trimmed.slice(0, maxLength - 1).trimEnd() + "…"
+    : trimmed;
 }
 
 // Mirror a narration to Slack via the org's installed Unticket bot. Resolves

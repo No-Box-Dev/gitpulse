@@ -82,7 +82,7 @@ describe("GET /api/prs", () => {
     const db = makeDb({
       batchResults: [
         { results: [{ count: 1 }] },
-        { results: [{ repo: "api", number: 100, title: "Fix", draft: 1, requested_reviewers_json: '[{"login":"alice"}]', labels_json: '[]' }] },
+        { results: [{ repo: "api", number: 100, title: "Fix", draft: 1, head_sha: "a".repeat(40), requested_reviewers_json: '[{"login":"alice"}]', labels_json: '[]' }] },
       ],
     });
     const res = await onRequestGet(makeCtx({ db }));
@@ -90,6 +90,7 @@ describe("GET /api/prs", () => {
     expect(body.data[0].draft).toBe(true);
     expect(body.data[0].requested_reviewers).toEqual([{ login: "alice" }]);
     expect(body.data[0].labels).toEqual([]);
+		expect(body.data[0].head_sha).toBe("a".repeat(40));
     expect(body.totalCount).toBe(1);
   });
 

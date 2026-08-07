@@ -182,8 +182,8 @@ export async function syncPRs(db, token, orgId, orgLogin, repo, since, env = nul
   );
 
   const stmt = db.prepare(
-    `INSERT INTO pull_requests (org_id, repo, number, title, state, author, author_avatar, draft, head_ref, base_ref, merged_at, created_at, updated_at, html_url, requested_reviewers_json, labels_json, merged_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO pull_requests (org_id, repo, number, title, state, author, author_avatar, draft, head_ref, head_sha, base_ref, merged_at, created_at, updated_at, html_url, requested_reviewers_json, labels_json, merged_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(org_id, repo, number) DO UPDATE SET
        title = excluded.title,
        state = excluded.state,
@@ -191,6 +191,7 @@ export async function syncPRs(db, token, orgId, orgLogin, repo, since, env = nul
        author_avatar = excluded.author_avatar,
        draft = excluded.draft,
        head_ref = excluded.head_ref,
+       head_sha = excluded.head_sha,
        base_ref = excluded.base_ref,
        merged_at = excluded.merged_at,
        updated_at = excluded.updated_at,
@@ -214,6 +215,7 @@ export async function syncPRs(db, token, orgId, orgLogin, repo, since, env = nul
           pr.user?.avatar_url ?? null,
           pr.draft ? 1 : 0,
           pr.head?.ref ?? null,
+          pr.head?.sha ?? null,
           pr.base?.ref ?? null,
           pr.merged_at,
           pr.created_at,
@@ -1053,8 +1055,8 @@ export async function upsertFeature(db, orgId, issue) {
 export async function upsertPR(db, orgId, repo, pr) {
   await db
     .prepare(
-      `INSERT INTO pull_requests (org_id, repo, number, title, state, author, author_avatar, draft, head_ref, base_ref, merged_at, created_at, updated_at, html_url, requested_reviewers_json, labels_json, merged_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO pull_requests (org_id, repo, number, title, state, author, author_avatar, draft, head_ref, head_sha, base_ref, merged_at, created_at, updated_at, html_url, requested_reviewers_json, labels_json, merged_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(org_id, repo, number) DO UPDATE SET
          title = excluded.title,
          state = excluded.state,
@@ -1062,6 +1064,7 @@ export async function upsertPR(db, orgId, repo, pr) {
          author_avatar = excluded.author_avatar,
          draft = excluded.draft,
          head_ref = excluded.head_ref,
+         head_sha = excluded.head_sha,
          base_ref = excluded.base_ref,
          merged_at = excluded.merged_at,
          updated_at = excluded.updated_at,
@@ -1080,6 +1083,7 @@ export async function upsertPR(db, orgId, repo, pr) {
       pr.user?.avatar_url ?? null,
       pr.draft ? 1 : 0,
       pr.head?.ref ?? null,
+      pr.head?.sha ?? null,
       pr.base?.ref ?? null,
       pr.merged_at ?? null,
       pr.created_at,

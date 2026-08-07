@@ -19,6 +19,7 @@ import {
   narrateEvent,
   narrateReleaseNotes,
   narratePrOpened,
+  parseNarrativeOutput,
   NARRATABLE_TYPES,
   NARRATABLE_TYPES_OPENED,
 } from "../narrator.js";
@@ -37,7 +38,7 @@ function makeDb({
   existingReleaseNote = null,
   existingNarrative = null,
   existingPrNarrative = null,
-  reusablePrNarrative = null, // { summary, model } — from findExistingPrNarrative reuse SELECT
+  reusablePrNarrative = null, // { summary, technical_summary, model } — reuse SELECT
   org = { id: "org-1" },
 } = {}) {
   const calls = { firsts: [], runs: [] };
@@ -198,7 +199,7 @@ describe("narrateEvent — happy path", () => {
     expect(db._calls.runs).toHaveLength(1);
     const run = db._calls.runs[0];
     expect(run.sql).toContain("INSERT INTO events");
-    const [source, type, actorId, projId, org, repo, summary, payloadJson, ownerId, createdAt] = run.binds;
+    const [source, type, actorId, projId, org, repo, summary, technicalSummary, payloadJson, ownerId, createdAt] = run.binds;
     expect(source).toBe("narrator");
     expect(type).toBe("narrative");
     expect(actorId).toBe("actor-1");
@@ -206,6 +207,11 @@ describe("narrateEvent — happy path", () => {
     expect(org).toBe("no-box-dev");
     expect(repo).toBe("unticket");
     expect(summary).toBe("I merged the login button.");
+    expect(technicalSummary).toBe([
+      "What it does: do thing",
+      "How it works: Updates the implementation described by the pull request",
+      "What it touches: unticket",
+    ].join("\n"));
     expect(ownerId).toBe("owner-1");
     expect(createdAt).toBe("2026-05-17T10:00:00Z");
     const payload = JSON.parse(payloadJson);
@@ -251,7 +257,7 @@ describe("narrateEvent — fallback path", () => {
     expect(db._calls.runs).toHaveLength(1);
     const run = db._calls.runs[0];
     expect(run.binds[6]).toBe("PR #42: do thing");
-    const payload = JSON.parse(run.binds[7]);
+    const payload = JSON.parse(run.binds[8]);
     expect(payload.model).toBe("fallback");
   });
 
@@ -458,7 +464,7 @@ describe("narrateEvent — payload parsing", () => {
     // pr_number is denormalized into the narrative payload for the
     // PR-identity UNIQUE INDEX. Verify it's written.
     const insert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
-    expect(JSON.parse(insert.binds[7]).pr_number).toBe(42);
+    expect(JSON.parse(insert.binds[8]).pr_number).toBe(42);
   });
 });
 
@@ -597,10 +603,11 @@ describe("narratePrOpened — happy path", () => {
     await narratePrOpened(ENV(db), 1);
     const insert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
     expect(insert).toBeDefined();
-    const [source, type, , , , , summary, payloadJson] = insert.binds;
+    const [source, type, , , , , summary, technicalSummary, payloadJson] = insert.binds;
     expect(source).toBe("pr-opened-narrator");
     expect(type).toBe("pr_narrative");
     expect(summary).toBe("Fixing the login redirect.");
+    expect(technicalSummary).toContain("What it does: do thing");
     const payload = JSON.parse(payloadJson);
     expect(payload.pr_number).toBe(42);
     expect(payload.trigger_type).toBe("github:pr:opened");
@@ -625,7 +632,7 @@ describe("narratePrOpened — happy path", () => {
     await narratePrOpened(ENV(db), 1);
     const insert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
     expect(insert.binds[6]).toBe("PR #42: do thing");
-    expect(JSON.parse(insert.binds[7]).model).toBe("fallback");
+    expect(JSON.parse(insert.binds[8]).model).toBe("fallback");
     expect(recordFailure).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ op: "narratePrOpened" }),
@@ -651,10 +658,11 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
     expect(completeNarrative).not.toHaveBeenCalled();
     const insert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
     expect(insert).toBeDefined();
-    const [source, type, , , , , summary, payloadJson] = insert.binds;
+    const [source, type, , , , , summary, technicalSummary, payloadJson] = insert.binds;
     expect(source).toBe("narrator-reused");
     expect(type).toBe("narrative");
     expect(summary).toBe("Fixing the login redirect.");
+    expect(technicalSummary).toContain("What it does:");
     const payload = JSON.parse(payloadJson);
     expect(payload.model).toBe("reused:glm-5");
   });
@@ -703,6 +711,52 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
     completeNarrative.mockResolvedValue("I merged it.");
     await narrateEvent(ENV(db), 1);
     expect(postSlackMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("parseNarrativeOutput", () => {
+  const context = {
+    projectName: "billing-service",
+    eventSummary: "PR #42: stop duplicate invoices",
+    payload: { pr: { title: "stop duplicate invoices", changed_files: 3 } },
+  };
+
+  it("returns social copy and an exact three-line simple-English technical summary", () => {
+    const result = parseNarrativeOutput(JSON.stringify({
+      social: "I stopped invoice retries from charging twice.",
+      technical: [
+        "What it does: Prevents duplicate invoice charges",
+        "How it works: Reuses the existing payment attempt during retries",
+        "What it touches: Invoice retry and payment handling",
+      ],
+    }), context);
+
+    expect(result.social).toBe("I stopped invoice retries from charging twice.");
+    expect(result.technicalSummary.split("\n")).toEqual([
+      "What it does: Prevents duplicate invoice charges",
+      "How it works: Reuses the existing payment attempt during retries",
+      "What it touches: Invoice retry and payment handling",
+    ]);
+  });
+
+  it("keeps plain social output and always supplies a deterministic technical fallback", () => {
+    const result = parseNarrativeOutput("I stopped duplicate invoice charges.", context);
+    expect(result.social).toBe("I stopped duplicate invoice charges.");
+    expect(result.technicalSummary.split("\n")).toHaveLength(3);
+    expect(result.technicalSummary).toContain("What it touches: billing-service across 3 changed files");
+  });
+
+  it("accepts valid JSON wrapped in provider commentary", () => {
+    const result = parseNarrativeOutput(`Here is the result:\n${JSON.stringify({
+      social: "I fixed it.",
+      technical: ["Stops duplicates", "Reuses attempts", "Billing retries"],
+    })}`, context);
+    expect(result.social).toBe("I fixed it.");
+    expect(result.technicalSummary).toBe([
+      "What it does: Stops duplicates",
+      "How it works: Reuses attempts",
+      "What it touches: Billing retries",
+    ].join("\n"));
   });
 });
 

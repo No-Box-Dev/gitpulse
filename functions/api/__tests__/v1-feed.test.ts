@@ -51,6 +51,7 @@ function row(overrides: Record<string, unknown> = {}) {
     created_at: "2025-01-15T10:00:00Z",
     repo: "unticket",
     summary: "shipped a thing",
+    technical_summary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: Unticket",
     payload_json: JSON.stringify({
       trigger_type: "github:pr:merged",
       pr: {
@@ -87,6 +88,7 @@ describe("GET /api/v1/feed", () => {
       actor: { login: "alice", name: "Alice A", avatarUrl: "https://gh/a.png" },
       repo: "unticket",
       summary: "shipped a thing",
+      technicalSummary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: Unticket",
       pr: {
         number: 42,
         title: "Feature X",
@@ -182,6 +184,7 @@ describe("GET /api/v1/feed", () => {
       actor: { login: "unknown", name: null, avatarUrl: null },
       repo: "somerepo",
       summary: "raw",
+      technicalSummary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: Unticket",
       pr: null,
     });
   });

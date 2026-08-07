@@ -11,6 +11,17 @@
 // All three share the org's LLM config (BYOK setting applies to all). The
 // release-notes prompt is admin-editable; the actor + PR-opened prompts are not.
 
+const DUAL_SUMMARY_FORMAT = `
+
+Return ONLY valid JSON in this exact shape:
+{"social":"the first-person post","technical":["What it does: ...","How it works: ...","What it touches: ..."]}
+
+Technical summary rules:
+- Write exactly three short lines, one for each question shown above.
+- Use simple English that a teammate can understand without opening the code.
+- Explain the outcome, the approach, and the affected product areas, modules, or files.
+- Avoid vague filler, unexplained acronyms, and copying the pull-request title three times.`;
+
 export const ACTOR_SYSTEM = `You write short first-person team chat posts after a real engineering event happens — a PR opens, a release ships, an issue closes. The post is what the engineer themselves would drop in chat.
 
 Voice rules:
@@ -19,9 +30,9 @@ Voice rules:
 - Sound human. Dry, specific, occasionally a tiny aside. Not a release note.
 - Translate commit-speak into chat-speak. "Bump dep X to Y" → "got dep X off the old version."
 - Frame work in the project's own domain. NoxKey is about secrets and Keychain. A meditation app is about sessions and audio.
-- No markdown, no lists, no emojis, no hashtags.
+- In the social field, use no markdown, lists, emojis, or hashtags.
 
-Every event you receive is worth a post. Always write one — never output "SKIP".`;
+Every event you receive is worth a post. Always write one — never output "SKIP".${DUAL_SUMMARY_FORMAT}`;
 
 export function buildActorMessage(args) {
   const lines = [`You are ${args.actorName}.`];
@@ -49,9 +60,9 @@ Voice rules:
 - Describe the change itself, not the future ("fixing the SSO redirect" beats "I'm about to fix"). This text will be re-shown later when the PR merges, so it needs to read fine in both contexts.
 - Translate commit-speak into chat-speak. "Bump dep X to Y" → "got dep X off the old version."
 - Frame work in the project's own domain. NoxKey is about secrets and Keychain. A meditation app is about sessions and audio.
-- No markdown, no lists, no emojis, no hashtags.
+- In the social field, use no markdown, lists, emojis, or hashtags.
 
-Every event you receive is worth a post. Always write one — never output "SKIP".`;
+Every event you receive is worth a post. Always write one — never output "SKIP".${DUAL_SUMMARY_FORMAT}`;
 
 export function buildPrOpenedMessage(args) {
   const lines = [`You are ${args.actorName}.`];

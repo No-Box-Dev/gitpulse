@@ -36,6 +36,7 @@ export interface FeedEvent {
   org: string | null;
   repo: string | null;
   summary: string | null;
+  technical_summary: string | null;
   payload_json: string | null;
   created_at: string;
 }
@@ -117,4 +118,3 @@ export const fetchEvents = (q: EventQuery = {}) =>
 
 export const fetchEventsPage = (q: EventQuery = {}) =>
   apiGet<EventsPage>(buildEventsUrl(q));
-

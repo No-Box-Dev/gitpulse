@@ -170,13 +170,19 @@ async function findRenarrateTargets(db, ownerId, projectId, currentModel) {
          FROM events
         WHERE owner_id = ? AND project_id = ?
           AND type IN ('narrative', 'release_notes')
-          AND COALESCE(json_extract(payload_json, '$.model'), '') != ?
+          AND (
+            COALESCE(technical_summary, '') = ''
+            OR COALESCE(json_extract(payload_json, '$.model'), '') != ?
+          )
         ORDER BY id DESC`
     : `SELECT id, type, json_extract(payload_json, '$.trigger_event_id') AS trigger_event_id
          FROM events
         WHERE owner_id = ? AND project_id = ?
           AND type IN ('narrative', 'release_notes')
-          AND json_extract(payload_json, '$.model') = 'fallback'
+          AND (
+            COALESCE(technical_summary, '') = ''
+            OR json_extract(payload_json, '$.model') = 'fallback'
+          )
         ORDER BY id DESC`;
   const stmt = currentModel
     ? db.prepare(sql).bind(ownerId, projectId, currentModel)

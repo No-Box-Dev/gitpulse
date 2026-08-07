@@ -12,7 +12,7 @@ export async function onRequestGet(context) {
   if (!Number.isFinite(numericId)) return errorResponse("Invalid id", 400);
 
   const row = await context.env.DB.prepare(
-    `SELECT id, delivery_id, source, type, actor_id, project_id, org, repo, summary, payload_json, created_at
+    `SELECT id, delivery_id, source, type, actor_id, project_id, org, repo, summary, technical_summary, payload_json, created_at
      FROM events
      WHERE id = ? AND owner_id = ?`
   ).bind(numericId, orgLogin).first();

@@ -42,8 +42,12 @@ vi.mock("@tanstack/react-query", () => {
   const qc = { invalidateQueries: vi.fn(), refetchQueries: vi.fn() };
   return {
     useQueryClient: () => qc,
-    useQuery: () => ({
-      data: { failures: [] },
+    useQuery: ({ queryKey }: { queryKey?: string[] }) => ({
+      data: queryKey?.[0] === "slack-status"
+        ? { connected: true, canConfigure: true, appConfigured: true, health: "ok" }
+        : queryKey?.[0] === "slack-channels"
+          ? [{ id: "C1", name: "feed", is_private: false }]
+          : { failures: [] },
       isLoading: false,
       isError: false,
       isFetching: false,
@@ -52,7 +56,7 @@ vi.mock("@tanstack/react-query", () => {
   };
 });
 
-import { SettingsTab } from "../SettingsTab";
+import { SettingsTab, SlackIntegrationCard } from "../SettingsTab";
 import { useAuth } from "@/lib/auth";
 import { useOrgMembers, useIsAdmin } from "@/hooks/useGitHub";
 import {
@@ -135,5 +139,14 @@ describe("SettingsTab", () => {
     expect(screen.getByText("Manual sync")).toBeInTheDocument();
     expect(screen.getByText("Sync features")).toBeInTheDocument();
     expect(screen.getByText("Sync from GitHub")).toBeInTheDocument();
+  });
+
+  it("shows separate NoxFeed routes for posts and release notes", () => {
+    mSettings.mockReturnValue({ data: { slack: { noxFeedChannelId: "C1" } } });
+    render(<SlackIntegrationCard />);
+    expect(screen.getByText("NoxFeed")).toBeInTheDocument();
+    expect(screen.getByText("Posts")).toBeInTheDocument();
+    expect(screen.getByText("Release Notes")).toBeInTheDocument();
+    expect(screen.getByText("Route narrated posts and release notes independently.")).toBeInTheDocument();
   });
 });

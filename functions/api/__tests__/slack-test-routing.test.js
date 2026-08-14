@@ -42,4 +42,17 @@ describe("Slack route tests", () => {
     expect(response.status).toBe(400);
     expect(postSlackMessage).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["noxfeed_posts", "NoxFeed posts delivery test for acme"],
+    ["noxfeed_release_notes", "NoxFeed release notes delivery test for acme"],
+  ])("sends a distinct %s test payload", async (kind, text) => {
+    const response = await onRequestPost(context({ kind, channelId: "C-FEED" }));
+    expect(response.status).toBe(200);
+    expect(postSlackMessage).toHaveBeenCalledWith(
+      "xoxb-test",
+      "C-FEED",
+      expect.objectContaining({ text }),
+    );
+  });
 });

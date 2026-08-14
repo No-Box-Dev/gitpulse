@@ -245,11 +245,10 @@ export interface OrgSettings {
     fallbackChannelId?: string;
     noxAlertChannelId?: string;
     unticketChannelId?: string;
-    noxFeedChannelId?: string;
-    /** @deprecated Migrated on read to noxFeedChannelId. */
     postsChannelId?: string;
-    /** @deprecated Migrated on read to noxFeedChannelId. */
     releaseNotesChannelId?: string;
+    /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
+    noxFeedChannelId?: string;
   };
   // Policy for newly-discovered repos.
   //  - 'include' (default): the repo is active immediately (current behavior).

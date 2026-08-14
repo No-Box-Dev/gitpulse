@@ -152,7 +152,8 @@ export async function onRequestPut(context) {
     const clean = (value) => typeof value === "string" ? value.trim() : "";
     const fallbackChannelId = clean(slack.fallbackChannelId);
     const routes = [
-      { sources: ["posts", "release_notes"], channelId: clean(slack.noxFeedChannelId) || clean(slack.postsChannelId) || clean(slack.releaseNotesChannelId) || fallbackChannelId },
+      { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
+      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
       { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId },
       { sources: ["unticket"], channelId: clean(slack.unticketChannelId) || fallbackChannelId },
     ];

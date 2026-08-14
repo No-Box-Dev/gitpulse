@@ -36,6 +36,8 @@ export interface IntegrationsStatus {
       noxAlert: string | null;
       unticket: string | null;
       noxFeed: string | null;
+      noxFeedPosts: string | null;
+      noxFeedReleaseNotes: string | null;
     };
     health: "disconnected" | "unknown" | "ok" | "degraded";
     lastCheckedAt: string | null;

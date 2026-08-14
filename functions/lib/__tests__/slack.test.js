@@ -291,7 +291,7 @@ describe("resolveSlackChannels", () => {
       postsChannelId: "", releaseNotesChannelId: "",
     });
   });
-  it("returns the configured channel IDs", async () => {
+  it("adopts a combined NoxFeed route for both streams", async () => {
     const row = { data: JSON.stringify({ slack: {
       fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
     } }) };
@@ -300,10 +300,12 @@ describe("resolveSlackChannels", () => {
       postsChannelId: "CF", releaseNotesChannelId: "CF",
     });
   });
-  it("adopts the old feed channel without a data migration", async () => {
-    const row = { data: JSON.stringify({ slack: { postsChannelId: "C-LEGACY" } }) };
+  it("keeps dedicated NoxFeed routes distinct", async () => {
+    const row = { data: JSON.stringify({ slack: {
+      postsChannelId: "C-POSTS", releaseNotesChannelId: "C-RELEASES",
+    } }) };
     expect(await resolveSlackChannels(mkDb(row), "org-1")).toMatchObject({
-      noxFeedChannelId: "C-LEGACY", postsChannelId: "C-LEGACY", releaseNotesChannelId: "C-LEGACY",
+      postsChannelId: "C-POSTS", releaseNotesChannelId: "C-RELEASES",
     });
   });
   it("tolerates corrupt JSON", async () => {
@@ -315,12 +317,14 @@ describe("resolveSlackChannels", () => {
 
   it("uses service-specific channels before the organization fallback", () => {
     const channels = {
-      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU",
+      postsChannelId: "CP", releaseNotesChannelId: "CR",
     };
     expect(resolveSlackRoute(channels, "noxalert", "CS")).toBe("CA");
     expect(resolveSlackRoute(channels, "noxspot", "CS")).toBe("CS");
     expect(resolveSlackRoute(channels, "unticket")).toBe("CU");
-    expect(resolveSlackRoute(channels, "noxfeed")).toBe("CF");
+    expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("CP");
+    expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("CR");
   });
 
   it("falls back independently for every service", () => {
@@ -328,7 +332,8 @@ describe("resolveSlackChannels", () => {
     expect(resolveSlackRoute(channels, "noxalert", "CS")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxspot")).toBe("C0");
     expect(resolveSlackRoute(channels, "unticket")).toBe("C0");
-    expect(resolveSlackRoute(channels, "noxfeed")).toBe("C0");
+    expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("C0");
+    expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("C0");
   });
 });
 

@@ -417,19 +417,12 @@ const REDIRECT_PATH = "/api/slack/oauth/callback";
 // code exchange must use this exact allowlisted URI as well; Slack rejects a
 // callback when the authorize and exchange redirect URIs differ.
 export const SLACK_OAUTH_REDIRECT_URI = "https://app.unticket.ai/api/slack/oauth/callback";
-const ALLOWED_SLACK_CALLBACKS = new Set([
-  SLACK_OAUTH_REDIRECT_URI,
-  "https://api.noxspot.dev/slack/callback",
-]);
 
-// Keep the Slack transport swappable without changing the Nox data plane.
-// Blindspot already allowlists the NoxSpot compatibility bridge, while the
-// future NoxConnect app uses the central callback directly.
-export function resolveSlackOAuthRedirectUri(env) {
-  const configured = String(env?.SLACK_OAUTH_REDIRECT_URI ?? "").trim();
-  return ALLOWED_SLACK_CALLBACKS.has(configured)
-    ? configured
-    : SLACK_OAUTH_REDIRECT_URI;
+// NoxConnect has one OAuth owner and one callback. Ignore the retired
+// SLACK_OAUTH_REDIRECT_URI deployment variable so an old NoxSpot/Blindspot
+// compatibility value can never drift from the versioned Slack manifest.
+export function resolveSlackOAuthRedirectUri() {
+  return SLACK_OAUTH_REDIRECT_URI;
 }
 // `links:read` + `links:write` power the link-shared unfurl handler at
 // /api/slack/events. Existing installs that didn't get these scopes will

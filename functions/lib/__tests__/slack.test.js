@@ -131,10 +131,10 @@ describe("buildOAuthAuthorizeUrl", () => {
     expect(url.searchParams.get("redirect_uri")).toBe(SLACK_OAUTH_REDIRECT_URI);
   });
 
-  it("uses the allowlisted NoxSpot bridge for the Blindspot app", () => {
+  it("ignores the retired NoxSpot callback override", () => {
     expect(resolveSlackOAuthRedirectUri({
       SLACK_OAUTH_REDIRECT_URI: "https://api.noxspot.dev/slack/callback",
-    })).toBe("https://api.noxspot.dev/slack/callback");
+    })).toBe(SLACK_OAUTH_REDIRECT_URI);
   });
 
   it("rejects an untrusted configured callback", () => {

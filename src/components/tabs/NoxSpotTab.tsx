@@ -152,6 +152,7 @@ function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof us
             site={site}
             slackConnected={Boolean(integrations.data?.slack.connected && integrations.data?.canConfigure)}
             channels={slackChannels.data ?? []}
+            fallbackChannelId={integrations.data?.slack.channels.fallback ?? ""}
           />
         ))}
       </div>
@@ -163,10 +164,12 @@ function SiteCard({
   site,
   slackConnected,
   channels,
+  fallbackChannelId,
 }: {
   site: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>[number];
   slackConnected: boolean;
   channels: { id: string; name: string }[];
+  fallbackChannelId: string;
 }) {
   const [copied, setCopied] = useState(false);
   const update = useUpdateNoxSpotSite();
@@ -207,17 +210,17 @@ function SiteCard({
             onChange={(event) => update.mutate({ id: site.id, slackChannelId: event.target.value || null })}
             className="min-w-48 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"
           >
-            <option value="">No channel</option>
+            <option value="">{fallbackChannelId ? "Organization fallback" : "No channel"}</option>
             {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
           </select>
         ) : (
           <span className="text-xs text-stone-400">Connect Slack once in Integrations to enable alerts.</span>
         )}
-        {slackConnected && site.slackChannelId ? (
+        {slackConnected && (site.slackChannelId || fallbackChannelId) ? (
           <button
             type="button"
             disabled={testSlack.isPending}
-            onClick={() => testSlack.mutate(site.slackChannelId!)}
+            onClick={() => testSlack.mutate(site.slackChannelId || fallbackChannelId)}
             className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50 disabled:opacity-50"
           >
             {testSlack.isPending ? <Spinner size="sm" /> : <Send size={12} />} {testSlack.isSuccess ? "Sent" : "Test"}
@@ -234,7 +237,7 @@ function SiteCard({
           </button>
         ) : null}
       </div>
-      {site.slackChannelId ? (
+      {site.slackEffectiveChannelId ? (
         <div className="mt-2 space-y-1 text-xs">
           {site.slackPendingCount > 0 ? <p className="text-blue-600">{site.slackPendingCount} notification{site.slackPendingCount === 1 ? "" : "s"} pending delivery.</p> : null}
           {site.slackLastDeliveredAt ? <p className="text-stone-400">Last delivered {new Date(site.slackLastDeliveredAt).toLocaleString()}.</p> : null}

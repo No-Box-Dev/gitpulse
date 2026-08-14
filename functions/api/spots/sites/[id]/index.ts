@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getCtx, jsonResponse, errorResponse } from "../../../../lib/db";
 import { validate } from "../../../../lib/validate";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../../lib/nox-db";
-import { getSlackChannel, resolveSlackInstall } from "../../../../lib/slack.js";
+import { getSlackChannel, resolveSlackChannels, resolveSlackInstall } from "../../../../lib/slack.js";
 import { requeueBlockedForSite } from "../../../../lib/delivery-outbox.js";
 
 interface Ctx {
@@ -86,16 +86,30 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
       await db.prepare(
         `UPDATE delivery_outbox SET channel_id = ?,
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-         WHERE org_id = ? AND site_id = ? AND destination = 'slack' AND status != 'delivered'`,
+         WHERE org_id = ? AND site_id = ? AND source = 'noxspot'
+           AND destination = 'slack' AND status != 'delivered'`,
       ).bind(input.slackChannelId, orgId, context.params.id).run();
       await requeueBlockedForSite({ ...context.env, DB: db }, orgId, context.params.id);
     } else {
-      await db.prepare(
-        `UPDATE delivery_outbox SET status = 'blocked_configuration',
-           last_error_code = 'alerts_disabled', last_error = 'Slack alerts were disabled for this site',
-           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-         WHERE org_id = ? AND site_id = ? AND destination = 'slack' AND status != 'delivered'`,
-      ).bind(orgId, context.params.id).run();
+      const channels = await resolveSlackChannels(db, orgId);
+      if (channels.fallbackChannelId) {
+        await db.prepare(
+          `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+             last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND site_id = ? AND source = 'noxspot'
+             AND destination = 'slack' AND status != 'delivered'`,
+        ).bind(channels.fallbackChannelId, orgId, context.params.id).run();
+        await requeueBlockedForSite({ ...context.env, DB: db }, orgId, context.params.id);
+      } else {
+        await db.prepare(
+          `UPDATE delivery_outbox SET status = 'blocked_configuration',
+             last_error_code = 'alerts_disabled', last_error = 'No NoxSpot site or organization fallback channel is configured',
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND site_id = ? AND source = 'noxspot'
+             AND destination = 'slack' AND status != 'delivered'`,
+        ).bind(orgId, context.params.id).run();
+      }
     }
   }
 

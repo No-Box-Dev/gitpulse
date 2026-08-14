@@ -935,7 +935,8 @@ function ReleaseNotesPromptSection() {
   );
 }
 
-type SlackKind = "narrative" | "release_notes";
+type SlackKind = "fallback" | "noxalert" | "noxspot" | "unticket" | "noxfeed";
+type SlackRouteKey = "fallbackChannelId" | "noxAlertChannelId" | "unticketChannelId" | "noxFeedChannelId";
 
 export function SlackIntegrationCard() {
   const qc = useQueryClient();
@@ -954,17 +955,18 @@ export function SlackIntegrationCard() {
     staleTime: 60_000,
   });
 
-  const persistedPosts = settings?.slack?.postsChannelId ?? "";
-  const persistedNotes = settings?.slack?.releaseNotesChannelId ?? "";
-  // One channel receives both feeds. If an existing install has the two
-  // feed IDs pointing at different channels — including the partial case
-  // where only ONE feed was ever set — the UI collapses to a single
-  // dropdown and Save writes the shown value to both, unifying them.
-  const persistedChannel = persistedPosts || persistedNotes;
-  const hasSplitChannels = persistedPosts !== persistedNotes;
-
-  const [channelDraft, setChannelDraft] = useState<string | null>(null);
-  const channelValue = channelDraft ?? persistedChannel;
+  const persistedChannels: Record<SlackRouteKey, string> = {
+    fallbackChannelId: settings?.slack?.fallbackChannelId ?? "",
+    noxAlertChannelId: settings?.slack?.noxAlertChannelId ?? "",
+    unticketChannelId: settings?.slack?.unticketChannelId ?? "",
+    // Transparently adopt the old combined feed selection.
+    noxFeedChannelId: settings?.slack?.noxFeedChannelId
+      ?? settings?.slack?.postsChannelId
+      ?? settings?.slack?.releaseNotesChannelId
+      ?? "",
+  };
+  const [channelDrafts, setChannelDrafts] = useState<Partial<Record<SlackRouteKey, string>>>({});
+  const channelValue = (key: SlackRouteKey) => channelDrafts[key] ?? persistedChannels[key];
 
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1007,11 +1009,11 @@ export function SlackIntegrationCard() {
     return [{ value: "", label: "— No channel —" }, ...opts];
   }, [channels.data]);
 
-  // Dirty when the single-channel selector deviates from what's persisted,
-  // OR when the persisted state is split across two channels (saving will
-  // unify them, so the admin still needs the Save button to light up).
-  const isDirty =
-    (channelDraft !== null && channelDraft !== persistedChannel) || hasSplitChannels;
+  const hasLegacyFeedChannels = Boolean(
+    settings?.slack?.postsChannelId || settings?.slack?.releaseNotesChannelId,
+  ) && !settings?.slack?.noxFeedChannelId;
+  const isDirty = hasLegacyFeedChannels || (Object.keys(persistedChannels) as SlackRouteKey[])
+    .some((key) => channelValue(key) !== persistedChannels[key]);
 
   async function handleConnect() {
     setError(null);
@@ -1037,7 +1039,7 @@ export function SlackIntegrationCard() {
         // Refetch so the dropdowns don't show stale selections.
         qc.invalidateQueries({ queryKey: ["settings"] }),
       ]);
-      setChannelDraft(null);
+      setChannelDrafts({});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1049,30 +1051,31 @@ export function SlackIntegrationCard() {
     if (!settings) return;
     setError(null);
     try {
-      // One channel receives both feeds. We keep the two per-feed fields on
-      // disk (backend already resolves them separately) so this refactor
-      // stays reversible — we just point both at the same ID.
-      const id = channelValue.trim();
+      const slack = { ...(settings.slack ?? {}) };
+      delete slack.postsChannelId;
+      delete slack.releaseNotesChannelId;
+      for (const key of Object.keys(persistedChannels) as SlackRouteKey[]) {
+        const value = channelValue(key).trim();
+        if (value) slack[key] = value;
+        else delete slack[key];
+      }
       const next: OrgSettings = {
         ...settings,
-        slack: {
-          postsChannelId: id || undefined,
-          releaseNotesChannelId: id || undefined,
-        },
+        slack,
       };
-      if (!next.slack?.postsChannelId && !next.slack?.releaseNotesChannelId) {
+      if (Object.keys(slack).length === 0) {
         delete next.slack;
       }
       await saveSettings.mutateAsync(next);
-      setChannelDraft(null);
+      setChannelDrafts({});
       setSavedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function handleTest(kind: SlackKind) {
-    const channelId = channelValue.trim();
+  async function handleTest(kind: SlackKind, key: SlackRouteKey) {
+    const channelId = channelValue(key).trim();
     if (!channelId) {
       setTestStatus({ kind, ok: false, msg: "Pick a channel first." });
       return;
@@ -1120,8 +1123,8 @@ export function SlackIntegrationCard() {
       </div>
       <p className="text-xs text-stone-400">
         One NoxConnect installation serves NoxAlert, NoxFeed, NoxSpot, and NoxTicket.
-        Connect once for this organization. The channel below is NoxFeed's default;
-        NoxSpot can choose a channel per site, and NoxAlert routing will live here when released.
+        Connect once for this organization, then route each service independently.
+        Empty service routes use the organization fallback; NoxSpot can override it per site.
         The bot must be added to private channels before it can post there; public channels work without an invite.
       </p>
 
@@ -1163,24 +1166,58 @@ export function SlackIntegrationCard() {
       ) : (
         <>
           <SlackChannelField
-            label="Channel"
-            helpText="One message per merged PR (Posts + Release notes both post here)."
-            value={channelValue}
-            onChange={setChannelDraft}
+            label="Organization fallback"
+            helpText="Used only when a service-specific channel is empty."
+            value={channelValue("fallbackChannelId")}
+            onChange={(value) => setChannelDrafts((current) => ({ ...current, fallbackChannelId: value }))}
             options={channelOptions}
             channelsLoading={channels.isLoading}
             channelsError={channels.isError}
-            onTest={() => handleTest("narrative")}
-            testing={testingKind === "narrative"}
-            testStatus={testStatus?.kind === "narrative" ? testStatus : null}
+            onTest={() => handleTest("fallback", "fallbackChannelId")}
+            testing={testingKind === "fallback"}
+            testStatus={testStatus?.kind === "fallback" ? testStatus : null}
           />
-          {hasSplitChannels && (
-            <p className="text-xs text-amber-600">
-              This workspace has Posts and Release notes pointing at
-              different channels (or only one of the two set). Saving will
-              route both feeds to the channel above.
-            </p>
-          )}
+          <div className="grid gap-4 border-t border-stone-100 pt-4 lg:grid-cols-3">
+            <SlackChannelField
+              label="NoxAlert"
+              helpText="Errors and resolved alerts."
+              value={channelValue("noxAlertChannelId")}
+              onChange={(value) => setChannelDrafts((current) => ({ ...current, noxAlertChannelId: value }))}
+              options={channelOptions}
+              channelsLoading={channels.isLoading}
+              channelsError={channels.isError}
+              onTest={() => handleTest("noxalert", "noxAlertChannelId")}
+              testing={testingKind === "noxalert"}
+              testStatus={testStatus?.kind === "noxalert" ? testStatus : null}
+            />
+            <SlackChannelField
+              label="Unticket"
+              helpText="Tickets and activity."
+              value={channelValue("unticketChannelId")}
+              onChange={(value) => setChannelDrafts((current) => ({ ...current, unticketChannelId: value }))}
+              options={channelOptions}
+              channelsLoading={channels.isLoading}
+              channelsError={channels.isError}
+              onTest={() => handleTest("unticket", "unticketChannelId")}
+              testing={testingKind === "unticket"}
+              testStatus={testStatus?.kind === "unticket" ? testStatus : null}
+            />
+            <SlackChannelField
+              label="NoxFeed"
+              helpText="Posts and release notes."
+              value={channelValue("noxFeedChannelId")}
+              onChange={(value) => setChannelDrafts((current) => ({ ...current, noxFeedChannelId: value }))}
+              options={channelOptions}
+              channelsLoading={channels.isLoading}
+              channelsError={channels.isError}
+              onTest={() => handleTest("noxfeed", "noxFeedChannelId")}
+              testing={testingKind === "noxfeed"}
+              testStatus={testStatus?.kind === "noxfeed" ? testStatus : null}
+            />
+          </div>
+          <div className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
+            <span className="font-medium text-stone-700">NoxSpot:</span> choose a channel per site in NoxSpot. Sites without one use the organization fallback. Automatic errors always use NoxAlert instead.
+          </div>
 
           <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
             {(data.health === "degraded" || data.needsReconnect) && (

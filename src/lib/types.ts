@@ -81,6 +81,8 @@ export interface NoxSpotSite {
   widgetMode: "development" | "release";
   autoErrorLogging: boolean;
   slackChannelId: string | null;
+  slackEffectiveChannelId: string | null;
+  slackUsesFallback: boolean;
   slackHealth: "disabled" | "disconnected" | "pending" | "connected" | "degraded";
   slackLastDeliveredAt: string | null;
   slackPendingCount: number;
@@ -236,11 +238,16 @@ export interface OrgSettings {
   // functions/lib/prompt.js). The LLM provider/model is NOT configurable
   // per-feed — both Posts and Release notes share the org's LLM config.
   releaseNotesPrompt?: string;
-  // Per-feed Slack channel selections. The bot install (token + team
-  // metadata) lives in the separate slack_settings table — the only thing
-  // in settings.slack is which channels each feed should post to.
+  // Service-specific Slack routing. The bot install (token + team metadata)
+  // lives in slack_settings; config stores public channel IDs only.
   slack?: {
+    fallbackChannelId?: string;
+    noxAlertChannelId?: string;
+    unticketChannelId?: string;
+    noxFeedChannelId?: string;
+    /** @deprecated Migrated on read to noxFeedChannelId. */
     postsChannelId?: string;
+    /** @deprecated Migrated on read to noxFeedChannelId. */
     releaseNotesChannelId?: string;
   };
   // Policy for newly-discovered repos.

@@ -2,6 +2,9 @@ name = "unticket-cron"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 
+[vars]
+SLACK_ACCEPT_LEGACY_INSTALLS = "true"
+
 # Same D1 database as the Pages app — the cron writes the same tables
 # (repos, issues, pull_requests, features, members, reconcile_runs).
 [[d1_databases]]

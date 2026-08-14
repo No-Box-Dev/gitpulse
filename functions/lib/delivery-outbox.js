@@ -21,6 +21,7 @@ export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, 
        status = CASE WHEN delivery_outbox.status = 'delivered' THEN 'delivered' ELSE 'pending' END,
        last_error_code = CASE WHEN delivery_outbox.status = 'delivered' THEN delivery_outbox.last_error_code ELSE NULL END,
        last_error = CASE WHEN delivery_outbox.status = 'delivered' THEN delivery_outbox.last_error ELSE NULL END,
+       slack_message_ts = CASE WHEN delivery_outbox.status = 'delivered' THEN delivery_outbox.slack_message_ts ELSE NULL END,
        next_attempt_at = NULL,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      RETURNING id, status`,
@@ -112,9 +113,14 @@ export async function deliverSlackOutbox(env, deliveryId) {
     return { blocked: code };
   }
   try {
-    await postSlackMessage(install.botToken, delivery.channel_id, payload.message);
-    await markOutboxDelivered(env.DB, deliveryId);
-    return { delivered: true };
+    const receipt = await postSlackMessage(install.botToken, delivery.channel_id, payload.message);
+    if (!receipt?.ts || receipt.channel !== delivery.channel_id) {
+      throw Object.assign(new Error("Slack returned an invalid or mismatched delivery receipt"), {
+        code: "invalid_slack_receipt",
+      });
+    }
+    await markOutboxDelivered(env.DB, deliveryId, receipt.ts);
+    return { delivered: true, slackMessageTs: receipt.ts };
   } catch (error) {
     const code = error?.code || "slack_delivery_failed";
     if (SLACK_CONFIGURATION_ERRORS.has(code)) {
@@ -126,14 +132,15 @@ export async function deliverSlackOutbox(env, deliveryId) {
   }
 }
 
-export async function markOutboxDelivered(db, deliveryId) {
+export async function markOutboxDelivered(db, deliveryId, slackMessageTs) {
   await db.prepare(
     `UPDATE delivery_outbox
         SET status = 'delivered', delivered_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
             last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
+            slack_message_ts = ?,
             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ?`,
-  ).bind(deliveryId).run();
+  ).bind(slackMessageTs, deliveryId).run();
 }
 
 export async function markOutboxBlocked(db, deliveryId, code, error) {
@@ -165,7 +172,7 @@ export async function requeueBlockedForSite(env, orgId, siteId) {
     `UPDATE delivery_outbox
         SET status = 'pending', last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-      WHERE org_id = ? AND site_id = ? AND destination = 'slack'
+      WHERE org_id = ? AND site_id = ? AND source = 'noxspot' AND destination = 'slack'
         AND status IN ('blocked_configuration', 'failed', 'retrying', 'pending')
       RETURNING id`,
   ).bind(orgId, siteId).all();

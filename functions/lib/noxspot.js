@@ -4,6 +4,7 @@ import {
   queueOutboxDelivery,
   stageSlackDelivery,
 } from "./delivery-outbox.js";
+import { resolveSlackChannels, resolveSlackRoute } from "./slack.js";
 
 const API = "https://api.github.com";
 const LABELS = {
@@ -41,13 +42,20 @@ export async function createNoxSpotGitHubIssue(env, capture) {
 
   await upsertIssue(env.DB, resolvedCapture.orgId, resolvedCapture.repo, issue);
   await storeEvent(env.DB, resolvedCapture, issue);
-  if (resolvedCapture.slackChannelId) {
+  const slackChannels = await resolveSlackChannels(env.DB, resolvedCapture.orgId);
+  const isAlert = resolvedCapture.issueType === "error";
+  const slackChannelId = resolveSlackRoute(
+    slackChannels,
+    isAlert ? "noxalert" : "noxspot",
+    resolvedCapture.slackChannelId,
+  );
+  if (slackChannelId) {
     const delivery = await stageSlackDelivery(env.DB, {
       orgId: resolvedCapture.orgId,
-      source: "noxspot",
+      source: isAlert ? "noxalert" : "noxspot",
       sourceId: resolvedCapture.captureId,
       siteId: resolvedCapture.siteId,
-      channelId: resolvedCapture.slackChannelId,
+      channelId: slackChannelId,
       payload: { message: buildSlackPayload(resolvedCapture, issue) },
     });
     if (delivery?.id && delivery.status !== "delivered") {

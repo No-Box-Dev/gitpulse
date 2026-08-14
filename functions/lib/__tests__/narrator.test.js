@@ -9,6 +9,11 @@ vi.mock("../op-failures.js", () => ({
 }));
 vi.mock("../slack.js", () => ({
   resolveSlackChannels: vi.fn(async () => ({ postsChannelId: "", releaseNotesChannelId: "" })),
+  resolveSlackRoute: vi.fn((channels) => channels.noxFeedChannelId
+    || channels.postsChannelId
+    || channels.releaseNotesChannelId
+    || channels.fallbackChannelId
+    || ""),
   buildPostsBlocks: vi.fn((args) => ({ blocks: ["post", args] })),
   buildReleaseNotesBlocks: vi.fn((args) => ({ blocks: ["release", args] })),
 }));
@@ -479,10 +484,12 @@ describe("narrateEvent — Slack mirror", () => {
     expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ channelId: "C1", source: "posts" }));
   });
 
-  it("does NOT post when install exists but the Posts channel is empty", async () => {
+  it("does NOT post when neither NoxFeed nor fallback is configured", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "", releaseNotesChannelId: "C2" });
+    resolveSlackChannels.mockResolvedValue({
+      noxFeedChannelId: "", fallbackChannelId: "", postsChannelId: "", releaseNotesChannelId: "",
+    });
     await narrateEvent(ENV(db), 1);
     expect(stageSlackDelivery).not.toHaveBeenCalled();
   });

@@ -149,6 +149,7 @@ export function IntegrationsTab() {
             description="Sends selected GitHub and NoxSpot activity to your team in Slack."
             bullets={["GitHub provides activity", "Slack delivers alerts"]}
             readiness={features.noxAlert}
+            blockedLabel={github.connected ? "Needs Slack" : "Needs GitHub"}
           />
         </div>
       </section>
@@ -164,6 +165,7 @@ function FeatureCard({
   readiness,
   actionLabel,
   onAction,
+  blockedLabel = "Needs GitHub",
 }: {
   icon: ReactNode;
   title: string;
@@ -172,6 +174,7 @@ function FeatureCard({
   readiness: FeatureReadiness;
   actionLabel?: string;
   onAction?: () => void;
+  blockedLabel?: string;
 }) {
   const ready = readiness.state === "ready";
   const comingSoon = readiness.state === "coming_soon";
@@ -181,7 +184,7 @@ function FeatureCard({
         {icon}
         <h3 className="text-sm font-semibold">{title}</h3>
         <span className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium ${ready ? "border-green-200 bg-green-50 text-green-700" : comingSoon ? "border-stone-200 bg-stone-100 text-stone-600" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-          {ready ? "Ready" : comingSoon ? "Coming soon" : "Needs GitHub"}
+          {ready ? "Ready" : comingSoon ? "Coming soon" : blockedLabel}
         </span>
       </div>
       <p className="mt-3 text-xs leading-5 text-stone-500">{description}</p>

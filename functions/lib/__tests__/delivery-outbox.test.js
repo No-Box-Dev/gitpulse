@@ -66,16 +66,33 @@ describe("delivery outbox", () => {
 
   it("delivers a generic Slack payload exactly once", async () => {
     vi.mocked(resolveSlackInstall).mockResolvedValue({ botToken: "xoxb-test" });
-    vi.mocked(postSlackMessage).mockResolvedValue(undefined);
+    vi.mocked(postSlackMessage).mockResolvedValue({ ok: true, channel: "C123", ts: "1723456789.123456" });
     const outbox = {
       id: "delivery-1", org_id: 7, destination: "slack", channel_id: "C123",
       payload_json: JSON.stringify({ message: { text: "hello", client_msg_id: "stable-1" } }),
     };
     const database = db({ first: outbox });
     const result = await deliverSlackOutbox({ DB: database }, "delivery-1");
-    expect(result).toEqual({ delivered: true });
+    expect(result).toEqual({ delivered: true, slackMessageTs: "1723456789.123456" });
     expect(postSlackMessage).toHaveBeenCalledWith("xoxb-test", "C123", { text: "hello", client_msg_id: "stable-1" });
     expect(database.calls.some((call) => call.sql.includes("status = 'delivered'"))).toBe(true);
+    expect(database.calls.some((call) => call.binds?.[0] === "1723456789.123456")).toBe(true);
+  });
+
+  it("does not mark a delivery complete without a matching Slack receipt", async () => {
+    vi.mocked(resolveSlackInstall).mockResolvedValue({ botToken: "xoxb-test" });
+    const outbox = {
+      id: "delivery-1", org_id: 7, destination: "slack", channel_id: "C123",
+      payload_json: JSON.stringify({ message: { text: "hello" } }),
+    };
+    const database = db({ first: outbox });
+    vi.mocked(postSlackMessage).mockResolvedValueOnce({ ok: true, channel: "C999", ts: "1723456789.123456" });
+
+    await expect(deliverSlackOutbox({ DB: database }, "delivery-1"))
+      .rejects.toThrow("invalid or mismatched delivery receipt");
+    expect(database.calls.some((call) => call.binds?.[0] === "retrying"
+      && call.binds?.[1] === "invalid_slack_receipt")).toBe(true);
+    expect(database.calls.some((call) => call.sql.includes("status = 'delivered'"))).toBe(false);
   });
 
   it("records transient failures for retry and blocks permanent configuration failures", async () => {
@@ -117,6 +134,7 @@ describe("delivery outbox", () => {
     const result = await requeueBlockedForSite({ DB: database, TASK_QUEUE: { send } }, 7, "site-1");
     expect(result).toEqual({ queued: 1 });
     expect(database.calls[0].sql).toContain("blocked_configuration");
+    expect(database.calls[0].sql).toContain("source = 'noxspot'");
     expect(send).toHaveBeenCalledOnce();
   });
 });

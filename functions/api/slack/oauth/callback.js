@@ -1,8 +1,8 @@
 import {
   checkSlackOrgHealth,
   exchangeOAuthCode,
+  resolveSlackOAuthRedirectUri,
   saveSlackInstall,
-  SLACK_OAUTH_REDIRECT_URI,
   verifyOAuthState,
 } from "../../../lib/slack";
 import { requeueBlockedForOrg } from "../../../lib/delivery-outbox.js";
@@ -51,7 +51,7 @@ export async function onRequestGet(context) {
       clientId,
       clientSecret,
       code,
-      redirectUri: SLACK_OAUTH_REDIRECT_URI,
+      redirectUri: resolveSlackOAuthRedirectUri(context.env),
     });
   } catch (err) {
     console.error("[unticket slack oauth] exchange failed:", err?.message ?? err);

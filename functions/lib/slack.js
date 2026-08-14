@@ -2,8 +2,8 @@
 //
 // Per-org install: each workspace's bot token + team metadata lives in the
 // `slack_settings` table (token encrypted with ENCRYPTION_KEY). The Integrations
-// JSON carries only the public per-feed channel selections under
-// settings.slack.{postsChannelId, releaseNotesChannelId}.
+// JSON carries only public channel selections. Every product shares this one
+// install, then resolves its own route with the organization fallback last.
 //
 // Auth model: the admin clicks "Connect Slack" in Integrations → OAuth dance →
 // callback stores the bot token. Posting uses `chat.postMessage` against
@@ -111,21 +111,67 @@ export async function deleteSlackInstall(env, orgId) {
 // ---------- Per-org settings.slack.* (channels) ----------
 
 export async function resolveSlackChannels(db, orgId) {
-  if (!db || !orgId) return { postsChannelId: "", releaseNotesChannelId: "" };
+  if (!db || !orgId) return emptySlackChannels();
   const row = await db
     .prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
     .bind(orgId)
     .first()
     .catch(() => null);
-  if (!row?.data) return { postsChannelId: "", releaseNotesChannelId: "" };
+  if (!row?.data) return emptySlackChannels();
   let settings;
-  try { settings = JSON.parse(row.data); } catch { return { postsChannelId: "", releaseNotesChannelId: "" }; }
+  try { settings = JSON.parse(row.data); } catch { return emptySlackChannels(); }
   const slack = settings?.slack;
-  if (!slack || typeof slack !== "object") return { postsChannelId: "", releaseNotesChannelId: "" };
+  if (!slack || typeof slack !== "object") return emptySlackChannels();
+  // Before central routing, Posts and Release notes were stored separately.
+  // Prefer the new NoxFeed route, then adopt the first legacy selection so
+  // existing organizations keep receiving messages without a migration.
+  const noxFeedChannelId = channelId(slack.noxFeedChannelId)
+    || channelId(slack.postsChannelId)
+    || channelId(slack.releaseNotesChannelId);
   return {
-    postsChannelId: typeof slack.postsChannelId === "string" ? slack.postsChannelId.trim() : "",
-    releaseNotesChannelId: typeof slack.releaseNotesChannelId === "string" ? slack.releaseNotesChannelId.trim() : "",
+    fallbackChannelId: channelId(slack.fallbackChannelId),
+    noxAlertChannelId: channelId(slack.noxAlertChannelId),
+    unticketChannelId: channelId(slack.unticketChannelId),
+    noxFeedChannelId,
+    // Deprecated aliases keep older producers and clients safe while the
+    // central route contract rolls out.
+    postsChannelId: noxFeedChannelId,
+    releaseNotesChannelId: noxFeedChannelId,
   };
+}
+
+export function resolveSlackRoute(channels, service, siteChannelId = "") {
+  const fallback = channelId(channels?.fallbackChannelId);
+  switch (service) {
+    case "noxalert":
+      return channelId(channels?.noxAlertChannelId) || fallback;
+    case "noxspot":
+      return channelId(siteChannelId) || fallback;
+    case "unticket":
+      return channelId(channels?.unticketChannelId) || fallback;
+    case "noxfeed":
+      return channelId(channels?.noxFeedChannelId)
+        || channelId(channels?.postsChannelId)
+        || channelId(channels?.releaseNotesChannelId)
+        || fallback;
+    default:
+      return fallback;
+  }
+}
+
+function emptySlackChannels() {
+  return {
+    fallbackChannelId: "",
+    noxAlertChannelId: "",
+    unticketChannelId: "",
+    noxFeedChannelId: "",
+    postsChannelId: "",
+    releaseNotesChannelId: "",
+  };
+}
+
+function channelId(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 // ---------- Slack Web API client ----------
@@ -203,6 +249,15 @@ export async function getSlackChannel(token, channelId) {
   return data.channel ?? null;
 }
 
+// Existing Blindspot installs predate app identity tracking. Keep support
+// explicit and temporary: a missing app ID may be accepted by configuration,
+// while a known install for a different Slack app is always rejected.
+export function slackInstallNeedsReconnect(env, install) {
+  if (!install || !env?.SLACK_APP_ID) return false;
+  if (!install.appId) return env.SLACK_ACCEPT_LEGACY_INSTALLS !== "true";
+  return install.appId !== env.SLACK_APP_ID;
+}
+
 export async function checkSlackOrgHealth(env, orgId) {
   const install = await resolveSlackInstall(env, orgId);
   if (!install) {
@@ -215,11 +270,8 @@ export async function checkSlackOrgHealth(env, orgId) {
     "SELECT health_status FROM slack_settings WHERE org_id = ?",
   ).bind(orgId).first();
   try {
-    // Legacy installs predate app identity tracking and must reconnect. The
-    // active app is determined by the deployed OAuth client credentials; its
-    // app_id is returned by Slack and persisted during that reconnect.
-    if (!install.appId) {
-      throw new SlackApiError("Reconnect Slack to migrate this organization to NoxConnect", {
+    if (slackInstallNeedsReconnect(env, install)) {
+      throw new SlackApiError("Reconnect Slack with the currently configured app", {
         code: "app_mismatch",
       });
     }
@@ -233,8 +285,10 @@ export async function checkSlackOrgHealth(env, orgId) {
     const feedChannels = await resolveSlackChannels(env.DB, orgId);
     const channelIds = new Set([
       ...(results ?? []).map((row) => row.slack_channel_id),
-      feedChannels.postsChannelId,
-      feedChannels.releaseNotesChannelId,
+      feedChannels.fallbackChannelId,
+      feedChannels.noxAlertChannelId,
+      feedChannels.unticketChannelId,
+      feedChannels.noxFeedChannelId,
     ].filter(Boolean));
     await Promise.all([...channelIds].map(async (channelId) => {
       const channel = await getSlackChannel(install.botToken, channelId);
@@ -354,6 +408,20 @@ const REDIRECT_PATH = "/api/slack/oauth/callback";
 // code exchange must use this exact allowlisted URI as well; Slack rejects a
 // callback when the authorize and exchange redirect URIs differ.
 export const SLACK_OAUTH_REDIRECT_URI = "https://app.unticket.ai/api/slack/oauth/callback";
+const ALLOWED_SLACK_CALLBACKS = new Set([
+  SLACK_OAUTH_REDIRECT_URI,
+  "https://api.noxspot.dev/slack/callback",
+]);
+
+// Keep the Slack transport swappable without changing the Nox data plane.
+// Blindspot already allowlists the NoxSpot compatibility bridge, while the
+// future NoxConnect app uses the central callback directly.
+export function resolveSlackOAuthRedirectUri(env) {
+  const configured = String(env?.SLACK_OAUTH_REDIRECT_URI ?? "").trim();
+  return ALLOWED_SLACK_CALLBACKS.has(configured)
+    ? configured
+    : SLACK_OAUTH_REDIRECT_URI;
+}
 // `links:read` + `links:write` power the link-shared unfurl handler at
 // /api/slack/events. Existing installs that didn't get these scopes will
 // stop unfurling until an admin re-runs the Connect flow.
@@ -470,9 +538,13 @@ export async function clearSlackChannelsForOrg(db, orgId) {
   let settings;
   try { settings = JSON.parse(row.data); } catch { return; }
   if (!settings?.slack) return;
+  delete settings.slack.fallbackChannelId;
+  delete settings.slack.noxAlertChannelId;
+  delete settings.slack.unticketChannelId;
+  delete settings.slack.noxFeedChannelId;
   delete settings.slack.postsChannelId;
   delete settings.slack.releaseNotesChannelId;
-  if (!settings.slack.postsChannelId && !settings.slack.releaseNotesChannelId) {
+  if (Object.keys(settings.slack).length === 0) {
     delete settings.slack;
   }
   await db

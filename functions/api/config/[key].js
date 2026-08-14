@@ -5,6 +5,15 @@ import { getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
 import { recoverOutboxDeliveries } from "../../lib/delivery-outbox.js";
 
 const VALID_KEYS = ["features", "people", "settings"];
+const SLACK_CHANNEL_KEYS = [
+  "fallbackChannelId",
+  "noxAlertChannelId",
+  "unticketChannelId",
+  "noxFeedChannelId",
+  // Accepted during the compatibility window for older clients.
+  "postsChannelId",
+  "releaseNotesChannelId",
+];
 
 const DEFAULTS = {
   features: [],
@@ -100,10 +109,10 @@ export async function onRequestPut(context) {
   }
 
   if (slackWasSupplied && body?.slack && typeof body.slack === "object") {
-    const channelIds = [...new Set([
-      body.slack.postsChannelId,
-      body.slack.releaseNotesChannelId,
-    ].filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))];
+    const channelIds = [...new Set(SLACK_CHANNEL_KEYS
+      .map((field) => body.slack[field])
+      .filter((value) => typeof value === "string" && value.trim())
+      .map((value) => value.trim()))];
     if (channelIds.length > 0) {
       const install = await resolveSlackInstall(context.env, orgId);
       if (!install) return errorResponse("Connect Slack before selecting a channel", 409);
@@ -139,27 +148,57 @@ export async function onRequestPut(context) {
     .run();
 
   if (slackWasSupplied) {
-    const feeds = [
-      ["posts", body?.slack?.postsChannelId],
-      ["release_notes", body?.slack?.releaseNotesChannelId],
+    const slack = body?.slack && typeof body.slack === "object" ? body.slack : {};
+    const clean = (value) => typeof value === "string" ? value.trim() : "";
+    const fallbackChannelId = clean(slack.fallbackChannelId);
+    const routes = [
+      { sources: ["posts", "release_notes"], channelId: clean(slack.noxFeedChannelId) || clean(slack.postsChannelId) || clean(slack.releaseNotesChannelId) || fallbackChannelId },
+      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId },
+      { sources: ["unticket"], channelId: clean(slack.unticketChannelId) || fallbackChannelId },
     ];
-    for (const [source, rawChannelId] of feeds) {
-      const channelId = typeof rawChannelId === "string" ? rawChannelId.trim() : "";
+    for (const { sources, channelId } of routes) {
+      const placeholders = sources.map(() => "?").join(",");
       if (channelId) {
         await context.env.DB.prepare(
           `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
              last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND source = ? AND destination = 'slack' AND status != 'delivered'`,
-        ).bind(channelId, orgId, source).run();
+           WHERE org_id = ? AND source IN (${placeholders})
+             AND destination = 'slack' AND status != 'delivered'`,
+        ).bind(channelId, orgId, ...sources).run();
       } else {
         await context.env.DB.prepare(
           `UPDATE delivery_outbox SET status = 'blocked_configuration',
-             last_error_code = 'alerts_disabled', last_error = 'Slack alerts were disabled for this feed',
+             last_error_code = 'alerts_disabled', last_error = 'No Slack channel is configured for this service',
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-           WHERE org_id = ? AND source = ? AND destination = 'slack' AND status != 'delivered'`,
-        ).bind(orgId, source).run();
+           WHERE org_id = ? AND source IN (${placeholders})
+             AND destination = 'slack' AND status != 'delivered'`,
+        ).bind(orgId, ...sources).run();
       }
+    }
+
+    // NoxSpot keeps its per-site override. Only captures from sites without
+    // one follow the organization fallback.
+    if (fallbackChannelId) {
+      await context.env.DB.prepare(
+        `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+           last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
+           AND status != 'delivered' AND site_id IN (
+             SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
+           )`,
+      ).bind(fallbackChannelId, orgId, orgId).run();
+    } else {
+      await context.env.DB.prepare(
+        `UPDATE delivery_outbox SET status = 'blocked_configuration',
+           last_error_code = 'alerts_disabled', last_error = 'No NoxSpot site or organization fallback channel is configured',
+           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+         WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
+           AND status != 'delivered' AND site_id IN (
+             SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
+           )`,
+      ).bind(orgId, orgId).run();
     }
     await recoverOutboxDeliveries(context.env);
   }

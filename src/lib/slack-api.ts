@@ -1,4 +1,5 @@
-import { apiGet, apiPost } from "./api";
+import { apiGet } from "./api";
+import { disconnectIntegrationConnection, startIntegrationConnection } from "./integrations-api";
 
 export interface SlackStatus {
   connected: boolean;
@@ -42,10 +43,10 @@ export function fetchSlackChannels(): Promise<{ channels: SlackChannel[] }> {
 // Kicks off the OAuth dance — returns a Slack authorize URL the caller
 // should redirect to via `window.location.href = url`. The server sets
 // the CSRF cookie in the same response.
-export function startSlackOAuth(): Promise<{ url: string }> {
-  return apiPost<{ url: string }>("/api/slack/oauth/start", {});
+export function startSlackOAuth(): Promise<{ provider: "slack"; mode: "redirect"; url: string }> {
+  return startIntegrationConnection("slack") as Promise<{ provider: "slack"; mode: "redirect"; url: string }>;
 }
 
-export function disconnectSlack(): Promise<{ ok: true }> {
-  return apiPost<{ ok: true }>("/api/slack/disconnect", {});
+export function disconnectSlack(): Promise<{ ok: true; provider: "slack"; status: "disconnected" }> {
+  return disconnectIntegrationConnection("slack") as Promise<{ ok: true; provider: "slack"; status: "disconnected" }>;
 }

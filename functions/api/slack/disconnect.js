@@ -11,5 +11,5 @@ export async function onRequestPost(context) {
   if (!isAdmin) return errorResponse("Admin required", 403);
 
   await deleteSlackInstall(context.env, orgId);
-  return jsonResponse({ ok: true });
+  return jsonResponse({ ok: true, provider: "slack", status: "disconnected" });
 }

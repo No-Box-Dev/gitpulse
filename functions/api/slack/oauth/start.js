@@ -30,6 +30,8 @@ export async function onRequestPost(context) {
   const state = `${payload}.${sig}`;
 
   return new Response(JSON.stringify({
+    provider: "slack",
+    mode: "redirect",
     url: buildOAuthAuthorizeUrl(clientId, origin, state, resolveSlackOAuthRedirectUri(context.env)),
   }), {
     status: 200,

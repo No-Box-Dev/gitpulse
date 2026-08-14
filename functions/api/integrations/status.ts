@@ -1,6 +1,7 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { resolveSlackChannels, resolveSlackInstall, slackInstallNeedsReconnect } from "../../lib/slack";
 import { getNoxDb, type NoxDatabaseEnv } from "../../lib/nox-db";
+import { GITHUB_INSTALL_URL, GITHUB_MANAGE_URL } from "../../lib/integration-connections.js";
 
 interface Ctx {
   env: NoxDatabaseEnv & {
@@ -93,8 +94,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       bootstrapping: githubBootstrapping,
       health: installation?.health_status ?? "ok",
       lastEventAt: org?.last_event_at ?? null,
-      manageUrl: "https://github.com/settings/installations",
-      installUrl: "https://github.com/apps/noxconnect/installations/new",
+      manageUrl: GITHUB_MANAGE_URL,
+      installUrl: GITHUB_INSTALL_URL,
     },
     slack: {
       connected: slackConnected,

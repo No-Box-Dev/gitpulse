@@ -117,6 +117,11 @@ The organization stores a fallback plus service-specific NoxAlert and Unticket
 channels, with separate NoxFeed Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
 channels must invite the same NoxConnect bot before they can be selected.
 
+Nox clients discover and manage these shared providers through the authenticated
+`/api/integrations/connections` registry. Connection start/disconnect actions are
+admin-only and reuse the provider's existing OAuth security flow; the API never
+returns provider credentials or encrypted tokens.
+
 ## 5. Deploy
 
 ```bash

@@ -582,7 +582,10 @@ async function maybePostToSlack(env, args) {
   const { kind, orgId, ownerId, triggerEventId, actor, project, summary, rawEvent } = args;
   try {
     const channels = await resolveSlackChannels(env.DB, orgId);
-    const channelId = resolveSlackRoute(channels, "noxfeed");
+    const channelId = resolveSlackRoute(
+      channels,
+      kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts",
+    );
     if (!channelId) return;
 
     const payload = safeParseObject(rawEvent.payload_json);

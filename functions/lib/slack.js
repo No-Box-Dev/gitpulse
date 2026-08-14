@@ -122,21 +122,21 @@ export async function resolveSlackChannels(db, orgId) {
   try { settings = JSON.parse(row.data); } catch { return emptySlackChannels(); }
   const slack = settings?.slack;
   if (!slack || typeof slack !== "object") return emptySlackChannels();
-  // Before central routing, Posts and Release notes were stored separately.
-  // Prefer the new NoxFeed route, then adopt the first legacy selection so
-  // existing organizations keep receiving messages without a migration.
-  const noxFeedChannelId = channelId(slack.noxFeedChannelId)
-    || channelId(slack.postsChannelId)
-    || channelId(slack.releaseNotesChannelId);
+  // The first central-routing release briefly combined both NoxFeed streams.
+  // Use that selection for either stream only when its dedicated route is
+  // empty, so existing organizations keep receiving messages without a data
+  // migration and can split the routes on their next save.
+  const noxFeedChannelId = channelId(slack.noxFeedChannelId);
+  const postsChannelId = channelId(slack.postsChannelId) || noxFeedChannelId;
+  const releaseNotesChannelId = channelId(slack.releaseNotesChannelId) || noxFeedChannelId;
   return {
     fallbackChannelId: channelId(slack.fallbackChannelId),
     noxAlertChannelId: channelId(slack.noxAlertChannelId),
     unticketChannelId: channelId(slack.unticketChannelId),
-    noxFeedChannelId,
-    // Deprecated aliases keep older producers and clients safe while the
-    // central route contract rolls out.
-    postsChannelId: noxFeedChannelId,
-    releaseNotesChannelId: noxFeedChannelId,
+    // Retained for clients released during the combined-route window.
+    noxFeedChannelId: noxFeedChannelId || postsChannelId || releaseNotesChannelId,
+    postsChannelId,
+    releaseNotesChannelId,
   };
 }
 
@@ -149,6 +149,14 @@ export function resolveSlackRoute(channels, service, siteChannelId = "") {
       return channelId(siteChannelId) || fallback;
     case "unticket":
       return channelId(channels?.unticketChannelId) || fallback;
+    case "noxfeed_posts":
+      return channelId(channels?.postsChannelId)
+        || channelId(channels?.noxFeedChannelId)
+        || fallback;
+    case "noxfeed_release_notes":
+      return channelId(channels?.releaseNotesChannelId)
+        || channelId(channels?.noxFeedChannelId)
+        || fallback;
     case "noxfeed":
       return channelId(channels?.noxFeedChannelId)
         || channelId(channels?.postsChannelId)
@@ -288,7 +296,8 @@ export async function checkSlackOrgHealth(env, orgId) {
       feedChannels.fallbackChannelId,
       feedChannels.noxAlertChannelId,
       feedChannels.unticketChannelId,
-      feedChannels.noxFeedChannelId,
+      feedChannels.postsChannelId,
+      feedChannels.releaseNotesChannelId,
     ].filter(Boolean));
     await Promise.all([...channelIds].map(async (channelId) => {
       const channel = await getSlackChannel(install.botToken, channelId);

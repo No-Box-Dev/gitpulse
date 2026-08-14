@@ -113,8 +113,8 @@ complete Slack's checklist, and activate unlisted public distribution. Do not
 publish a second Slack app per product: admins start OAuth from Unticket's
 **Setup** tab, and the resulting encrypted workspace token is shared by
 NoxAlert, NoxFeed, NoxKey, NoxSpot, and NoxTicket for that Nox organization.
-The organization stores a fallback plus service-specific NoxAlert, Unticket,
-and NoxFeed channel IDs; NoxSpot can override the fallback per site. Private
+The organization stores a fallback plus service-specific NoxAlert and Unticket
+channels, with separate NoxFeed Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
 channels must invite the same NoxConnect bot before they can be selected.
 
 ## 5. Deploy

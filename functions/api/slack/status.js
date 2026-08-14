@@ -34,9 +34,8 @@ export async function onRequestGet(context) {
     noxAlertChannelId: channels.noxAlertChannelId,
     unticketChannelId: channels.unticketChannelId,
     noxFeedChannelId: channels.noxFeedChannelId,
-    // Compatibility aliases for clients released before central routing.
-    postsChannelId: channels.noxFeedChannelId,
-    releaseNotesChannelId: channels.noxFeedChannelId,
+    postsChannelId: channels.postsChannelId,
+    releaseNotesChannelId: channels.releaseNotesChannelId,
     canConfigure: isAdmin,
     // All three values are required for the complete integration: OAuth uses
     // the client pair, while Slack Events uses the signing secret. Reporting

@@ -2,7 +2,7 @@ import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { resolveSlackInstall, postSlackMessage } from "../../lib/slack";
 
 // POST /api/slack/test
-// Body: { channelId: string, kind: "fallback" | "noxalert" | "noxspot" | "unticket" | "noxfeed" }
+// Body: { channelId: string, kind: "fallback" | "noxalert" | "noxspot" | "unticket" | "noxfeed_posts" | "noxfeed_release_notes" }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -18,9 +18,12 @@ export async function onRequestPost(context) {
 
   const channelId = typeof body?.channelId === "string" ? body.channelId.trim() : "";
   if (!channelId) return errorResponse("channelId required", 400);
-  const legacyKind = body?.kind === "release_notes" || body?.kind === "narrative";
-  const allowedKinds = new Set(["fallback", "noxalert", "noxspot", "unticket", "noxfeed"]);
-  const kind = legacyKind ? "noxfeed" : allowedKinds.has(body?.kind) ? body.kind : null;
+  const legacyKinds = { narrative: "noxfeed_posts", release_notes: "noxfeed_release_notes" };
+  const allowedKinds = new Set([
+    "fallback", "noxalert", "noxspot", "unticket", "noxfeed",
+    "noxfeed_posts", "noxfeed_release_notes",
+  ]);
+  const kind = legacyKinds[body?.kind] ?? (allowedKinds.has(body?.kind) ? body.kind : null);
   if (!kind) return errorResponse("Invalid Slack test kind", 400);
 
   const install = await resolveSlackInstall(context.env, orgId);
@@ -47,6 +50,14 @@ export async function onRequestPost(context) {
     : kind === "fallback" ? {
         text: `NoxConnect fallback test for ${orgLogin}`,
         blocks: [{ type: "section", text: { type: "mrkdwn", text: `*NoxConnect — organization fallback test*\nUnassigned service messages for \`${orgLogin}\` can be delivered here.` } }],
+      }
+    : kind === "noxfeed_posts" ? {
+        text: `NoxFeed posts delivery test for ${orgLogin}`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `*NoxFeed — Posts test*\nNarrated activity for \`${orgLogin}\` can be delivered here.` } }],
+      }
+    : kind === "noxfeed_release_notes" ? {
+        text: `NoxFeed release notes delivery test for ${orgLogin}`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `*NoxFeed — Release Notes test*\nRelease summaries for \`${orgLogin}\` can be delivered here.` } }],
       }
     : {
         text: `NoxFeed delivery test for ${orgLogin}`,

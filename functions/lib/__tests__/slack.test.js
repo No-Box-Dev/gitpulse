@@ -9,17 +9,76 @@ vi.mock("../crypto", () => ({
 
 import {
   buildOAuthAuthorizeUrl,
+  SLACK_OAUTH_REDIRECT_URI,
   SLACK_BOT_SCOPES,
   exchangeOAuthCode,
   signOAuthState,
   verifyOAuthState,
   resolveSlackInstall,
+  saveSlackInstall,
   resolveSlackChannels,
+  clearSlackChannelsForOrg,
   postSlackMessage,
   listSlackChannels,
   buildPostsBlocks,
   buildReleaseNotesBlocks,
 } from "../slack.js";
+
+describe("saveSlackInstall", () => {
+  it("clears stale health errors after a successful reconnect", async () => {
+    const calls = [];
+    const db = {
+      prepare(sql) {
+        const statement = {
+          bind: (...binds) => {
+            calls.push({ sql, binds });
+            return statement;
+          },
+          first: async () => ({ team_id: "T1" }),
+          run: async () => ({ success: true }),
+        };
+        return statement;
+      },
+    };
+
+    await saveSlackInstall(
+      { DB: db, ENCRYPTION_KEY: "key" },
+      7,
+      {
+        appId: "A1",
+        botToken: "xoxb-new",
+        botUserId: "U1",
+        teamId: "T1",
+        teamName: "Acme",
+        installedBy: "alice",
+      },
+    );
+
+    const upsert = calls.find(({ sql }) => sql.includes("INSERT INTO slack_settings"));
+    expect(upsert.sql).toContain("health_status = 'unknown'");
+    expect(upsert.sql).toContain("last_checked_at = NULL");
+    expect(upsert.sql).toContain("last_error = NULL");
+  });
+});
+
+describe("central Slack routing cleanup", () => {
+  it("clears NoxSpot channels even when no feed settings exist", async () => {
+    const calls = [];
+    const db = {
+      prepare(sql) {
+        calls.push(sql);
+        const statement = {
+          bind: () => statement,
+          run: async () => ({ success: true }),
+          first: async () => null,
+        };
+        return statement;
+      },
+    };
+    await clearSlackChannelsForOrg(db, 7);
+    expect(calls[0]).toMatch(/UPDATE spot_sites SET slack_channel_id = NULL/);
+  });
+});
 
 describe("buildOAuthAuthorizeUrl", () => {
   it("builds an authorize URL with the right scopes + state", () => {
@@ -31,12 +90,25 @@ describe("buildOAuthAuthorizeUrl", () => {
     expect(url).toContain("chat%3Awrite");
     expect(url).toContain(encodeURIComponent("https://app.example.com/api/slack/oauth/callback"));
   });
+
+  it("uses the direct central callback for NoxConnect", () => {
+    expect(SLACK_OAUTH_REDIRECT_URI).toBe("https://app.unticket.ai/api/slack/oauth/callback");
+    const url = new URL(buildOAuthAuthorizeUrl(
+      "client-123",
+      "https://app.example.com",
+      "state-xyz",
+      SLACK_OAUTH_REDIRECT_URI,
+    ));
+    expect(url.searchParams.get("redirect_uri")).toBe(SLACK_OAUTH_REDIRECT_URI);
+  });
 });
 
 describe("Slack app manifest", () => {
   const manifest = JSON.parse(readFileSync(join(process.cwd(), "slack-app-manifest.json"), "utf8"));
 
   it("stays aligned with the OAuth flow and production endpoints", () => {
+    expect(manifest.display_information.name).toBe("NoxConnect");
+    expect(manifest.features.bot_user.display_name).toBe("NoxConnect");
     expect(manifest.oauth_config.scopes.bot).toEqual(SLACK_BOT_SCOPES);
     expect(manifest.oauth_config.redirect_urls).toEqual([
       "https://app.unticket.ai/api/slack/oauth/callback",
@@ -58,6 +130,7 @@ describe("exchangeOAuthCode", () => {
       ok: true,
       json: async () => ({
         ok: true,
+        app_id: "A123",
         access_token: "xoxb-abc",
         bot_user_id: "U123",
         team: { id: "T999", name: "Acme" },
@@ -67,6 +140,7 @@ describe("exchangeOAuthCode", () => {
       clientId: "c", clientSecret: "s", code: "code1", redirectUri: "https://x/cb",
     });
     expect(result).toEqual({
+      appId: "A123",
       botToken: "xoxb-abc",
       botUserId: "U123",
       teamId: "T999",
@@ -148,6 +222,7 @@ describe("resolveSlackInstall", () => {
   it("decrypts + returns the install row", async () => {
     const env = {
       DB: mkDb({
+        app_id: "A1",
         team_id: "T1",
         team_name: "Acme",
         bot_user_id: "U1",
@@ -156,6 +231,7 @@ describe("resolveSlackInstall", () => {
       ENCRYPTION_KEY: "k",
     };
     expect(await resolveSlackInstall(env, "org-1")).toEqual({
+      appId: "A1",
       teamId: "T1",
       teamName: "Acme",
       botUserId: "U1",

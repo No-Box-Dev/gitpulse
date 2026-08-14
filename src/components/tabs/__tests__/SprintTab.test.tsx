@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 
 vi.mock("@/hooks/useConfigRepo", () => ({
   useFeatures: vi.fn(),
+  useClosedFeatures: vi.fn(() => ({ data: [], isLoading: false })),
   usePeople: vi.fn(),
   useSettings: vi.fn(),
   useCreateFeature: vi.fn(),

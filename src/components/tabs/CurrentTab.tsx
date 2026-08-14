@@ -30,6 +30,7 @@ import { daysAgo, STALE_PR_DAYS } from "@/lib/dates";
 import { SortIcon } from "@/components/ui/SortIcon";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import { closePR } from "@/lib/github";
 
 type SortKey = "repo" | "title" | "author" | "age" | "reviewers";
@@ -651,15 +652,22 @@ function DrilledView({ prs, view, isLoading, drillAuthor, drillRepo, pane, membe
                       {age}d
                     </td>
                     <td className="px-4 py-2.5">
-                      <a
-                        href={pr.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-stone-300 hover:text-accent"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
+                      <span className="flex items-center gap-2">
+                        <CopyLinkButton
+                          url={pr.html_url}
+                          label={`Copy GitHub link to PR #${pr.number}`}
+                          className="text-stone-300"
+                        />
+                        <a
+                          href={pr.html_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-stone-300 hover:text-accent"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </span>
                     </td>
                     {isAdmin && view !== "merged" && (
                       <td className="px-4 py-2.5">

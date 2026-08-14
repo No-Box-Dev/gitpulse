@@ -64,10 +64,47 @@ export type TabId =
   | "specs"
   | "prs"
   | "issues"
+  | "noxspot"
+  | "integrations"
   | "posts"
   | "repos"
   | "engineers"
   | "settings";
+
+export interface NoxSpotSite {
+  id: string;
+  name: string;
+  projectId: string | null;
+  repo: string | null;
+  buttonColor: string;
+  buttonText: string;
+  widgetMode: "development" | "release";
+  autoErrorLogging: boolean;
+  slackChannelId: string | null;
+  slackHealth: "disabled" | "disconnected" | "pending" | "connected" | "degraded";
+  slackLastDeliveredAt: string | null;
+  slackPendingCount: number;
+  slackBlockedCount: number;
+  slackLastError: string | null;
+  issueCount: number;
+  openIssueCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoxSpotIssue {
+  id: string;
+  siteName: string;
+  repo: string;
+  number: number;
+  type: "bug" | "feature" | "feedback" | "error";
+  status: "open" | "closed";
+  title: string;
+  reporterName: string | null;
+  shareUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface NavFilter {
   person?: string;

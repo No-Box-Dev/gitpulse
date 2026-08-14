@@ -1,12 +1,11 @@
-// Slack posting for the Posts and Release-notes feeds via a single shared
-// Unticket Slack app.
+// Slack posting for every Nox product via the single shared NoxConnect app.
 //
 // Per-org install: each workspace's bot token + team metadata lives in the
-// `slack_settings` table (token encrypted with ENCRYPTION_KEY). The Settings
+// `slack_settings` table (token encrypted with ENCRYPTION_KEY). The Integrations
 // JSON carries only the public per-feed channel selections under
 // settings.slack.{postsChannelId, releaseNotesChannelId}.
 //
-// Auth model: the admin clicks "Connect Slack" in Settings → OAuth dance →
+// Auth model: the admin clicks "Connect Slack" in Integrations → OAuth dance →
 // callback stores the bot token. Posting uses `chat.postMessage` against
 // that token rather than the webhook URLs the v1 of this feature used.
 
@@ -18,6 +17,16 @@ const TIMEOUT_MS = 5000;
 // Max age (seconds) for a Slack Events API request. Slack recommends 5min
 // — anything older is a replay attempt and we drop it.
 const EVENTS_MAX_AGE_S = 60 * 5;
+
+export class SlackApiError extends Error {
+  constructor(message, { code = "slack_error", status = null, retryAfter = null } = {}) {
+    super(message);
+    this.name = "SlackApiError";
+    this.code = code;
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
 
 // ---------- Storage ----------
 
@@ -34,7 +43,7 @@ export async function resolveSlackInstall(env, orgId) {
   if (!db || !orgId) return null;
   const row = await db
     .prepare(
-      "SELECT team_id, team_name, bot_user_id, encrypted_bot_token FROM slack_settings WHERE org_id = ?",
+      "SELECT app_id, team_id, team_name, bot_user_id, encrypted_bot_token FROM slack_settings WHERE org_id = ?",
     )
     .bind(orgId)
     .first()
@@ -45,6 +54,7 @@ export async function resolveSlackInstall(env, orgId) {
     const botToken = await decryptToken(row.encrypted_bot_token, env.ENCRYPTION_KEY);
     if (!botToken) return null;
     return {
+      appId: row.app_id ?? null,
       teamId: row.team_id,
       teamName: row.team_name ?? null,
       botUserId: row.bot_user_id ?? null,
@@ -72,17 +82,21 @@ export async function saveSlackInstall(env, orgId, install) {
   }
 
   await env.DB.prepare(
-    `INSERT INTO slack_settings (org_id, team_id, team_name, bot_user_id, encrypted_bot_token, installed_by, installed_at)
-     VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    `INSERT INTO slack_settings (org_id, app_id, team_id, team_name, bot_user_id, encrypted_bot_token, installed_by, installed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
      ON CONFLICT(org_id) DO UPDATE SET
+       app_id = excluded.app_id,
        team_id = excluded.team_id,
        team_name = excluded.team_name,
        bot_user_id = excluded.bot_user_id,
        encrypted_bot_token = excluded.encrypted_bot_token,
        installed_by = excluded.installed_by,
-       installed_at = excluded.installed_at`,
+       installed_at = excluded.installed_at,
+       health_status = 'unknown',
+       last_checked_at = NULL,
+       last_error = NULL`,
   )
-    .bind(orgId, install.teamId, install.teamName ?? null, install.botUserId ?? null, encrypted, install.installedBy)
+    .bind(orgId, install.appId ?? null, install.teamId, install.teamName ?? null, install.botUserId ?? null, encrypted, install.installedBy)
     .run();
 }
 
@@ -133,13 +147,18 @@ async function slackPost(token, endpoint, body) {
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) {
-    throw new Error(`Slack HTTP ${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new SlackApiError(`Slack HTTP ${res.status} ${res.statusText}`, {
+    code: res.status === 429 ? "rate_limited" : `http_${res.status}`,
+    status: res.status,
+    retryAfter: res.headers.get("Retry-After"),
+  });
   // Slack Web API always returns 200 with `ok: false` on logical errors.
   const data = await res.json();
   if (!data.ok) {
-    throw new Error(`Slack ${endpoint}: ${data.error ?? "unknown error"}`);
+    throw new SlackApiError(`Slack ${endpoint}: ${data.error ?? "unknown error"}`, {
+      code: data.error ?? "unknown_error",
+      status: res.status,
+    });
   }
   return data;
 }
@@ -161,15 +180,84 @@ async function slackGet(token, endpoint, params = {}) {
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) throw new Error(`Slack HTTP ${res.status} ${res.statusText}`);
+  if (!res.ok) throw new SlackApiError(`Slack HTTP ${res.status} ${res.statusText}`, {
+    code: res.status === 429 ? "rate_limited" : `http_${res.status}`,
+    status: res.status,
+    retryAfter: res.headers.get("Retry-After"),
+  });
   const data = await res.json();
-  if (!data.ok) throw new Error(`Slack ${endpoint}: ${data.error ?? "unknown error"}`);
+  if (!data.ok) throw new SlackApiError(`Slack ${endpoint}: ${data.error ?? "unknown error"}`, {
+    code: data.error ?? "unknown_error",
+    status: res.status,
+  });
   return data;
 }
 
 // Post a Block Kit message to a channel. Throws on Slack error.
 export function postSlackMessage(token, channelId, payload) {
   return slackPost(token, "chat.postMessage", { channel: channelId, ...payload });
+}
+
+export async function getSlackChannel(token, channelId) {
+  const data = await slackGet(token, "conversations.info", { channel: channelId });
+  return data.channel ?? null;
+}
+
+export async function checkSlackOrgHealth(env, orgId) {
+  const install = await resolveSlackInstall(env, orgId);
+  if (!install) {
+    const row = await env.DB.prepare("SELECT 1 FROM slack_settings WHERE org_id = ?").bind(orgId).first();
+    if (!row) return { status: "disconnected", recovered: false };
+    await writeSlackHealth(env.DB, orgId, "degraded", "Slack credentials could not be decrypted");
+    return { status: "degraded", recovered: false };
+  }
+  const previous = await env.DB.prepare(
+    "SELECT health_status FROM slack_settings WHERE org_id = ?",
+  ).bind(orgId).first();
+  try {
+    // Legacy installs predate app identity tracking and must reconnect. The
+    // active app is determined by the deployed OAuth client credentials; its
+    // app_id is returned by Slack and persisted during that reconnect.
+    if (!install.appId) {
+      throw new SlackApiError("Reconnect Slack to migrate this organization to NoxConnect", {
+        code: "app_mismatch",
+      });
+    }
+    const auth = await slackPost(install.botToken, "auth.test", {});
+    if (auth.team_id && install.teamId && auth.team_id !== install.teamId) {
+      throw new SlackApiError("Slack token belongs to a different workspace", { code: "workspace_mismatch" });
+    }
+    const { results } = await env.DB.prepare(
+      "SELECT DISTINCT slack_channel_id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NOT NULL",
+    ).bind(orgId).all();
+    const feedChannels = await resolveSlackChannels(env.DB, orgId);
+    const channelIds = new Set([
+      ...(results ?? []).map((row) => row.slack_channel_id),
+      feedChannels.postsChannelId,
+      feedChannels.releaseNotesChannelId,
+    ].filter(Boolean));
+    await Promise.all([...channelIds].map(async (channelId) => {
+      const channel = await getSlackChannel(install.botToken, channelId);
+      if (!channel || channel.is_archived) {
+        throw new SlackApiError("Configured Slack channel is archived or unavailable", { code: "channel_unavailable" });
+      }
+      if (channel.is_private && !channel.is_member) {
+        throw new SlackApiError("Slack bot is not a member of the private channel", { code: "not_in_channel" });
+      }
+    }));
+    await writeSlackHealth(env.DB, orgId, "ok", null);
+    return { status: "ok", recovered: previous?.health_status !== "ok" };
+  } catch (error) {
+    await writeSlackHealth(env.DB, orgId, "degraded", error instanceof Error ? error.message : String(error));
+    return { status: "degraded", recovered: false, error };
+  }
+}
+
+async function writeSlackHealth(db, orgId, status, error) {
+  await db.prepare(
+    `UPDATE slack_settings SET health_status = ?, last_error = ?,
+       last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ?`,
+  ).bind(status, error ? String(error).slice(0, 1000) : null, orgId).run();
 }
 
 // Attach Block Kit unfurls to a Slack message. `unfurls` is a map keyed by
@@ -262,16 +350,20 @@ export async function listSlackChannels(token) {
 // ---------- OAuth helpers ----------
 
 const REDIRECT_PATH = "/api/slack/oauth/callback";
+// NoxConnect is owned by central Nox. Every product starts OAuth here and the
+// code exchange must use this exact allowlisted URI as well; Slack rejects a
+// callback when the authorize and exchange redirect URIs differ.
+export const SLACK_OAUTH_REDIRECT_URI = "https://app.unticket.ai/api/slack/oauth/callback";
 // `links:read` + `links:write` power the link-shared unfurl handler at
 // /api/slack/events. Existing installs that didn't get these scopes will
 // stop unfurling until an admin re-runs the Connect flow.
 export const SLACK_BOT_SCOPES = ["channels:read", "groups:read", "chat:write", "chat:write.public", "links:read", "links:write"];
 
-export function buildOAuthAuthorizeUrl(clientId, origin, state) {
+export function buildOAuthAuthorizeUrl(clientId, origin, state, redirectUri = `${origin}${REDIRECT_PATH}`) {
   const u = new URL(`${SLACK_API}/oauth/v2/authorize`);
   u.searchParams.set("client_id", clientId);
   u.searchParams.set("scope", SLACK_BOT_SCOPES.join(","));
-  u.searchParams.set("redirect_uri", `${origin}${REDIRECT_PATH}`);
+  u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("state", state);
   return u.toString();
 }
@@ -308,6 +400,7 @@ export async function exchangeOAuthCode({ clientId, clientSecret, code, redirect
     throw new Error("Slack oauth.v2.access returned no bot token / team id");
   }
   return {
+    appId: data.app_id ?? null,
     botToken: data.access_token,
     botUserId: data.bot_user_id ?? null,
     teamId: data.team.id,
@@ -358,6 +451,16 @@ export async function verifyOAuthState(secret, state) {
 // them around after a switch would route narration to the wrong place.
 export async function clearSlackChannelsForOrg(db, orgId) {
   if (!db || !orgId) return;
+  // NoxSpot channel selections are workspace-scoped too. Clear them alongside
+  // the feed defaults so switching/disconnecting Slack cannot retain a channel
+  // id from the previous workspace.
+  await db.prepare("UPDATE spot_sites SET slack_channel_id = NULL WHERE org_id = ?").bind(orgId).run();
+  await db.prepare(
+    `UPDATE delivery_outbox SET status = 'blocked_configuration',
+       last_error_code = 'slack_not_connected', last_error = 'Slack was disconnected',
+       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+     WHERE org_id = ? AND destination = 'slack' AND status != 'delivered'`,
+  ).bind(orgId).run().catch(() => null);
   const row = await db
     .prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
     .bind(orgId)

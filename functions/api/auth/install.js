@@ -23,7 +23,7 @@ export async function onRequestGet(context) {
           Authorization: `Bearer ${jwt}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "unticket",
+          "User-Agent": "Unticket",
         },
       }
     );

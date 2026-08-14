@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useOrgs } from "@/hooks/useGitHub";
 import { LoginPage } from "@/pages/LoginPage";
@@ -74,6 +74,25 @@ function AuthenticatedRoutes() {
 export function App() {
   const { user, isLoading, authError, selectedOrg, setSelectedOrg } = useAuth();
   const { data: orgs, isLoading: orgsLoading } = useOrgs();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Shared links carry `?org=` (see lib/share-links.ts) so a colleague lands
+  // on the right workspace even if their last-selected org differs. Apply it
+  // once the org list is known, then strip it from the URL. An org the user
+  // isn't a member of is stripped without switching — the rest of the link
+  // resolves (or not) against their own workspace.
+  useEffect(() => {
+    if (!user || !orgs) return;
+    const orgParam = searchParams.get("org");
+    if (!orgParam) return;
+
+    if (orgParam !== selectedOrg && orgs.some((o) => o.login === orgParam)) {
+      setSelectedOrg(orgParam);
+    }
+    const params = new URLSearchParams(searchParams);
+    params.delete("org");
+    setSearchParams(params, { replace: true });
+  }, [user, orgs, searchParams, selectedOrg, setSelectedOrg, setSearchParams]);
 
   // Validate stored org is an actual org (not personal account)
   // and auto-select if there's only one org

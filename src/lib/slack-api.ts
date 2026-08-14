@@ -9,6 +9,13 @@ export interface SlackStatus {
   releaseNotesChannelId: string;
   canConfigure: boolean;
   appConfigured: boolean;
+  needsReconnect: boolean;
+  health: "disconnected" | "unknown" | "ok" | "degraded";
+  lastCheckedAt: string | null;
+  lastError: string | null;
+  pendingDeliveries: number;
+  blockedDeliveries: number;
+  lastDeliveredAt: string | null;
 }
 
 export interface SlackChannel {

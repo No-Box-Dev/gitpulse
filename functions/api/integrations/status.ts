@@ -1,0 +1,114 @@
+import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
+import { resolveSlackChannels, resolveSlackInstall } from "../../lib/slack";
+import { getNoxDb, type NoxDatabaseEnv } from "../../lib/nox-db";
+
+interface Ctx {
+  env: NoxDatabaseEnv & {
+    GITHUB_APP_ID?: string;
+    GITHUB_APP_PRIVATE_KEY?: string;
+    SLACK_CLIENT_ID?: string;
+    SLACK_CLIENT_SECRET?: string;
+    SLACK_SIGNING_SECRET?: string;
+  };
+  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+}
+
+// Organization-level integration overview. This is the only status contract
+// the UI needs for external systems; it deliberately returns no credentials.
+export async function onRequestGet(context: Ctx): Promise<Response> {
+  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
+  const db = getNoxDb(context.env);
+
+  const [org, installation, slackInstall, slackChannels, slackMetadata, slackDeliveries] = await Promise.all([
+    db.prepare(
+      "SELECT installation_id, bootstrapped_at, last_event_at FROM orgs WHERE id = ?",
+    ).bind(orgId).first<Record<string, unknown>>(),
+    db.prepare(
+      `SELECT installation_id, account_login, account_type, health_status
+         FROM installations WHERE owner_id = ? AND account_login = ? LIMIT 1`,
+    ).bind(orgLogin, orgLogin).first<Record<string, unknown>>(),
+    resolveSlackInstall(context.env, orgId),
+    resolveSlackChannels(db, orgId),
+    db.prepare(
+      "SELECT health_status, last_checked_at, last_error FROM slack_settings WHERE org_id = ?",
+    ).bind(orgId).first<Record<string, unknown>>(),
+    db.prepare(
+      `SELECT
+         SUM(CASE WHEN status IN ('pending','queued','processing','retrying') THEN 1 ELSE 0 END) AS pending_count,
+         SUM(CASE WHEN status IN ('blocked_configuration','failed') THEN 1 ELSE 0 END) AS blocked_count,
+         MAX(delivered_at) AS last_delivered_at
+       FROM delivery_outbox WHERE org_id = ? AND destination = 'slack'`,
+    ).bind(orgId).first<Record<string, unknown>>(),
+  ]);
+
+  const installationId = installation?.installation_id ?? org?.installation_id ?? null;
+  const githubConfigured = Boolean(context.env.GITHUB_APP_ID && context.env.GITHUB_APP_PRIVATE_KEY);
+  const githubConnected = Boolean(installationId);
+  const githubBootstrapping = Boolean(installationId && !org?.bootstrapped_at);
+  const githubNeedsAttention = installation?.health_status === "silent";
+  const githubReady = githubConfigured && githubConnected && !githubBootstrapping && !githubNeedsAttention;
+  const slackConfigured = Boolean(
+    context.env.SLACK_CLIENT_ID
+    && context.env.SLACK_CLIENT_SECRET
+    && context.env.SLACK_SIGNING_SECRET,
+  );
+  const slackConnected = Boolean(slackInstall);
+  const slackNeedsReconnect = Boolean(slackInstall && !slackInstall.appId);
+  const slackDegraded = slackMetadata?.health_status === "degraded";
+  const slackReady = slackConfigured && slackConnected && !slackNeedsReconnect && !slackDegraded;
+
+  const response = jsonResponse({
+    canConfigure: Boolean(isAdmin),
+    setup: {
+      ready: githubReady,
+      needsOnboarding: !githubReady,
+      requiredConnection: "github",
+    },
+    features: {
+      feed: {
+        state: githubReady ? "ready" : "blocked",
+        requirements: ["github"],
+        optionalConnections: ["slack"],
+      },
+      noxSpot: {
+        state: githubReady ? "ready" : "blocked",
+        requirements: ["github"],
+        optionalConnections: ["slack"],
+      },
+      noxAlert: {
+        state: "coming_soon",
+        requirements: ["github", "slack"],
+        prerequisitesReady: githubReady && slackReady,
+      },
+    },
+    github: {
+      connected: githubConnected,
+      configured: githubConfigured,
+      installationId,
+      accountLogin: installation?.account_login ?? orgLogin,
+      accountType: installation?.account_type ?? null,
+      bootstrapping: githubBootstrapping,
+      health: installation?.health_status ?? "ok",
+      lastEventAt: org?.last_event_at ?? null,
+      manageUrl: "https://github.com/settings/installations",
+      installUrl: "https://github.com/apps/noxconnect/installations/new",
+    },
+    slack: {
+      connected: slackConnected,
+      configured: slackConfigured,
+      needsReconnect: slackNeedsReconnect,
+      teamId: slackInstall?.teamId ?? null,
+      teamName: slackInstall?.teamName ?? null,
+      defaultChannelId: slackChannels.postsChannelId || slackChannels.releaseNotesChannelId || null,
+      health: !slackMetadata ? "disconnected" : !slackInstall ? "degraded" : slackMetadata.health_status ?? "unknown",
+      lastCheckedAt: slackMetadata?.last_checked_at ?? null,
+      lastError: slackMetadata?.last_error ?? null,
+      pendingDeliveries: Number(slackDeliveries?.pending_count ?? 0),
+      blockedDeliveries: Number(slackDeliveries?.blocked_count ?? 0),
+      lastDeliveredAt: slackDeliveries?.last_delivered_at ?? null,
+    },
+  });
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}

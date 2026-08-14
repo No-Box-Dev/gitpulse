@@ -5,6 +5,9 @@ import { MemoryRouter } from "react-router-dom";
 vi.mock("@/hooks/useConfigRepo", () => ({
   useSettings: () => ({ data: null }),
 }));
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { login: "alice" }, selectedOrg: "acme" }),
+}));
 // The Linked Specs section fires useSpecs which needs auth + react-query
 // context — this stub keeps the modal test focused on the non-Specs
 // behaviour that these cases actually assert.
@@ -97,6 +100,18 @@ describe("FeatureDetailModal", () => {
     expect(await screen.findByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("copies a shareable org-scoped link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderModal(baseFeature);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link to this feature" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/?org=acme&tab=sprint&f=42`,
+      ),
+    );
   });
 
   it("no longer renders a Description section (Specs replace it)", () => {

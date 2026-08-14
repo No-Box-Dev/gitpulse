@@ -17,6 +17,9 @@ import { getInstallationToken } from "../../functions/lib/github-app.js";
 import { recordFailure } from "../../functions/lib/op-failures.js";
 import { runNextStatsAudit } from "./stats-audit.js";
 import { runDatabaseRecoveryStep } from "./database-recovery.js";
+import { createNoxSpotGitHubIssue } from "../../functions/lib/noxspot.js";
+import { deliverSlackOutbox, markOutboxFailed, recoverOutboxDeliveries, requeueBlockedForOrg } from "../../functions/lib/delivery-outbox.js";
+import { checkSlackOrgHealth } from "../../functions/lib/slack.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -60,6 +63,9 @@ export default {
             deliveryId: msg.body?.deliveryId ?? null,
             error: err,
           });
+          if (msg.body?.type === TASK.DELIVER_SLACK && msg.body?.outboxId) {
+            await markOutboxFailed(env.DB, msg.body.outboxId, err);
+          }
           msg.ack();
         } else {
           msg.retry();
@@ -102,6 +108,10 @@ async function handleTask(env, body) {
       const token = await getInstallationToken(env, body.installationId);
       return syncRepo(env.DB, token, body.orgId, body.accountLogin, body.repo, true);
     }
+    case TASK.SPOT_CREATE_GITHUB_ISSUE:
+      return createNoxSpotGitHubIssue(env, body);
+    case TASK.DELIVER_SLACK:
+      return deliverSlackOutbox(env, body.outboxId);
     default:
       throw new Error(`unknown task type: ${body?.type}`);
   }
@@ -110,6 +120,8 @@ async function handleTask(env, body) {
 async function runTick(env) {
   const db = env.DB;
 
+  await recoverOutboxDeliveries(env);
+  await runSlackHealthSweep(env);
   await healOrgInstallationLinks(db);
 
   // Process at most one explicitly-requested source-of-truth audit per tick.
@@ -146,6 +158,28 @@ async function runTick(env) {
         `[unticket-cron] org=${org.github_login} reconcile failed:`,
         err?.message ?? err,
       );
+    }
+  }
+}
+
+async function runSlackHealthSweep(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT org_id FROM slack_settings
+      WHERE last_checked_at IS NULL
+         OR last_checked_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 minutes')
+      ORDER BY COALESCE(last_checked_at, '')
+      LIMIT 10`,
+  ).all();
+  for (const row of results ?? []) {
+    try {
+      const health = await checkSlackOrgHealth(env, row.org_id);
+      if (health.recovered) await requeueBlockedForOrg(env, row.org_id);
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "slack_health_check_failed",
+        orgId: row.org_id,
+        error: error instanceof Error ? error.message : String(error),
+      }));
     }
   }
 }

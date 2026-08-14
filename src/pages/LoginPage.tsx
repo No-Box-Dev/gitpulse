@@ -25,7 +25,7 @@ export function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-stone-400 mt-4">
-          Sign in installs the Unticket GitHub App on the orgs you choose. No personal access tokens — ever.
+          Sign in installs NoxConnect on the orgs you choose. No personal access tokens — ever.
         </p>
       </div>
     </div>

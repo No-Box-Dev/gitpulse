@@ -30,12 +30,11 @@ import {
   buildReleaseNotesMessage,
 } from "./prompt";
 import {
-  resolveSlackInstall,
   resolveSlackChannels,
-  postSlackMessage,
   buildPostsBlocks,
   buildReleaseNotesBlocks,
 } from "./slack";
+import { queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
 
 const MAX_OUTPUT_LENGTH = 800;
 const MAX_TECHNICAL_OUTPUT_LENGTH = 1200;
@@ -575,19 +574,13 @@ function limitText(text, maxLength) {
     : trimmed;
 }
 
-// Mirror a narration to Slack via the org's installed Unticket bot. Resolves
-// the bot token from slack_settings and the per-feed channel id from
-// settings.slack.{postsChannelId,releaseNotesChannelId}. Any failure is
-// recorded to op_failures and swallowed — the in-app feed already has the
-// row, Slack downtime never blocks the queue.
+// Stage narration delivery in the shared outbox. The in-app feed remains the
+// source of truth; Slack is delivered independently with durable retries and
+// visible blocked state.
 async function maybePostToSlack(env, args) {
   const { kind, orgId, ownerId, triggerEventId, actor, project, summary, rawEvent } = args;
   try {
-    const [install, channels] = await Promise.all([
-      resolveSlackInstall(env, orgId),
-      resolveSlackChannels(env.DB, orgId),
-    ]);
-    if (!install) return;
+    const channels = await resolveSlackChannels(env.DB, orgId);
     const channelId = kind === "release_notes" ? channels.releaseNotesChannelId : channels.postsChannelId;
     if (!channelId) return;
 
@@ -617,7 +610,22 @@ async function maybePostToSlack(env, args) {
         prNumber,
       });
     }
-    await postSlackMessage(install.botToken, channelId, blocks);
+    const delivery = await stageSlackDelivery(env.DB, {
+      orgId,
+      source: kind === "release_notes" ? "release_notes" : "posts",
+      sourceId: `${triggerEventId}:${kind}`,
+      siteId: null,
+      channelId,
+      payload: {
+        message: {
+          ...blocks,
+          client_msg_id: `unticket-${kind}-${triggerEventId}`,
+        },
+      },
+    });
+    if (delivery?.id && delivery.status !== "delivered") {
+      await queueOutboxDelivery(env, delivery.id, ownerId);
+    }
   } catch (err) {
     await recordFailure(env.DB, {
       ownerId,

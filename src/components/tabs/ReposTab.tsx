@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/cn";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import {
   Archive,
   ArchiveRestore,
@@ -648,6 +649,12 @@ function RepoPrsSubPage({
                   <span className="text-xs text-stone-400 shrink-0 font-mono">#{item.number}</span>
                   <span className="text-sm text-stone-700 truncate flex-1">{item.title}</span>
                   <span className="text-xs text-stone-400 shrink-0">{formatRelative(item.timestamp)}</span>
+                  <CopyLinkButton
+                    url={item.html_url}
+                    label={`Copy GitHub link to PR #${item.number}`}
+                    size={12}
+                    className="text-stone-300 opacity-0 group-hover:opacity-100"
+                  />
                   <a
                     href={item.html_url}
                     target="_blank"

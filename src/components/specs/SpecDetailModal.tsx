@@ -2,8 +2,11 @@ import { useMemo, useRef, useState } from "react";
 import { Archive, Pencil, Undo2, X } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import { useIsAdmin } from "@/hooks/useGitHub";
+import { useAuth } from "@/lib/auth";
 import { useBoardStages } from "@/lib/board-stages";
+import { specShareUrl } from "@/lib/share-links";
 import { SpecSourcesSection } from "@/components/specs/SpecSourcesSection";
 import { useSetSpecArchived, useUpdateSpec } from "@/hooks/useSpecs";
 import type { Feature, Spec, SpecLink } from "@/lib/types";
@@ -20,6 +23,7 @@ export function SpecDetailModal({ spec, features, onClose }: Props) {
   const [draft, setDraft] = useState<Spec>(spec);
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
+  const { selectedOrg } = useAuth();
   const stages = useBoardStages();
 
   const updateMut = useUpdateSpec();
@@ -144,6 +148,12 @@ export function SpecDetailModal({ spec, features, onClose }: Props) {
               title="Click to edit title"
             />
             <Pencil size={14} className="shrink-0 text-stone-300 group-hover/title:text-stone-400 transition-colors" />
+            {selectedOrg && (
+              <CopyLinkButton
+                url={specShareUrl(selectedOrg, spec.id)}
+                label="Copy link to this spec"
+              />
+            )}
           </div>
           <button aria-label="Close spec" onClick={handleClose} className="text-stone-400 hover:text-stone-600 cursor-pointer ml-2">
             <X className="w-5 h-5" />

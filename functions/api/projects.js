@@ -90,7 +90,7 @@ async function discoverInstallationViaApp(env, ownerId) {
     Authorization: `Bearer ${jwt}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "unticket",
+    "User-Agent": "Unticket",
   };
 
   // Try org first, then user installation.
@@ -145,7 +145,7 @@ async function fetchInstallationRepos(env, installationId) {
           Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "unticket",
+          "User-Agent": "Unticket",
         },
       }
     );

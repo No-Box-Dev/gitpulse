@@ -1,0 +1,122 @@
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../slack.js", () => ({
+  resolveSlackInstall: vi.fn(),
+  postSlackMessage: vi.fn(),
+}));
+
+import {
+  deliverSlackOutbox,
+  queueOutboxDelivery,
+  recoverOutboxDeliveries,
+  requeueBlockedForSite,
+  stageSlackDelivery,
+} from "../delivery-outbox.js";
+import { postSlackMessage, resolveSlackInstall } from "../slack.js";
+
+function db({ first = null, all = [] } = {}) {
+  const calls = [];
+  return {
+    calls,
+    prepare(sql) {
+      const statement = {
+        bind(...binds) { statement.binds = binds; return statement; },
+        async first() { calls.push({ kind: "first", sql, binds: statement.binds }); return first; },
+        async all() { calls.push({ kind: "all", sql, binds: statement.binds }); return { results: all }; },
+        async run() { calls.push({ kind: "run", sql, binds: statement.binds }); return { success: true }; },
+      };
+      return statement;
+    },
+  };
+}
+
+describe("delivery outbox", () => {
+  it("stages an idempotent source/destination row", async () => {
+    const database = db({ first: { id: "delivery-1", status: "pending" } });
+    const result = await stageSlackDelivery(database, {
+      orgId: 7, source: "noxspot", sourceId: "capture-1", siteId: "site-1",
+      channelId: "C123", payload: { title: "Broken" },
+    });
+    expect(result).toEqual({ id: "delivery-1", status: "pending" });
+    expect(database.calls[0].sql).toContain("ON CONFLICT(source, destination, source_id)");
+    expect(database.calls[0].binds.slice(1, 4)).toEqual([7, "noxspot", "capture-1"]);
+  });
+
+  it("blocks visibly instead of silently succeeding when Slack is disconnected", async () => {
+    vi.mocked(resolveSlackInstall).mockResolvedValue(null);
+    const outbox = {
+      id: "delivery-1", org_id: 7, destination: "slack", channel_id: "C123",
+      payload_json: JSON.stringify({ message: { text: "hello" } }),
+    };
+    let firstCall = 0;
+    const database = db();
+    database.prepare = (sql) => {
+      const statement = {
+        binds: [],
+        bind(...binds) { statement.binds = binds; return statement; },
+        async first() { firstCall += 1; return firstCall === 1 ? outbox : null; },
+        async run() { database.calls.push({ kind: "run", sql, binds: statement.binds }); return { success: true }; },
+      };
+      return statement;
+    };
+    const result = await deliverSlackOutbox({ DB: database }, "delivery-1");
+    expect(result).toEqual({ blocked: "slack_not_connected" });
+    expect(database.calls.some((call) => call.binds?.[0] === "blocked_configuration")).toBe(true);
+  });
+
+  it("delivers a generic Slack payload exactly once", async () => {
+    vi.mocked(resolveSlackInstall).mockResolvedValue({ botToken: "xoxb-test" });
+    vi.mocked(postSlackMessage).mockResolvedValue(undefined);
+    const outbox = {
+      id: "delivery-1", org_id: 7, destination: "slack", channel_id: "C123",
+      payload_json: JSON.stringify({ message: { text: "hello", client_msg_id: "stable-1" } }),
+    };
+    const database = db({ first: outbox });
+    const result = await deliverSlackOutbox({ DB: database }, "delivery-1");
+    expect(result).toEqual({ delivered: true });
+    expect(postSlackMessage).toHaveBeenCalledWith("xoxb-test", "C123", { text: "hello", client_msg_id: "stable-1" });
+    expect(database.calls.some((call) => call.sql.includes("status = 'delivered'"))).toBe(true);
+  });
+
+  it("records transient failures for retry and blocks permanent configuration failures", async () => {
+    vi.mocked(resolveSlackInstall).mockResolvedValue({ botToken: "xoxb-test" });
+    const outbox = {
+      id: "delivery-1", org_id: 7, destination: "slack", channel_id: "C123",
+      payload_json: JSON.stringify({ message: { text: "hello" } }),
+    };
+    const transientDb = db({ first: outbox });
+    vi.mocked(postSlackMessage).mockRejectedValueOnce(Object.assign(new Error("rate limited"), { code: "rate_limited" }));
+    await expect(deliverSlackOutbox({ DB: transientDb }, "delivery-1")).rejects.toThrow("rate limited");
+    expect(transientDb.calls.some((call) => call.sql.includes("status = ?") && call.binds?.[0] === "retrying")).toBe(true);
+
+    const permanentDb = db({ first: outbox });
+    vi.mocked(postSlackMessage).mockRejectedValueOnce(Object.assign(new Error("not in channel"), { code: "not_in_channel" }));
+    expect(await deliverSlackOutbox({ DB: permanentDb }, "delivery-1")).toEqual({ blocked: "not_in_channel" });
+    expect(permanentDb.calls.some((call) => call.binds?.[0] === "blocked_configuration")).toBe(true);
+  });
+
+  it("keeps a durable pending row when the queue binding is missing", async () => {
+    const database = db();
+    expect(await queueOutboxDelivery({ DB: database }, "delivery-1", "acme")).toBe(false);
+    expect(database.calls[0].sql).toContain("status = 'pending'");
+    expect(database.calls[0].binds).toContain("queue_binding_missing");
+  });
+
+  it("recovers stale and pending rows onto the queue", async () => {
+    const send = vi.fn(async () => undefined);
+    const database = db({ all: [{ id: "delivery-1", owner_id: "acme" }] });
+    const result = await recoverOutboxDeliveries({ DB: database, TASK_QUEUE: { send } });
+    expect(result).toEqual({ queued: 1 });
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "deliver_slack", outboxId: "delivery-1" }));
+    expect(database.calls.some((call) => call.sql.includes("'-15 minutes'"))).toBe(true);
+  });
+
+  it("requeues blocked site deliveries explicitly", async () => {
+    const send = vi.fn(async () => undefined);
+    const database = db({ all: [{ id: "delivery-1" }] });
+    const result = await requeueBlockedForSite({ DB: database, TASK_QUEUE: { send } }, 7, "site-1");
+    expect(result).toEqual({ queued: 1 });
+    expect(database.calls[0].sql).toContain("blocked_configuration");
+    expect(send).toHaveBeenCalledOnce();
+  });
+});

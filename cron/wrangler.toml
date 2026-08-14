@@ -30,6 +30,12 @@ max_batch_size = 10
 max_retries = 4
 dead_letter_queue = "unticket-tasks-dlq"
 
+# The consumer stages follow-up outbox deliveries and the scheduled recovery
+# sweep re-enqueues durable pending rows onto this same queue.
+[[queues.producers]]
+binding = "TASK_QUEUE"
+queue = "unticket-tasks"
+
 # Event-table retention: the daily archival sweep writes pruned `events` rows
 # here as NDJSON before deleting them from D1 (see src/archive-events.js).
 # PROVISION BEFORE DEPLOY: `wrangler r2 bucket create unticket-events-archive`.
@@ -39,6 +45,6 @@ bucket_name = "unticket-events-archive"
 
 # Secrets required on this worker before the first run:
 #   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY  (reconcile + bootstrap/sync tasks)
-#   ZHIPU_API_KEY (+ ENCRYPTION_KEY for per-org BYOK)  (narrate + match tasks)
+#   ZHIPU_API_KEY + ENCRYPTION_KEY (narration, BYOK, and NoxSpot Slack tasks)
 # Set via: wrangler secret put <NAME> --name unticket-cron
 # (ZHIPU_API_KEY was already needed for reconcile's PR-merged narration.)

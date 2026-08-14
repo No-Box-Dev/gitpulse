@@ -65,7 +65,7 @@ async function main() {
   if (!data) return;
 
   if (command === "create") {
-    console.log(`Created Unticket Slack app ${data.app_id}.`);
+    console.log(`Created NoxConnect Slack app ${data.app_id}.`);
     console.log(`SLACK_APP_ID=${data.app_id}`);
     console.log(`SLACK_CLIENT_ID=${data.credentials?.client_id ?? "<open Slack Basic Information>"}`);
     console.log(`SLACK_CLIENT_SECRET=${data.credentials?.client_secret ?? "<open Slack Basic Information>"}`);

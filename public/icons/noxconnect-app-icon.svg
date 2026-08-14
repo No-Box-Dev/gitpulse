@@ -1,0 +1,15 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="noxconnect-bg" x1="96" y1="96" x2="928" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FE795D"/>
+      <stop offset="1" stop-color="#9B78F4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#noxconnect-bg)"/>
+
+  <!-- Two Nox endpoints, one connection. Kept deliberately bold for Slack's small icon size. -->
+  <path d="M438 512H586" stroke="white" stroke-width="72" stroke-linecap="round"/>
+  <path d="M350 327L510 419V605L350 697L190 605V419L350 327Z" stroke="white" stroke-width="64" stroke-linejoin="round"/>
+  <path d="M674 327L834 419V605L674 697L514 605V419L674 327Z" stroke="white" stroke-width="64" stroke-linejoin="round"/>
+</svg>

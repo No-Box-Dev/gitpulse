@@ -91,22 +91,29 @@ npx wrangler secret put ENCRYPTION_KEY       --name unticket-cron
 
 > **LLM provider:** `ZHIPU_API_KEY` is the default narrator backend (Zhipu's Anthropic-compatible GLM endpoint). Each org can override it with their own key (BYOK) in Settings → AI Provider. Narration is optional — without a key, narration is skipped gracefully.
 
-### Provision the Slack app
+### Provision the NoxConnect Slack app
 
-The versioned [`slack-app-manifest.json`](./slack-app-manifest.json) configures the OAuth callback, bot scopes, Events API endpoint, and `app.unticket.ai` link unfurls. Generate a temporary **app configuration token** under [Your Apps](https://api.slack.com/apps), then create the shared app:
+The versioned [`slack-app-manifest.json`](./slack-app-manifest.json) is the single source of truth for NoxConnect, the shared Slack app for NoxAlert, NoxFeed, NoxKey, and NoxTicket. It configures the centralized OAuth callbacks, least-privilege bot scopes, Events API endpoint, and `app.unticket.ai` link unfurls. Generate a temporary **app configuration token** under [Your Apps](https://api.slack.com/apps), then create the shared app—or use `slack:push` with the existing app ID to rename and migrate that installation without creating a duplicate app:
 
 ```bash
 SLACK_CONFIG_TOKEN=xoxe.xoxp-... npm run slack:validate
 SLACK_CONFIG_TOKEN=xoxe.xoxp-... npm run slack:create
 ```
 
-The create command prints the app ID and its three credentials. Put the credentials into the Pages secrets listed above, deploy the Pages app, then verify the Events API request URL from the Slack app's **App Manifest** page. Keep the app ID locally for later manifest updates:
+The create command prints the app ID and its three credentials. Put the credentials into the Pages secrets listed above, deploy the Pages app, then verify the Events API request URL from the Slack app's **App Manifest** page. Keep the app ID in NoxKey for later manifest updates:
 
 ```bash
 SLACK_CONFIG_TOKEN=xoxe.xoxp-... SLACK_APP_ID=A0123456789 npm run slack:push
 ```
 
 Slack configuration tokens expire after 12 hours. They are only needed for manifest management and must not be committed. If a pushed manifest adds OAuth scopes, connected workspaces must reconnect from Unticket Settings to grant them.
+
+For customer installs, open **Manage Distribution** in the Slack app dashboard,
+complete Slack's checklist, and activate unlisted public distribution. Do not
+publish a second Slack app per product: admins start OAuth from Unticket's
+**Integrations** tab, and the resulting encrypted workspace token is shared by
+NoxAlert, NoxFeed, NoxKey, and NoxTicket for that Nox organization. Individual
+products store only their selected channel IDs.
 
 ## 5. Deploy
 

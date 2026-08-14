@@ -11,12 +11,21 @@ vi.mock("../../../functions/lib/github-app.js", () => ({
   getInstallationToken: vi.fn().mockResolvedValue("install-token"),
 }));
 vi.mock("../../../functions/lib/op-failures.js", () => ({ recordFailure: vi.fn() }));
+vi.mock("../../../functions/lib/noxspot.js", () => ({
+  createNoxSpotGitHubIssue: vi.fn(),
+}));
+vi.mock("../../../functions/lib/delivery-outbox.js", () => ({
+  deliverSlackOutbox: vi.fn(), markOutboxFailed: vi.fn(), recoverOutboxDeliveries: vi.fn(), requeueBlockedForOrg: vi.fn(),
+}));
+vi.mock("../../../functions/lib/slack.js", () => ({ checkSlackOrgHealth: vi.fn() }));
 
 import worker from "../index.js";
 import { narrateEvent } from "../../../functions/lib/narrator.js";
 import { syncRepo } from "../../../functions/lib/github-sync.js";
 import { getInstallationToken } from "../../../functions/lib/github-app.js";
 import { recordFailure } from "../../../functions/lib/op-failures.js";
+import { createNoxSpotGitHubIssue } from "../../../functions/lib/noxspot.js";
+import { deliverSlackOutbox, markOutboxFailed } from "../../../functions/lib/delivery-outbox.js";
 
 const env = { DB: {} };
 
@@ -43,6 +52,22 @@ describe("cron queue consumer", () => {
     expect(m.ack).toHaveBeenCalledOnce();
   });
 
+  it("routes NoxSpot captures through Unticket's GitHub worker", async () => {
+    const capture = { type: "spot_create_github_issue", captureId: "spot-1" };
+    const m = msg(capture);
+    await worker.queue({ messages: [m] }, env);
+    expect(createNoxSpotGitHubIssue).toHaveBeenCalledWith(env, capture);
+    expect(m.ack).toHaveBeenCalledOnce();
+  });
+
+  it("routes Slack notifications through the durable outbox worker", async () => {
+    const task = { type: "deliver_slack", outboxId: "delivery-1" };
+    const m = msg(task);
+    await worker.queue({ messages: [m] }, env);
+    expect(deliverSlackOutbox).toHaveBeenCalledWith(env, "delivery-1");
+    expect(m.ack).toHaveBeenCalledOnce();
+  });
+
   it("retries (does not ack) a failing task before the delivery limit", async () => {
     narrateEvent.mockRejectedValueOnce(new Error("boom"));
     const m = msg({ type: "narrate", eventId: 1 }, 1);
@@ -63,6 +88,14 @@ describe("cron queue consumer", () => {
     );
     expect(m.ack).toHaveBeenCalledOnce();
     expect(m.retry).not.toHaveBeenCalled();
+  });
+
+  it("marks an exhausted Slack outbox delivery as failed", async () => {
+    deliverSlackOutbox.mockRejectedValueOnce(new Error("Slack unavailable"));
+    const m = msg({ type: "deliver_slack", outboxId: "delivery-1", ownerId: "acme" }, 5);
+    await worker.queue({ messages: [m] }, env);
+    expect(markOutboxFailed).toHaveBeenCalledWith(env.DB, "delivery-1", expect.any(Error));
+    expect(m.ack).toHaveBeenCalledOnce();
   });
 
   it("treats an unknown task type as a failure", async () => {

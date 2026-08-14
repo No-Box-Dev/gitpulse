@@ -39,7 +39,7 @@ vi.mock("@/lib/slack-api", () => ({
   disconnectSlack: vi.fn(),
 }));
 vi.mock("@tanstack/react-query", () => {
-  const qc = { invalidateQueries: vi.fn() };
+  const qc = { invalidateQueries: vi.fn(), refetchQueries: vi.fn() };
   return {
     useQueryClient: () => qc,
     useQuery: () => ({
@@ -102,10 +102,11 @@ describe("SettingsTab", () => {
     expect(screen.getByText("@alice")).toBeInTheDocument();
   });
 
-  it("renders the GitHub App install section", () => {
+  it("keeps external integration controls out of general settings", () => {
     render(<SettingsTab />);
-    expect(screen.getByText("GitHub App")).toBeInTheDocument();
-    expect(screen.getByText(/Install or manage Unticket/i)).toBeInTheDocument();
+    expect(screen.queryByText("GitHub App")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connect Slack")).not.toBeInTheDocument();
+    expect(screen.getByText("Sign out")).toBeInTheDocument();
   });
 
   it("hides all admin tools for non-admins", () => {

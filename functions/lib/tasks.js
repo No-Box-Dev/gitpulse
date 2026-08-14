@@ -14,6 +14,8 @@ export const TASK = {
   NARRATE_PR_OPENED: "narrate_pr_opened", // { eventId }        -> narratePrOpened(env, eventId)
   BOOTSTRAP: "bootstrap",             // { orgId, accountLogin, installationId }
   SYNC_REPO: "sync_repo",             // { orgId, accountLogin, installationId, repo }
+  SPOT_CREATE_GITHUB_ISSUE: "spot_create_github_issue", // transient capture → GitHub issue
+  DELIVER_SLACK: "deliver_slack",       // { outboxId } → durable delivery_outbox row
 };
 
 // Enqueue a task. Never throws into the caller: a missing binding or transient

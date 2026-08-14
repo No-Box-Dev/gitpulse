@@ -2,7 +2,7 @@ import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { resolveSlackInstall, postSlackMessage } from "../../lib/slack";
 
 // POST /api/slack/test
-// Body: { channelId: string, kind?: "narrative" | "release_notes" | "noxspot" }
+// Body: { channelId: string, kind: "fallback" | "noxalert" | "noxspot" | "unticket" | "noxfeed" }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -18,42 +18,44 @@ export async function onRequestPost(context) {
 
   const channelId = typeof body?.channelId === "string" ? body.channelId.trim() : "";
   if (!channelId) return errorResponse("channelId required", 400);
-  const kind = body?.kind === "release_notes" ? "release_notes" : "narrative";
+  const legacyKind = body?.kind === "release_notes" || body?.kind === "narrative";
+  const allowedKinds = new Set(["fallback", "noxalert", "noxspot", "unticket", "noxfeed"]);
+  const kind = legacyKind ? "noxfeed" : allowedKinds.has(body?.kind) ? body.kind : null;
+  if (!kind) return errorResponse("Invalid Slack test kind", 400);
 
   const install = await resolveSlackInstall(context.env, orgId);
   if (!install) return errorResponse("Slack not connected", 404);
 
-  const payload = body?.kind === "noxspot"
-    ? {
+  const payload = kind === "noxalert" ? {
         text: `NoxAlert delivery test for ${orgLogin}`,
         blocks: [
           { type: "header", text: { type: "plain_text", text: "NoxAlert delivery test", emoji: true } },
-          { type: "section", text: { type: "mrkdwn", text: `Slack delivery is healthy for *${orgLogin}*.` } },
+          { type: "section", text: { type: "mrkdwn", text: `Error and resolved-alert delivery is healthy for *${orgLogin}*.` } },
         ],
       }
-    : kind === "release_notes"
-    ? {
-        text: `NoxFeed release-notes channel test for ${orgLogin}`,
+    : kind === "noxspot" ? {
+        text: `NoxSpot delivery test for ${orgLogin}`,
         blocks: [
-          { type: "section", text: { type: "mrkdwn", text: `*NoxFeed — release notes channel test*\n_Org: \`${orgLogin}\`_` } },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text:
-                "```\n📦 unticket #0 Merged - Test\nRepository: unticket\nDetails: Connectivity test from Unticket.\nIf you see this, the bot can post here.\n```",
-            },
-          },
+          { type: "header", text: { type: "plain_text", text: "NoxSpot delivery test", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Site feedback delivery is healthy for *${orgLogin}*.` } },
         ],
+      }
+    : kind === "unticket" ? {
+        text: `Unticket delivery test for ${orgLogin}`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `*Unticket — tickets and activity test*\nOrg: \`${orgLogin}\`` } }],
+      }
+    : kind === "fallback" ? {
+        text: `NoxConnect fallback test for ${orgLogin}`,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `*NoxConnect — organization fallback test*\nUnassigned service messages for \`${orgLogin}\` can be delivered here.` } }],
       }
     : {
-        text: `NoxFeed posts channel test for ${orgLogin}`,
+        text: `NoxFeed delivery test for ${orgLogin}`,
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `*NoxFeed — posts channel test*\nIf you see this, NoxConnect can post here. (Org \`${orgLogin}\`)`,
+              text: `*NoxFeed — posts and release notes test*\nIf you see this, NoxConnect can post here. (Org \`${orgLogin}\`)`,
             },
           },
         ],

@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/slack.js", () => ({
   resolveSlackInstall: vi.fn(),
+  resolveSlackChannels: vi.fn(async () => ({ fallbackChannelId: "" })),
   getSlackChannel: vi.fn(),
 }));
 vi.mock("../../lib/delivery-outbox.js", () => ({ requeueBlockedForSite: vi.fn(async () => ({ queued: 1 })) }));
 
 import { onRequestPatch } from "../spots/sites/[id]/index";
-import { getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
+import { getSlackChannel, resolveSlackChannels, resolveSlackInstall } from "../../lib/slack.js";
 import { requeueBlockedForSite } from "../../lib/delivery-outbox.js";
 
 function database() {
@@ -58,6 +59,7 @@ describe("NoxSpot Slack site settings", () => {
     const response = await onRequestPatch(ctx as never);
     expect(response.status).toBe(200);
     expect(getSlackChannel).toHaveBeenCalledWith("xoxb-test", "C123");
+    expect(db.runs.some((run) => run.binds[0] === "C123" && run.sql.includes("source = 'noxspot'"))).toBe(true);
     expect(requeueBlockedForSite).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), 7, "site-1");
   });
 
@@ -67,5 +69,14 @@ describe("NoxSpot Slack site settings", () => {
     const response = await onRequestPatch(context(database(), { slackChannelId: "C123" }) as never);
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ error: expect.stringContaining("Invite") });
+  });
+
+  it("uses the organization fallback when a site override is cleared", async () => {
+    vi.mocked(resolveSlackChannels).mockResolvedValue({ fallbackChannelId: "C-FALLBACK" } as never);
+    const db = database();
+    const response = await onRequestPatch(context(db, { slackChannelId: null }) as never);
+    expect(response.status).toBe(200);
+    expect(db.runs.some((run) => run.binds[0] === "C-FALLBACK" && run.sql.includes("source = 'noxspot'"))).toBe(true);
+    expect(requeueBlockedForSite).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), 7, "site-1");
   });
 });

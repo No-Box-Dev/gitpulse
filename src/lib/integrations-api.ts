@@ -31,6 +31,12 @@ export interface IntegrationsStatus {
     teamId: string | null;
     teamName: string | null;
     defaultChannelId: string | null;
+    channels: {
+      fallback: string | null;
+      noxAlert: string | null;
+      unticket: string | null;
+      noxFeed: string | null;
+    };
     health: "disconnected" | "unknown" | "ok" | "degraded";
     lastCheckedAt: string | null;
     lastError: string | null;

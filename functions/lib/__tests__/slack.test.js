@@ -10,6 +10,7 @@ vi.mock("../crypto", () => ({
 import {
   buildOAuthAuthorizeUrl,
   SLACK_OAUTH_REDIRECT_URI,
+  resolveSlackOAuthRedirectUri,
   SLACK_BOT_SCOPES,
   exchangeOAuthCode,
   signOAuthState,
@@ -17,12 +18,40 @@ import {
   resolveSlackInstall,
   saveSlackInstall,
   resolveSlackChannels,
+  resolveSlackRoute,
+  slackInstallNeedsReconnect,
   clearSlackChannelsForOrg,
   postSlackMessage,
   listSlackChannels,
   buildPostsBlocks,
   buildReleaseNotesBlocks,
 } from "../slack.js";
+
+describe("slackInstallNeedsReconnect", () => {
+  const currentApp = { SLACK_APP_ID: "A_CURRENT" };
+
+  it("requires legacy installs to reconnect by default", () => {
+    expect(slackInstallNeedsReconnect(currentApp, { appId: null })).toBe(true);
+  });
+
+  it("accepts legacy installs only when the compatibility flag is explicit", () => {
+    expect(slackInstallNeedsReconnect(
+      { ...currentApp, SLACK_ACCEPT_LEGACY_INSTALLS: "true" },
+      { appId: null },
+    )).toBe(false);
+  });
+
+  it("rejects a known different app even in legacy compatibility mode", () => {
+    expect(slackInstallNeedsReconnect(
+      { ...currentApp, SLACK_ACCEPT_LEGACY_INSTALLS: "true" },
+      { appId: "A_OTHER" },
+    )).toBe(true);
+  });
+
+  it("accepts an install recorded for the current app", () => {
+    expect(slackInstallNeedsReconnect(currentApp, { appId: "A_CURRENT" })).toBe(false);
+  });
+});
 
 describe("saveSlackInstall", () => {
   it("clears stale health errors after a successful reconnect", async () => {
@@ -100,6 +129,18 @@ describe("buildOAuthAuthorizeUrl", () => {
       SLACK_OAUTH_REDIRECT_URI,
     ));
     expect(url.searchParams.get("redirect_uri")).toBe(SLACK_OAUTH_REDIRECT_URI);
+  });
+
+  it("uses the allowlisted NoxSpot bridge for the Blindspot app", () => {
+    expect(resolveSlackOAuthRedirectUri({
+      SLACK_OAUTH_REDIRECT_URI: "https://api.noxspot.dev/slack/callback",
+    })).toBe("https://api.noxspot.dev/slack/callback");
+  });
+
+  it("rejects an untrusted configured callback", () => {
+    expect(resolveSlackOAuthRedirectUri({
+      SLACK_OAUTH_REDIRECT_URI: "https://attacker.example/callback",
+    })).toBe(SLACK_OAUTH_REDIRECT_URI);
   });
 });
 
@@ -246,19 +287,48 @@ describe("resolveSlackChannels", () => {
   }
   it("returns empty IDs when no settings", async () => {
     expect(await resolveSlackChannels(mkDb(null), "org-1")).toEqual({
+      fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
       postsChannelId: "", releaseNotesChannelId: "",
     });
   });
   it("returns the configured channel IDs", async () => {
-    const row = { data: JSON.stringify({ slack: { postsChannelId: "C1", releaseNotesChannelId: "C2" } }) };
+    const row = { data: JSON.stringify({ slack: {
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
+    } }) };
     expect(await resolveSlackChannels(mkDb(row), "org-1")).toEqual({
-      postsChannelId: "C1", releaseNotesChannelId: "C2",
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
+      postsChannelId: "CF", releaseNotesChannelId: "CF",
+    });
+  });
+  it("adopts the old feed channel without a data migration", async () => {
+    const row = { data: JSON.stringify({ slack: { postsChannelId: "C-LEGACY" } }) };
+    expect(await resolveSlackChannels(mkDb(row), "org-1")).toMatchObject({
+      noxFeedChannelId: "C-LEGACY", postsChannelId: "C-LEGACY", releaseNotesChannelId: "C-LEGACY",
     });
   });
   it("tolerates corrupt JSON", async () => {
     expect(await resolveSlackChannels(mkDb({ data: "not json" }), "org-1")).toEqual({
+      fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
       postsChannelId: "", releaseNotesChannelId: "",
     });
+  });
+
+  it("uses service-specific channels before the organization fallback", () => {
+    const channels = {
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
+    };
+    expect(resolveSlackRoute(channels, "noxalert", "CS")).toBe("CA");
+    expect(resolveSlackRoute(channels, "noxspot", "CS")).toBe("CS");
+    expect(resolveSlackRoute(channels, "unticket")).toBe("CU");
+    expect(resolveSlackRoute(channels, "noxfeed")).toBe("CF");
+  });
+
+  it("falls back independently for every service", () => {
+    const channels = { fallbackChannelId: "C0" };
+    expect(resolveSlackRoute(channels, "noxalert", "CS")).toBe("C0");
+    expect(resolveSlackRoute(channels, "noxspot")).toBe("C0");
+    expect(resolveSlackRoute(channels, "unticket")).toBe("C0");
+    expect(resolveSlackRoute(channels, "noxfeed")).toBe("C0");
   });
 });
 

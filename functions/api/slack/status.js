@@ -1,5 +1,5 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
-import { resolveSlackInstall, resolveSlackChannels } from "../../lib/slack";
+import { resolveSlackInstall, resolveSlackChannels, slackInstallNeedsReconnect } from "../../lib/slack";
 
 // GET /api/slack/status
 //
@@ -30,8 +30,13 @@ export async function onRequestGet(context) {
     teamId: install?.teamId ?? null,
     teamName: install?.teamName ?? null,
     botUserId: install?.botUserId ?? null,
-    postsChannelId: channels.postsChannelId,
-    releaseNotesChannelId: channels.releaseNotesChannelId,
+    fallbackChannelId: channels.fallbackChannelId,
+    noxAlertChannelId: channels.noxAlertChannelId,
+    unticketChannelId: channels.unticketChannelId,
+    noxFeedChannelId: channels.noxFeedChannelId,
+    // Compatibility aliases for clients released before central routing.
+    postsChannelId: channels.noxFeedChannelId,
+    releaseNotesChannelId: channels.noxFeedChannelId,
     canConfigure: isAdmin,
     // All three values are required for the complete integration: OAuth uses
     // the client pair, while Slack Events uses the signing secret. Reporting
@@ -39,7 +44,7 @@ export async function onRequestGet(context) {
     appConfigured: !!context.env.SLACK_CLIENT_ID
       && !!context.env.SLACK_CLIENT_SECRET
       && !!context.env.SLACK_SIGNING_SECRET,
-    needsReconnect: !!install && !install.appId,
+    needsReconnect: slackInstallNeedsReconnect(context.env, install),
     health: !metadata ? "disconnected" : !install ? "degraded" : metadata.health_status ?? "unknown",
     lastCheckedAt: metadata?.last_checked_at ?? null,
     lastError: metadata?.last_error ?? null,

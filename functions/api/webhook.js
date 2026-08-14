@@ -21,6 +21,8 @@ import { upsertInstallation, setInstallationRepos, getInstallationRepos } from "
 import { TASK, enqueueTask } from "../lib/tasks";
 import { recordFailure } from "../lib/op-failures";
 import { startRepoTracking } from "../lib/repo-tracking";
+import { stageResolvedNoxAlert } from "../lib/noxalert.js";
+import { stageUnticketActivity } from "../lib/unticket-slack.js";
 
 // Every `waitUntil` handler that logs a failure runs after the webhook
 // response has already been returned — a plain console.error is invisible
@@ -209,6 +211,33 @@ export async function onRequestPost(context) {
 
       const closedBy = (action === "closed" && payload.sender?.login) ? payload.sender.login : null;
       await upsertIssue(db, orgId, repo, payload.issue, closedBy);
+
+      try {
+        await stageUnticketActivity(context.env, {
+          orgId,
+          ownerId: orgLogin,
+          repo,
+          action,
+          issue: payload.issue,
+          actor: payload.sender?.login ?? null,
+        });
+      } catch (err) {
+        await reportWebhookFailure(db, orgLogin, "unticket_slack", deliveryId, err, { repo, number: payload.issue?.number });
+      }
+
+      if (action === "closed") {
+        try {
+          await stageResolvedNoxAlert(context.env, {
+            orgId,
+            ownerId: orgLogin,
+            repo,
+            issue: payload.issue,
+            resolvedBy: closedBy,
+          });
+        } catch (err) {
+          await reportWebhookFailure(db, orgLogin, "noxalert_resolved", deliveryId, err, { repo, number: payload.issue?.number });
+        }
+      }
 
       // Auto-register issue author as member so they appear in People page.
       if (payload.issue?.user?.login) {

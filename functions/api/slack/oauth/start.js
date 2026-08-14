@@ -1,5 +1,5 @@
 import { getCtx, errorResponse } from "../../../lib/db";
-import { buildOAuthAuthorizeUrl, signOAuthState, SLACK_OAUTH_REDIRECT_URI } from "../../../lib/slack";
+import { buildOAuthAuthorizeUrl, resolveSlackOAuthRedirectUri, signOAuthState } from "../../../lib/slack";
 
 // POST /api/slack/oauth/start
 //
@@ -30,7 +30,7 @@ export async function onRequestPost(context) {
   const state = `${payload}.${sig}`;
 
   return new Response(JSON.stringify({
-    url: buildOAuthAuthorizeUrl(clientId, origin, state, SLACK_OAUTH_REDIRECT_URI),
+    url: buildOAuthAuthorizeUrl(clientId, origin, state, resolveSlackOAuthRedirectUri(context.env)),
   }), {
     status: 200,
     headers: {

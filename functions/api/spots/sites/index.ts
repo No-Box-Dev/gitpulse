@@ -28,7 +28,8 @@ function siteDto(row: Record<string, unknown>) {
   const pendingCount = Number(row.slack_pending_count ?? 0);
   const blockedCount = Number(row.slack_blocked_count ?? 0);
   const failedCount = Number(row.slack_failed_count ?? 0);
-  const slackHealth = !row.slack_channel_id ? "disabled"
+  const effectiveSlackChannelId = row.slack_channel_id || row.slack_fallback_channel_id;
+  const slackHealth = !effectiveSlackChannelId ? "disabled"
     : !row.slack_connected ? "disconnected"
       : row.slack_install_health === "degraded" || blockedCount > 0 || failedCount > 0 ? "degraded"
         : pendingCount > 0 || row.slack_install_health !== "ok" ? "pending" : "connected";
@@ -44,6 +45,8 @@ function siteDto(row: Record<string, unknown>) {
     environments: Array.isArray(config.environments) ? config.environments : [],
     blocks: Array.isArray(config.blocks) ? config.blocks : [],
     slackChannelId: row.slack_channel_id,
+    slackEffectiveChannelId: effectiveSlackChannelId ?? null,
+    slackUsesFallback: Boolean(!row.slack_channel_id && row.slack_fallback_channel_id),
     slackHealth,
     slackLastDeliveredAt: row.slack_last_delivered_at ?? null,
     slackPendingCount: pendingCount,
@@ -71,6 +74,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
                              WHERE json_extract(value, '$.name') = 'noxspot')) AS open_issue_count,
             EXISTS(SELECT 1 FROM slack_settings slack WHERE slack.org_id = site.org_id) AS slack_connected,
             (SELECT slack.health_status FROM slack_settings slack WHERE slack.org_id = site.org_id) AS slack_install_health,
+            (SELECT json_extract(config.data, '$.slack.fallbackChannelId') FROM config
+              WHERE config.org_id = site.org_id AND config.key = 'settings') AS slack_fallback_channel_id,
             (SELECT COUNT(*) FROM delivery_outbox delivery
               WHERE delivery.site_id = site.id AND delivery.destination = 'slack'
                 AND delivery.status IN ('pending', 'queued', 'processing', 'retrying')) AS slack_pending_count,
@@ -136,7 +141,10 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   ).run();
 
   const row = await db.prepare(
-    `SELECT ${SITE_SELECT} FROM spot_sites site
+    `SELECT ${SITE_SELECT},
+       (SELECT json_extract(config.data, '$.slack.fallbackChannelId') FROM config
+         WHERE config.org_id = site.org_id AND config.key = 'settings') AS slack_fallback_channel_id
+     FROM spot_sites site
      WHERE site.id = ? AND site.org_id = ?`,
   ).bind(id, orgId).first<Record<string, unknown>>();
 

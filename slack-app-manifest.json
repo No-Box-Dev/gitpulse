@@ -4,8 +4,8 @@
   },
   "display_information": {
     "name": "NoxConnect",
-    "description": "Connects NoxAlert, NoxFeed, NoxSpot, and NoxTicket to Slack.",
-    "background_color": "#1B6971"
+    "description": "Connects NoxAlert, NoxFeed, NoxKey, NoxSpot, and NoxTicket to Slack.",
+    "background_color": "#4A315F"
   },
   "features": {
     "bot_user": {

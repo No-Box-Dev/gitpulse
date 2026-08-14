@@ -1,5 +1,5 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
-import { resolveSlackChannels, resolveSlackInstall } from "../../lib/slack";
+import { resolveSlackChannels, resolveSlackInstall, slackInstallNeedsReconnect } from "../../lib/slack";
 import { getNoxDb, type NoxDatabaseEnv } from "../../lib/nox-db";
 
 interface Ctx {
@@ -9,6 +9,8 @@ interface Ctx {
     SLACK_CLIENT_ID?: string;
     SLACK_CLIENT_SECRET?: string;
     SLACK_SIGNING_SECRET?: string;
+    SLACK_APP_ID?: string;
+    SLACK_ACCEPT_LEGACY_INSTALLS?: string;
   };
   data: { orgId: number; orgLogin: string; isAdmin: boolean };
 }
@@ -54,7 +56,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     && context.env.SLACK_SIGNING_SECRET,
   );
   const slackConnected = Boolean(slackInstall);
-  const slackNeedsReconnect = Boolean(slackInstall && !slackInstall.appId);
+  const slackNeedsReconnect = slackInstallNeedsReconnect(context.env, slackInstall);
   const slackDegraded = slackMetadata?.health_status === "degraded";
   const slackReady = slackConfigured && slackConnected && !slackNeedsReconnect && !slackDegraded;
 
@@ -77,7 +79,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         optionalConnections: ["slack"],
       },
       noxAlert: {
-        state: "coming_soon",
+        state: githubReady && slackReady ? "ready" : "blocked",
         requirements: ["github", "slack"],
         prerequisitesReady: githubReady && slackReady,
       },
@@ -100,7 +102,13 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       needsReconnect: slackNeedsReconnect,
       teamId: slackInstall?.teamId ?? null,
       teamName: slackInstall?.teamName ?? null,
-      defaultChannelId: slackChannels.postsChannelId || slackChannels.releaseNotesChannelId || null,
+      defaultChannelId: slackChannels.fallbackChannelId || null,
+      channels: {
+        fallback: slackChannels.fallbackChannelId || null,
+        noxAlert: slackChannels.noxAlertChannelId || null,
+        unticket: slackChannels.unticketChannelId || null,
+        noxFeed: slackChannels.noxFeedChannelId || null,
+      },
       health: !slackMetadata ? "disconnected" : !slackInstall ? "degraded" : slackMetadata.health_status ?? "unknown",
       lastCheckedAt: slackMetadata?.last_checked_at ?? null,
       lastError: slackMetadata?.last_error ?? null,

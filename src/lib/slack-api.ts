@@ -5,7 +5,13 @@ export interface SlackStatus {
   teamId: string | null;
   teamName: string | null;
   botUserId: string | null;
+  fallbackChannelId: string;
+  noxAlertChannelId: string;
+  unticketChannelId: string;
+  noxFeedChannelId: string;
+  /** @deprecated Use noxFeedChannelId. */
   postsChannelId: string;
+  /** @deprecated Use noxFeedChannelId. */
   releaseNotesChannelId: string;
   canConfigure: boolean;
   appConfigured: boolean;

@@ -17,13 +17,14 @@ const SprintTab = lazy(() => import("@/components/tabs/SprintTab").then(m => ({ 
 const SpecsTab = lazy(() => import("@/components/tabs/SpecsTab").then(m => ({ default: m.SpecsTab })));
 const CurrentTab = lazy(() => import("@/components/tabs/CurrentTab").then(m => ({ default: m.CurrentTab })));
 const IssuesTab = lazy(() => import("@/components/tabs/IssuesTab").then(m => ({ default: m.IssuesTab })));
+const NoxAlertTab = lazy(() => import("@/components/tabs/NoxAlertTab").then(m => ({ default: m.NoxAlertTab })));
 const NoxSpotTab = lazy(() => import("@/components/tabs/NoxSpotTab").then(m => ({ default: m.NoxSpotTab })));
 const IntegrationsTab = lazy(() => import("@/components/tabs/IntegrationsTab").then(m => ({ default: m.IntegrationsTab })));
 const PostsTab = lazy(() => import("@/components/tabs/PostsTab").then(m => ({ default: m.PostsTab })));
 const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then(m => ({ default: m.ReposTab })));
 const SettingsTab = lazy(() => import("@/components/tabs/SettingsTab").then(m => ({ default: m.SettingsTab })));
 
-const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxspot", "integrations", "posts", "repos", "engineers", "settings"]);
+const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxalert", "noxspot", "integrations", "posts", "repos", "engineers", "settings"]);
 
 export function DashboardPage() {
   const { selectedOrg } = useAuth();
@@ -92,6 +93,7 @@ export function DashboardPage() {
               <CurrentTab repoNames={repoNames} navFilter={navFilter} />
             )}
             {activeTab === "issues" && <IssuesTab repoNames={repoNames} navFilter={navFilter} />}
+            {activeTab === "noxalert" && <NoxAlertTab />}
             {activeTab === "noxspot" && <NoxSpotTab />}
             {activeTab === "integrations" && <IntegrationsTab />}
             {activeTab === "posts" && <PostsTab />}

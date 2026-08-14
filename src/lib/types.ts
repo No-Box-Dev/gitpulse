@@ -64,6 +64,7 @@ export type TabId =
   | "specs"
   | "prs"
   | "issues"
+  | "noxalert"
   | "noxspot"
   | "integrations"
   | "posts"

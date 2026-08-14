@@ -11,6 +11,7 @@ const NAV_ITEMS: { id: TabId; label: string }[] = [
   { id: "specs", label: "Specs" },
   { id: "posts", label: "Feed" },
   { id: "issues", label: "Issues" },
+  { id: "noxalert", label: "Alerts" },
   { id: "noxspot", label: "NoxSpot" },
   { id: "integrations", label: "Setup" },
   { id: "repos", label: "Repos" },
@@ -26,6 +27,7 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
   const { data: rateLimit } = useRateLimit();
   const isRateLimited = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2;
   const isAdmin = useIsAdmin();
+  const navItems = isAdmin ? NAV_ITEMS : NAV_ITEMS.filter((item) => item.id !== "noxalert");
   const unacked = useUnacknowledgedRepos();
   const newRepoCount = isAdmin ? unacked.length : 0;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -58,7 +60,7 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
         {/* Centered nav — absolutely positioned so width of logo/right cluster
             doesn't shift the visual center off the page midpoint. */}
         <nav className="hidden md:flex items-center gap-1 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          {NAV_ITEMS.map(({ id, label }) => {
+          {navItems.map(({ id, label }) => {
             const isActive = activeTab === id;
             return (
               <button
@@ -158,7 +160,7 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
 
       {/* Mobile nav row */}
       <nav className="md:hidden flex items-center gap-1 px-2 pb-1.5 overflow-x-auto">
-        {NAV_ITEMS.map(({ id, label }) => {
+        {navItems.map(({ id, label }) => {
           const isActive = activeTab === id;
           return (
             <button

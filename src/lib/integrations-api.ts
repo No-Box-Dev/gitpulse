@@ -1,6 +1,9 @@
-import { apiGet } from "./api";
+import { apiGet, apiPost } from "./api";
 
 export interface IntegrationsStatus {
+  apiVersion: number;
+  organization: { login: string };
+  connections: IntegrationConnection[];
   canConfigure: boolean;
   setup: {
     ready: boolean;
@@ -54,6 +57,56 @@ export interface FeatureReadiness {
   optionalConnections?: Array<"github" | "slack">;
 }
 
+export type IntegrationProvider = "github" | "slack" | (string & {});
+export type IntegrationConnectionStatus =
+  | "unavailable"
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "degraded"
+  | "reconnect_required";
+
+export interface IntegrationAction {
+  method: "GET" | "POST";
+  href: string;
+  external: boolean;
+}
+
+export interface IntegrationConnection {
+  id: IntegrationProvider;
+  displayName: string;
+  category: "source" | "destination";
+  required: boolean;
+  capabilities: string[];
+  status: IntegrationConnectionStatus;
+  configured: boolean;
+  connected: boolean;
+  account: { id: string | null; name: string | null; type: string | null } | null;
+  actions: {
+    connect: IntegrationAction | null;
+    manage: IntegrationAction | null;
+    disconnect: IntegrationAction | null;
+  };
+}
+
 export function fetchIntegrationsStatus(): Promise<IntegrationsStatus> {
-  return apiGet<IntegrationsStatus>("/api/integrations/status");
+  return apiGet<IntegrationsStatus>("/api/integrations/connections");
+}
+
+export interface ConnectionStart {
+  provider: IntegrationProvider;
+  mode: "redirect";
+  url: string;
+}
+
+export function startIntegrationConnection(provider: IntegrationProvider): Promise<ConnectionStart> {
+  return apiPost<ConnectionStart>(`/api/integrations/connections/${provider}/start`, {});
+}
+
+export function disconnectIntegrationConnection(provider: IntegrationProvider): Promise<{
+  ok: true;
+  provider: IntegrationProvider;
+  status: "disconnected";
+}> {
+  return apiPost(`/api/integrations/connections/${provider}/disconnect`, {});
 }

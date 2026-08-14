@@ -250,7 +250,7 @@ async function fetchRecentPrs(env, installationId, org, repo, days) {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "unticket",
+      "User-Agent": "Unticket",
     },
   });
   if (!res.ok) {

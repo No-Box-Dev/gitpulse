@@ -59,6 +59,14 @@ describe("GET /api/events", () => {
     expect(binds).toContain("a1");
   });
 
+  it("supports the NoxSpot issue feed type", async () => {
+    const db = makeDb();
+    await listEvents(makeCtx({ db, url: "http://x/api/events?type=spot%3Aissue_created" }));
+    const { sql, binds } = db._calls.all[0];
+    expect(sql).toMatch(/type = \?/);
+    expect(binds).toContain("spot:issue_created");
+  });
+
   it("appends trigger_types IN (...) clause when provided", async () => {
     const db = makeDb();
     await listEvents(makeCtx({ db, url: "http://x/api/events?trigger_types=github%3Apr%3Amerged" }));

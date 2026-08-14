@@ -10,6 +10,7 @@ vi.mock("@/hooks/useGitHub", () => ({
   useIsAdmin: vi.fn(() => false),
 }));
 vi.mock("@/hooks/useConfigRepo", () => ({ useSettings: vi.fn() }));
+vi.mock("@/hooks/useNoxConnect", () => ({ useNoxConnect: vi.fn() }));
 vi.mock("@/lib/unticket-repo-name", () => ({ setUnticketRepoName: vi.fn() }));
 
 // Stub out heavy children so we only test the routing skeleton.
@@ -47,20 +48,26 @@ vi.mock("@/components/tabs/ReposTab", () => ({
 vi.mock("@/components/tabs/SettingsTab", () => ({
   SettingsTab: () => <div data-testid="tab-settings" />,
 }));
+vi.mock("@/components/tabs/IntegrationsTab", () => ({
+  IntegrationsTab: () => <div data-testid="tab-integrations" />,
+}));
 
 import { DashboardPage } from "../DashboardPage";
 import { useAuth } from "@/lib/auth";
 import { useRepos } from "@/hooks/useGitHub";
 import { useSettings } from "@/hooks/useConfigRepo";
+import { useNoxConnect } from "@/hooks/useNoxConnect";
 
 const mAuth = useAuth as unknown as ReturnType<typeof vi.fn>;
 const mRepos = useRepos as unknown as ReturnType<typeof vi.fn>;
 const mSettings = useSettings as unknown as ReturnType<typeof vi.fn>;
+const mNoxConnect = useNoxConnect as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   mAuth.mockReset();
   mRepos.mockReturnValue({ data: [{ name: "api" }] });
   mSettings.mockReturnValue({ data: { unticketRepo: "unticket" } });
+  mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: false } } });
 });
 
 function renderAt(url: string) {
@@ -93,6 +100,21 @@ describe("DashboardPage", () => {
 
   it("renders the settings tab when tab=settings", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
+    renderAt("/?tab=settings");
+    await waitFor(() => expect(screen.getByTestId("tab-settings")).toBeInTheDocument());
+  });
+
+  it("starts organization onboarding in NoxConnect when GitHub is not ready", async () => {
+    mAuth.mockReturnValue({ selectedOrg: "acme" });
+    mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: true } } });
+    renderAt("/");
+    await waitFor(() => expect(screen.getByTestId("tab-integrations")).toBeInTheDocument());
+    expect(screen.getByTestId("topnav").textContent).toContain("active:integrations");
+  });
+
+  it("respects an explicit destination during onboarding", async () => {
+    mAuth.mockReturnValue({ selectedOrg: "acme" });
+    mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: true } } });
     renderAt("/?tab=settings");
     await waitFor(() => expect(screen.getByTestId("tab-settings")).toBeInTheDocument());
   });

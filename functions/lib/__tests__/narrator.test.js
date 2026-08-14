@@ -8,11 +8,13 @@ vi.mock("../op-failures.js", () => ({
   recordFailure: vi.fn(async () => {}),
 }));
 vi.mock("../slack.js", () => ({
-  resolveSlackInstall: vi.fn(async () => null),
   resolveSlackChannels: vi.fn(async () => ({ postsChannelId: "", releaseNotesChannelId: "" })),
-  postSlackMessage: vi.fn(async () => ({ ok: true })),
   buildPostsBlocks: vi.fn((args) => ({ blocks: ["post", args] })),
   buildReleaseNotesBlocks: vi.fn((args) => ({ blocks: ["release", args] })),
+}));
+vi.mock("../delivery-outbox.js", () => ({
+  stageSlackDelivery: vi.fn(async () => ({ id: "delivery-1", status: "pending" })),
+  queueOutboxDelivery: vi.fn(async () => true),
 }));
 
 import {
@@ -26,7 +28,8 @@ import {
 import { completeNarrative } from "../llm.js";
 import { recordFailure } from "../op-failures.js";
 import { RELEASE_NOTES_SYSTEM, PR_OPENED_SYSTEM } from "../prompt.js";
-import { resolveSlackInstall, resolveSlackChannels, postSlackMessage } from "../slack.js";
+import { resolveSlackChannels } from "../slack.js";
+import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 
 // D1 stub: dispatch by SQL substring. Tests configure what each query returns
 // and inspect _calls.runs/binds for the INSERT side effect.
@@ -94,12 +97,12 @@ const ACTOR_ROW = { id: "actor-1", name: "Jane", tone: "Dry but warm" };
 beforeEach(() => {
   completeNarrative.mockReset();
   recordFailure.mockClear();
-  resolveSlackInstall.mockReset();
-  resolveSlackInstall.mockResolvedValue(null);
   resolveSlackChannels.mockReset();
   resolveSlackChannels.mockResolvedValue({ postsChannelId: "", releaseNotesChannelId: "" });
-  postSlackMessage.mockReset();
-  postSlackMessage.mockResolvedValue({ ok: true });
+  stageSlackDelivery.mockReset();
+  stageSlackDelivery.mockResolvedValue({ id: "delivery-1", status: "pending" });
+  queueOutboxDelivery.mockReset();
+  queueOutboxDelivery.mockResolvedValue(true);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -341,11 +344,10 @@ describe("narrateEvent — idempotency", () => {
       }
       return stmt;
     };
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "tok" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     completeNarrative.mockResolvedValue("ok");
     await narrateEvent(ENV(db), 1);
-    expect(postSlackMessage).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 });
 
@@ -469,39 +471,38 @@ describe("narrateEvent — payload parsing", () => {
 });
 
 describe("narrateEvent — Slack mirror", () => {
-  it("does NOT post to Slack when no install + channel configured", async () => {
+  it("stages delivery even when the Slack install is temporarily missing", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("ok");
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     await narrateEvent(ENV(db), 1);
-    expect(postSlackMessage).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ channelId: "C1", source: "posts" }));
   });
 
   it("does NOT post when install exists but the Posts channel is empty", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "", releaseNotesChannelId: "C2" });
     await narrateEvent(ENV(db), 1);
-    expect(postSlackMessage).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
   it("posts to the Posts channel after inserting a narrative", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     await narrateEvent(ENV(db), 1);
-    expect(postSlackMessage).toHaveBeenCalledTimes(1);
-    expect(postSlackMessage.mock.calls[0][0]).toBe("xoxb-1");
-    expect(postSlackMessage.mock.calls[0][1]).toBe("C1");
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
+      source: "posts", sourceId: "1:narrative", channelId: "C1",
+    }));
+    expect(queueOutboxDelivery).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), "delivery-1", "owner-1");
   });
 
   it("records op_failure but doesn't throw when Slack post fails", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
-    postSlackMessage.mockRejectedValueOnce(new Error("Slack 500"));
+    stageSlackDelivery.mockRejectedValueOnce(new Error("D1 unavailable"));
     await expect(narrateEvent(ENV(db), 1)).resolves.toBeUndefined();
     expect(recordFailure).toHaveBeenCalledWith(
       expect.anything(),
@@ -514,11 +515,11 @@ describe("narrateReleaseNotes — Slack mirror", () => {
   it("posts to the Release-notes channel after inserting a release_notes row", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("🐛 unticket #42 ...");
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "", releaseNotesChannelId: "C2" });
     await narrateReleaseNotes(ENV(db), 1);
-    expect(postSlackMessage).toHaveBeenCalledTimes(1);
-    expect(postSlackMessage.mock.calls[0][1]).toBe("C2");
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
+      source: "release_notes", sourceId: "1:release_notes", channelId: "C2",
+    }));
   });
 
   it("does NOT post to Slack when the gate (narrator_enabled=0) blocks", async () => {
@@ -527,10 +528,9 @@ describe("narrateReleaseNotes — Slack mirror", () => {
       project: { ...PROJECT_ROW, narrator_enabled: 0 },
       actor: ACTOR_ROW,
     });
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "C2" });
     await narrateReleaseNotes(ENV(db), 1);
-    expect(postSlackMessage).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 });
 
@@ -695,10 +695,9 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
       actor: ACTOR_ROW,
       reusablePrNarrative: { summary: "Fixing the login redirect.", model: "glm-5" },
     });
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     await narrateEvent(ENV(db), 1);
-    expect(postSlackMessage).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
   it("still posts to Slack when narrateEvent takes the fresh-LLM path (no reuse)", async () => {
@@ -706,11 +705,56 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
     // normal Slack mirror. A PR that predates the PRs-feed feature has no
     // pr_narrative row → fresh LLM call → normal Slack post.
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    resolveSlackInstall.mockResolvedValue({ teamId: "T1", botToken: "xoxb-1" });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     completeNarrative.mockResolvedValue("I merged it.");
     await narrateEvent(ENV(db), 1);
-    expect(postSlackMessage).toHaveBeenCalledTimes(1);
+    expect(stageSlackDelivery).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("parseNarrativeOutput", () => {
+  const context = {
+    projectName: "billing-service",
+    eventSummary: "PR #42: stop duplicate invoices",
+    payload: { pr: { title: "stop duplicate invoices", changed_files: 3 } },
+  };
+
+  it("returns social copy and an exact three-line simple-English technical summary", () => {
+    const result = parseNarrativeOutput(JSON.stringify({
+      social: "I stopped invoice retries from charging twice.",
+      technical: [
+        "What it does: Prevents duplicate invoice charges",
+        "How it works: Reuses the existing payment attempt during retries",
+        "What it touches: Invoice retry and payment handling",
+      ],
+    }), context);
+
+    expect(result.social).toBe("I stopped invoice retries from charging twice.");
+    expect(result.technicalSummary.split("\n")).toEqual([
+      "What it does: Prevents duplicate invoice charges",
+      "How it works: Reuses the existing payment attempt during retries",
+      "What it touches: Invoice retry and payment handling",
+    ]);
+  });
+
+  it("keeps plain social output and always supplies a deterministic technical fallback", () => {
+    const result = parseNarrativeOutput("I stopped duplicate invoice charges.", context);
+    expect(result.social).toBe("I stopped duplicate invoice charges.");
+    expect(result.technicalSummary.split("\n")).toHaveLength(3);
+    expect(result.technicalSummary).toContain("What it touches: billing-service across 3 changed files");
+  });
+
+  it("accepts valid JSON wrapped in provider commentary", () => {
+    const result = parseNarrativeOutput(`Here is the result:\n${JSON.stringify({
+      social: "I fixed it.",
+      technical: ["Stops duplicates", "Reuses attempts", "Billing retries"],
+    })}`, context);
+    expect(result.social).toBe("I fixed it.");
+    expect(result.technicalSummary).toBe([
+      "What it does: Stops duplicates",
+      "How it works: Reuses attempts",
+      "What it touches: Billing retries",
+    ].join("\n"));
   });
 });
 

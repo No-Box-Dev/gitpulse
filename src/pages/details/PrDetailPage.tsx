@@ -8,6 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/cn";
 import { daysAgo } from "@/lib/dates";
 import { PageShell } from "./PageShell";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 
 export function PrDetailPage() {
   const { repo, number: numberStr } = useParams<{ repo: string; number: string }>();
@@ -107,6 +108,10 @@ export function PrDetailPage() {
               View on GitHub
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
+            <CopyLinkButton
+              url={pr.html_url}
+              label={`Copy GitHub link to PR #${pr.number}`}
+            />
             {body && body.comments + body.review_comments > 0 && (
               <span>
                 · {body.comments + body.review_comments} comment

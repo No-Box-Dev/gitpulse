@@ -58,7 +58,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
 
   if (!context.env.SPEC_ATTACHMENTS) {
     return errorResponse(
-      "Attachment storage not provisioned. Run `wrangler r2 bucket create unticket-spec-attachments`.",
+      "Nox attachment storage is not provisioned for this deployment.",
       503,
     );
   }

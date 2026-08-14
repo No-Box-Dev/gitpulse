@@ -3,13 +3,13 @@
     "major_version": 1
   },
   "display_information": {
-    "name": "Unticket",
-    "description": "Mirror Unticket updates and preview Unticket links in Slack.",
+    "name": "NoxConnect",
+    "description": "Connects NoxAlert, NoxFeed, NoxSpot, and NoxTicket to Slack.",
     "background_color": "#1B6971"
   },
   "features": {
     "bot_user": {
-      "display_name": "Unticket",
+      "display_name": "NoxConnect",
       "always_online": false
     },
     "unfurl_domains": [

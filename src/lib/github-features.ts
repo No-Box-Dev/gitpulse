@@ -102,8 +102,8 @@ function d1RowToFeature(row: D1FeatureRow): Feature {
   return feature;
 }
 
-export async function fetchFeaturesFromD1(): Promise<Feature[]> {
-  const rows = await apiGet<D1FeatureRow[]>("/api/features?state=open");
+export async function fetchFeaturesFromD1(state: "open" | "closed" = "open"): Promise<Feature[]> {
+  const rows = await apiGet<D1FeatureRow[]>(`/api/features?state=${state}`);
   return rows
     .filter((row) => {
       const names = new Set(row.labels.map((l) => l.name));

@@ -1,4 +1,11 @@
-import { exchangeOAuthCode, saveSlackInstall, verifyOAuthState } from "../../../lib/slack";
+import {
+  checkSlackOrgHealth,
+  exchangeOAuthCode,
+  saveSlackInstall,
+  SLACK_OAUTH_REDIRECT_URI,
+  verifyOAuthState,
+} from "../../../lib/slack";
+import { requeueBlockedForOrg } from "../../../lib/delivery-outbox.js";
 
 // GET /api/slack/oauth/callback?code=...&state=...
 //
@@ -44,7 +51,7 @@ export async function onRequestGet(context) {
       clientId,
       clientSecret,
       code,
-      redirectUri: `${url.origin}/api/slack/oauth/callback`,
+      redirectUri: SLACK_OAUTH_REDIRECT_URI,
     });
   } catch (err) {
     console.error("[unticket slack oauth] exchange failed:", err?.message ?? err);
@@ -53,6 +60,14 @@ export async function onRequestGet(context) {
 
   try {
     await saveSlackInstall(context.env, orgId, { ...install, installedBy: userLogin });
+    // Validate the new token immediately. The redirect target can now render
+    // authoritative health instead of the previous install's cached result.
+    const health = await checkSlackOrgHealth(context.env, orgId);
+    if (health.status === "ok") {
+      await requeueBlockedForOrg(context.env, orgId).catch((error) => {
+        console.error("[unticket slack oauth] delivery replay failed:", error?.message ?? error);
+      });
+    }
   } catch (err) {
     console.error("[unticket slack oauth] persist failed:", err?.message ?? err);
     return redirectHome(url, "persist-failed");
@@ -65,7 +80,7 @@ function redirectHome(url, status) {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${url.origin}/?tab=settings&slack=${encodeURIComponent(status)}`,
+      Location: `${url.origin}/?tab=integrations&slack=${encodeURIComponent(status)}`,
       "Cache-Control": "no-store",
       // Always clear the CSRF cookie even on failure paths.
       "Set-Cookie": "ut_slack_state=; Path=/; Max-Age=0; SameSite=Lax; Secure; HttpOnly",

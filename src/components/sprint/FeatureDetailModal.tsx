@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { X, ExternalLink, Pencil } from "lucide-react";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
+import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import { AssignDropdown } from "./AssignDropdown";
 import { FeatureLinkedSpecsSection } from "./FeatureLinkedSpecsSection";
 import { withStatusTransition } from "@/lib/github-features";
+import { useAuth } from "@/lib/auth";
 import { useBoardStages } from "@/lib/board-stages";
+import { featureShareUrl } from "@/lib/share-links";
 import type { BoardStage, Feature, FeatureStatus } from "@/lib/types";
 
 // Look up the label/color for a feature's current status. Legacy statuses that
@@ -38,6 +41,7 @@ export function FeatureDetailModal({
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
   const { confirm, dialogProps } = useConfirm();
+  const { selectedOrg } = useAuth();
   const stages = useBoardStages();
   // Status options include the current value even if it no longer matches a
   // configured stage, so admins can always pick a valid replacement.
@@ -108,6 +112,12 @@ export function FeatureDetailModal({
               title="Click to edit title"
             />
             <Pencil size={14} className="shrink-0 text-stone-300 group-hover/title:text-stone-400 transition-colors" />
+            {selectedOrg && (
+              <CopyLinkButton
+                url={featureShareUrl(selectedOrg, feature.id)}
+                label="Copy link to this feature"
+              />
+            )}
             {draft.url && (
               <a
                 href={draft.url}

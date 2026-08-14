@@ -43,6 +43,8 @@ describe("TopNav", () => {
     expect(screen.getAllByText("Feed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Issues").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("NoxSpot").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Setup").length).toBeGreaterThan(0);
   });
 
   it("calls onTabChange when a nav item is clicked", () => {

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   useFeatures,
+  useClosedFeatures,
   usePeople,
   useCreateFeature,
   useUpdateFeature,
@@ -19,14 +20,14 @@ import { useAuth } from "@/lib/auth";
 import { withStatusTransition } from "@/lib/github-features";
 import { useBoardStages } from "@/lib/board-stages";
 import type { BoardStage, Feature, FeatureStatus, Spec } from "@/lib/types";
-import { ArrowRight, ArrowUpDown, Archive, LayoutGrid, Rocket, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Archive, CircleCheck, ExternalLink, LayoutGrid, Rocket, Search, Sparkles } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { PersonSelect } from "@/components/ui/PersonSelect";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
 import { cn } from "@/lib/cn";
 
 type SortKey = "default" | "title";
-type SprintView = "board" | "backlog";
+type SprintView = "board" | "backlog" | "completed";
 
 function sortFeatures(features: Feature[], key: SortKey): Feature[] {
   if (key === "default") return features;
@@ -89,9 +90,12 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
   const [selectedPersons, setSelectedPersons] = useState<string[]>(navFilter?.person ? [navFilter.person] : []);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Board vs Backlog view is URL-synced so a bookmarked backlog stays put.
+  // Board vs Backlog vs Completed view is URL-synced so a bookmarked view
+  // stays put.
   const [searchParams, setSearchParams] = useSearchParams();
-  const view: SprintView = searchParams.get("view") === "backlog" ? "backlog" : "board";
+  const viewParam = searchParams.get("view");
+  const view: SprintView =
+    viewParam === "backlog" ? "backlog" : viewParam === "completed" ? "completed" : "board";
   const meOnly = searchParams.get("scope") === "me";
   const setMeOnly = useCallback(
     (me: boolean) => {
@@ -108,7 +112,7 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
     (next: SprintView) => {
       const params = new URLSearchParams(searchParams);
       if (next === "board") params.delete("view");
-      else params.set("view", "backlog");
+      else params.set("view", next);
       setSearchParams(params, { replace: true });
     },
     [searchParams, setSearchParams],
@@ -195,6 +199,18 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
         // default) — backlog is a park-and-scan list, not a recency feed.
         .sort((a, b) => a.title.localeCompare(b.title)),
     [features, searchAndOwnerMatch],
+  );
+
+  // Closed features, fetched only while the Completed view is open.
+  // Most-recently-updated first — "what shipped lately" is the question
+  // this view answers.
+  const closedQ = useClosedFeatures(view === "completed");
+  const completedFeatures = useMemo(
+    () =>
+      (closedQ.data ?? [])
+        .filter(searchAndOwnerMatch)
+        .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")),
+    [closedQ.data, searchAndOwnerMatch],
   );
 
   // Bucket features into the configured stages. Features carrying a status not
@@ -310,6 +326,8 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
         onViewChange={setView}
         backlogCount={backlogFeatures.length}
         backlogFeatures={backlogFeatures}
+        completedFeatures={completedFeatures}
+        completedLoading={closedQ.isLoading}
         stages={stages}
         stageBuckets={stageBuckets}
         specsByFeature={specsByFeature}
@@ -368,6 +386,8 @@ interface FeaturesViewProps {
   onViewChange: (v: SprintView) => void;
   backlogCount: number;
   backlogFeatures: Feature[];
+  completedFeatures: Feature[];
+  completedLoading: boolean;
   stages: BoardStage[];
   stageBuckets: Map<string, Feature[]>;
   /** Every non-archived spec bucketed by its owning feature number.
@@ -405,6 +425,7 @@ interface FeaturesViewProps {
 
 function FeaturesView({
   view, onViewChange, backlogCount, backlogFeatures,
+  completedFeatures, completedLoading,
   stages, stageBuckets, specsByFeature, emptySpecs,
   searchQuery, setSearchQuery, meOnly, setMeOnly, selectedPersons, setSelectedPersons,
   personPills, allPeopleNames,
@@ -447,6 +468,17 @@ function FeaturesView({
                 {backlogCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => onViewChange("completed")}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-stone-200 cursor-pointer transition-colors",
+              view === "completed"
+                ? "bg-accent text-white"
+                : "bg-white text-stone-600 hover:bg-stone-50",
+            )}
+          >
+            <CircleCheck size={12} /> Completed
           </button>
         </div>
 
@@ -494,7 +526,9 @@ function FeaturesView({
         )}
       </div>
 
-      {view === "backlog" ? (
+      {view === "completed" ? (
+        <CompletedList features={completedFeatures} stages={stages} loading={completedLoading} />
+      ) : view === "backlog" ? (
         <BacklogList
           features={backlogFeatures}
           stages={stages}
@@ -561,6 +595,93 @@ function FeaturesView({
         </div>
       </div>
       )}
+    </div>
+  );
+}
+
+// ─── Completed view ────────────────────────────────────────────────────
+
+interface CompletedListProps {
+  features: Feature[];
+  stages: BoardStage[];
+  loading: boolean;
+}
+
+// Read-only list of closed features, newest first. Rows deliberately don't
+// open the detail modal — its Save path PATCHes the underlying issue, which
+// is closed. The GitHub link is the escape hatch for digging further.
+function CompletedList({ features, stages, loading }: CompletedListProps) {
+  const stageLookup = useMemo(() => {
+    const m = new Map<string, BoardStage>();
+    stages.forEach((s) => m.set(s.id, s));
+    return m;
+  }, [stages]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (features.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-stone-200 bg-white/50 px-6 py-16 text-center text-sm text-stone-500">
+        Nothing completed yet. Features land here when they're closed —
+        individually or via Clean done.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <ul className="divide-y divide-stone-100">
+        {features.map((f) => {
+          const stage = stageLookup.get(f.status);
+          return (
+            <li key={f.id} className="flex items-center gap-3 px-4 py-2.5">
+              <CircleCheck size={14} className="shrink-0 text-green-600" />
+              <span className="flex-1 truncate text-sm text-stone-700">
+                {f.title}
+              </span>
+              {stage && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-stone-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-stone-500 border border-stone-200 shrink-0"
+                  title={`Stage when it closed: ${stage.label}`}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: stage.color }}
+                  />
+                  {stage.label}
+                </span>
+              )}
+              {f.owners.length > 0 && (
+                <span className="text-[11px] text-stone-400 truncate max-w-[160px]">
+                  {f.owners.join(", ")}
+                </span>
+              )}
+              {f.updatedAt && (
+                <span className="text-[11px] text-stone-400 tabular-nums shrink-0">
+                  {new Date(f.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+              )}
+              {f.url && (
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-stone-300 hover:text-accent"
+                  aria-label={`Open ${f.title} on GitHub`}
+                >
+                  <ExternalLink size={12} />
+                </a>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

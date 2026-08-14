@@ -1,6 +1,8 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { validateBoardStages } from "../../lib/board-stages.js";
 import { extractStatusFromLabels } from "../../lib/feature-issues.js";
+import { getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
+import { recoverOutboxDeliveries } from "../../lib/delivery-outbox.js";
 
 const VALID_KEYS = ["features", "people", "settings"];
 
@@ -58,6 +60,10 @@ export async function onRequestPut(context) {
   try { body = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
   }
+  const slackWasSupplied = key === "settings"
+    && body
+    && typeof body === "object"
+    && Object.prototype.hasOwnProperty.call(body, "slack");
 
   // Board-stages validation runs before the row write so a malformed config
   // can't get persisted and break the kanban for everyone in the org.
@@ -93,6 +99,26 @@ export async function onRequestPut(context) {
     }
   }
 
+  if (slackWasSupplied && body?.slack && typeof body.slack === "object") {
+    const channelIds = [...new Set([
+      body.slack.postsChannelId,
+      body.slack.releaseNotesChannelId,
+    ].filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))];
+    if (channelIds.length > 0) {
+      const install = await resolveSlackInstall(context.env, orgId);
+      if (!install) return errorResponse("Connect Slack before selecting a channel", 409);
+      try {
+        for (const channelId of channelIds) {
+          const channel = await getSlackChannel(install.botToken, channelId);
+          if (!channel || channel.is_archived) return errorResponse("Slack channel is archived or unavailable", 409);
+          if (channel.is_private && !channel.is_member) return errorResponse("Invite the Nox bot to this private channel first", 409);
+        }
+      } catch (error) {
+        return errorResponse(error instanceof Error ? error.message : "Slack channel is unavailable", 409);
+      }
+    }
+  }
+
   const serialized = JSON.stringify(body);
   // Measure UTF-8 byte length, not UTF-16 string length — multi-byte chars
   // (emojis, CJK) would otherwise pass a code-unit check and still bust D1.
@@ -111,6 +137,32 @@ export async function onRequestPut(context) {
     )
     .bind(orgId, key, serialized)
     .run();
+
+  if (slackWasSupplied) {
+    const feeds = [
+      ["posts", body?.slack?.postsChannelId],
+      ["release_notes", body?.slack?.releaseNotesChannelId],
+    ];
+    for (const [source, rawChannelId] of feeds) {
+      const channelId = typeof rawChannelId === "string" ? rawChannelId.trim() : "";
+      if (channelId) {
+        await context.env.DB.prepare(
+          `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+             last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND source = ? AND destination = 'slack' AND status != 'delivered'`,
+        ).bind(channelId, orgId, source).run();
+      } else {
+        await context.env.DB.prepare(
+          `UPDATE delivery_outbox SET status = 'blocked_configuration',
+             last_error_code = 'alerts_disabled', last_error = 'Slack alerts were disabled for this feed',
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND source = ? AND destination = 'slack' AND status != 'delivered'`,
+        ).bind(orgId, source).run();
+      }
+    }
+    await recoverOutboxDeliveries(context.env);
+  }
 
   return jsonResponse({ ok: true });
 }

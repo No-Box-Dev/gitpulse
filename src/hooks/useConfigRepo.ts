@@ -32,12 +32,33 @@ export function useFeatures() {
   const excluded = useExcludedMembers();
   return useQuery({
     queryKey: ["features", selectedOrg],
-    queryFn: fetchFeaturesFromD1,
+    queryFn: () => fetchFeaturesFromD1("open"),
     enabled: !!selectedOrg,
     // Strip excluded members from feature.owners at the source so every
     // downstream render — kanban card, backlog list, detail modal,
     // person-filter dropdown — automatically respects the admin config
     // without repeating the check in each place.
+    select: (data) => {
+      if (excluded.size === 0) return data;
+      return data.map((f) => {
+        if (!f.owners.length) return f;
+        const filtered = f.owners.filter((o) => !excluded.has(o));
+        return filtered.length === f.owners.length ? f : { ...f, owners: filtered };
+      });
+    },
+  });
+}
+
+// Closed features for the board's Completed view. Fetched only while that
+// view is open (`enabled`). The ["features", org] key prefix means every
+// existing invalidation (clean done, delete) refreshes this list too.
+export function useClosedFeatures(enabled: boolean) {
+  const { selectedOrg } = useAuth();
+  const excluded = useExcludedMembers();
+  return useQuery({
+    queryKey: ["features", selectedOrg, "closed"],
+    queryFn: () => fetchFeaturesFromD1("closed"),
+    enabled: !!selectedOrg && enabled,
     select: (data) => {
       if (excluded.size === 0) return data;
       return data.map((f) => {

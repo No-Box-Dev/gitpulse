@@ -13,6 +13,9 @@ vi.mock("@/hooks/useGitHub", () => ({
 vi.mock("@/hooks/useConfigRepo", () => ({
   useSettings: () => ({ data: null }),
 }));
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { login: "alice" }, selectedOrg: "acme" }),
+}));
 vi.mock("../SpecSourcesSection", () => ({
   SpecSourcesSection: () => null,
 }));
@@ -48,6 +51,18 @@ describe("SpecDetailModal", () => {
     expect(updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({ id: 7, description: "Changed description" }),
       expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("copies a shareable org-scoped link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<SpecDetailModal spec={spec} features={[]} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link to this spec" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/?org=acme&tab=specs&spec=7`,
+      ),
     );
   });
 

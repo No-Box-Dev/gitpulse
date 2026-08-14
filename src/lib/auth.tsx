@@ -122,9 +122,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((token) => {
           localStorage.setItem("ut_token", token);
           resetOctokit();
+          // Resume the pre-login destination (set by loginWithOAuth) with a
+          // full navigation — the router already mounted on `/?auth_code=…`,
+          // so an in-page history rewrite wouldn't reach useSearchParams.
+          // Same-origin relative paths only.
+          const returnTo = sessionStorage.getItem("ut_return_to");
+          if (returnTo) {
+            sessionStorage.removeItem("ut_return_to");
+            if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+              window.location.replace(returnTo);
+              return null;
+            }
+          }
           return fetchUserWithTimeout();
         })
-        .then(setUser)
+        .then((fetched) => {
+          if (fetched) setUser(fetched);
+        })
         .catch((err) => {
           if (isRateLimitError(err)) {
             setAuthError("GitHub API rate limit exceeded. Please wait a few minutes and refresh.");
@@ -183,6 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loginWithOAuth = () => {
+    // Remember where the user was headed (e.g. a shared ?org&tab&f link) —
+    // the GitHub round-trip lands back on `/?auth_code=…`, losing the query.
+    const returnTo = window.location.pathname + window.location.search;
+    if (returnTo !== "/") sessionStorage.setItem("ut_return_to", returnTo);
     // Clear stale token/instance before redirecting so we start fresh
     localStorage.removeItem("ut_token");
     resetOctokit();

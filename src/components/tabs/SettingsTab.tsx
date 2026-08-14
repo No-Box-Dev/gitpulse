@@ -43,9 +43,18 @@ export function SettingsTab() {
   const { data: orgMembers } = useOrgMembers();
   const isAdmin = useIsAdmin();
 
+  useEffect(() => {
+    const focus = new URLSearchParams(window.location.search).get("focus");
+    if (!isAdmin || focus !== "aiProvider") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isAdmin]);
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="max-w-xl">
         {/* Account */}
         <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-3">
           <h2 className="text-sm font-semibold text-stone-900">Account</h2>
@@ -71,25 +80,8 @@ export function SettingsTab() {
             onClick={logout}
             className="text-xs text-red-500 hover:text-red-700 cursor-pointer"
           >
-            Disconnect GitHub
+            Sign out
           </button>
-        </div>
-
-        {/* GitHub App installation */}
-        <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-3">
-          <h2 className="text-sm font-semibold text-stone-900">GitHub App</h2>
-          <p className="text-xs text-stone-400">
-            Unticket runs as a GitHub App. Installing it on <span className="font-medium">{selectedOrg}</span> grants
-            per-repo permissions and registers the webhook automatically — no manual setup.
-          </p>
-          <a
-            href="https://github.com/apps/unticket/installations/new"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block text-xs text-blue-600 hover:text-blue-800 hover:underline"
-          >
-            Install or manage Unticket on GitHub →
-          </a>
         </div>
       </div>
 
@@ -116,9 +108,10 @@ export function SettingsTab() {
           </div>
           <FeaturesRepoSection />
           <BoardStagesSection />
-          <LlmSettingsSection />
+          <div id="ai-provider" className="scroll-mt-6">
+            <LlmSettingsSection />
+          </div>
           <ReleaseNotesPromptSection />
-          <SlackSettingsSection />
           <NewReposSection />
           <TrackedReposSection />
           <ManualSyncSection />
@@ -944,14 +937,15 @@ function ReleaseNotesPromptSection() {
 
 type SlackKind = "narrative" | "release_notes";
 
-function SlackSettingsSection() {
+export function SlackIntegrationCard() {
   const qc = useQueryClient();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
   const status = useQuery({
     queryKey: ["slack-status"],
     queryFn: () => fetchSlackStatus(),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const channels = useQuery({
     queryKey: ["slack-channels"],
@@ -986,13 +980,16 @@ function SlackSettingsSection() {
     const flag = params.get("slack");
     if (!flag) return;
     if (flag === "ok") {
-      qc.invalidateQueries({ queryKey: ["slack-status"] });
-      qc.invalidateQueries({ queryKey: ["slack-channels"] });
+      void Promise.all([
+        qc.refetchQueries({ queryKey: ["slack-status"], type: "all" }),
+        qc.refetchQueries({ queryKey: ["integrations-status"], type: "all" }),
+        qc.refetchQueries({ queryKey: ["slack-channels"], type: "all" }),
       // Server side wipes settings.slack.{postsChannelId,releaseNotesChannelId}
       // when the team_id changes (or on disconnect). Invalidate the local
       // settings cache too so the UI doesn't show channels selected after a
       // workspace switch.
-      qc.invalidateQueries({ queryKey: ["settings"] });
+        qc.refetchQueries({ queryKey: ["settings"], type: "all" }),
+      ]);
     } else if (flag !== "cancelled") {
       setError(`Slack connection failed: ${flag}`);
     }
@@ -1035,6 +1032,7 @@ function SlackSettingsSection() {
       await disconnectSlack();
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["slack-status"] }),
+        qc.invalidateQueries({ queryKey: ["integrations-status"] }),
         // Server cleared settings.slack.{postsChannelId,releaseNotesChannelId}.
         // Refetch so the dropdowns don't show stale selections.
         qc.invalidateQueries({ queryKey: ["settings"] }),
@@ -1112,25 +1110,43 @@ function SlackSettingsSection() {
     <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-4">
       <div className="flex items-center gap-2">
         <MessageSquare size={14} className="text-stone-500" />
-        <h2 className="text-sm font-semibold text-stone-900">Slack</h2>
+        <h2 className="text-sm font-semibold text-stone-900">NoxConnect · Slack</h2>
+        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-500">Optional</span>
         {data?.connected && data.teamName && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
-            Connected · {data.teamName}
+          <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border ${data.health === "degraded" || data.blockedDeliveries > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-green-50 text-green-700 border-green-200"}`}>
+            {data.needsReconnect ? "Reconnect required" : data.health === "degraded" || data.blockedDeliveries > 0 ? "Needs attention" : data.health === "unknown" ? "Checking" : "Connected"} · {data.teamName}
           </span>
         )}
       </div>
       <p className="text-xs text-stone-400">
-        Mirror Posts + Release notes to Slack via the Unticket Slack app.
-        Connect once, then pick one channel to receive both feeds. The bot must
-        be added to private channels before it can post there; public channels
-        work without an invite.
+        One NoxConnect installation serves NoxAlert, NoxFeed, NoxSpot, and NoxTicket.
+        Connect once for this organization. The channel below is NoxFeed's default;
+        NoxSpot can choose a channel per site, and NoxAlert routing will live here when released.
+        The bot must be added to private channels before it can post there; public channels work without an invite.
       </p>
+
+      {data?.connected && (
+        <div className="grid gap-2 rounded-lg bg-stone-50 p-3 text-xs sm:grid-cols-3">
+          <div><span className="text-stone-400">Pending</span><p className="mt-0.5 font-medium text-stone-700">{data.pendingDeliveries}</p></div>
+          <div><span className="text-stone-400">Blocked</span><p className={`mt-0.5 font-medium ${data.blockedDeliveries > 0 ? "text-amber-700" : "text-stone-700"}`}>{data.blockedDeliveries}</p></div>
+          <div><span className="text-stone-400">Last delivered</span><p className="mt-0.5 font-medium text-stone-700">{data.lastDeliveredAt ? new Date(data.lastDeliveredAt).toLocaleString() : "No deliveries yet"}</p></div>
+          {data.lastError ? <p className="sm:col-span-3 text-amber-700">{data.lastError}</p> : null}
+        </div>
+      )}
+
+      {data?.needsReconnect && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          This organization is still connected through the legacy Slack app.
+          Reconnect once to migrate it to NoxConnect; existing channel choices
+          are retained when the workspace stays the same.
+        </div>
+      )}
 
       {!data?.appConfigured && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
           The Slack app credentials aren't configured on this deployment. An operator
-          needs to set <code>SLACK_CLIENT_ID</code> + <code>SLACK_CLIENT_SECRET</code>
-          as Cloudflare Pages secrets.
+          needs to set <code>SLACK_CLIENT_ID</code>, <code>SLACK_CLIENT_SECRET</code>,
+          and <code>SLACK_SIGNING_SECRET</code> as Cloudflare Pages secrets.
         </div>
       )}
 
@@ -1142,7 +1158,7 @@ function SlackSettingsSection() {
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 disabled:opacity-50 cursor-pointer"
         >
           {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
-          Connect Slack workspace
+          Connect Slack
         </button>
       ) : (
         <>
@@ -1167,6 +1183,17 @@ function SlackSettingsSection() {
           )}
 
           <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
+            {(data.health === "degraded" || data.needsReconnect) && (
+              <button
+                type="button"
+                onClick={handleConnect}
+                disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+              >
+                {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
+                Reconnect Slack
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSave}

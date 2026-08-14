@@ -23,6 +23,8 @@ const TAB_ITEMS: { id: TabId; label: string; keywords: string }[] = [
   { id: "sprint", label: "Features", keywords: "features kanban board" },
   { id: "posts", label: "Merged", keywords: "merged feed posts narrator agents activity" },
   { id: "issues", label: "Issues", keywords: "issues bugs" },
+  { id: "noxspot", label: "NoxSpot", keywords: "capture feedback bugs evidence" },
+  { id: "integrations", label: "NoxConnect Setup", keywords: "integrations github slack connect oauth app webhook" },
   { id: "repos", label: "Repos", keywords: "repos projects backfill narrator" },
   { id: "settings", label: "Settings", keywords: "settings admin config teams webhook" },
 ];

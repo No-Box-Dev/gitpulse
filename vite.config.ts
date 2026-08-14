@@ -4,6 +4,12 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import type { Plugin } from "vite";
 
+// GitHub App client IDs are public browser configuration. Keep the production
+// fallback here so a manual `wrangler pages deploy dist` cannot silently ship
+// a login bundle without OAuth configured. CI/local env still wins, which
+// keeps rotation possible without a code change.
+const PRODUCTION_GITHUB_APP_CLIENT_ID = "Iv23liSD7Nx3fmV1OQfr";
+
 /**
  * Vite plugin that handles the OAuth callback locally during dev.
  * Exchanges the GitHub auth code for a token server-side (keeps secret safe).
@@ -78,6 +84,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
   plugins: [react(), tailwindcss(), oauthDevProxy()],
+  define: mode === "production" ? {
+    "import.meta.env.VITE_GITHUB_APP_CLIENT_ID": JSON.stringify(
+      env.VITE_GITHUB_APP_CLIENT_ID || PRODUCTION_GITHUB_APP_CLIENT_ID,
+    ),
+  } : undefined,
   base: process.env.GITHUB_PAGES === "true" ? "/unticket/" : "/",
   resolve: {
     alias: {

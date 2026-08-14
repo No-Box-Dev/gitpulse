@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, Check, Clipboard, KeyRound, Plus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useIsAdmin } from "@/hooks/useGitHub";
@@ -24,45 +24,46 @@ function splitList(value: string) {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
 }
 
+function projectInput(project: NonNullable<ReturnType<typeof useNoxAlertProjects>["data"]>["projects"][number] | undefined): NoxAlertProjectInput {
+  if (!project) return EMPTY_RULE;
+  return {
+    enabled: project.enabled,
+    allowedOrigins: project.allowedOrigins,
+    rule: project.rule ? {
+      name: project.rule.name,
+      filters: project.rule.filters,
+      notifyAfterCount: project.rule.notifyAfterCount,
+      windowSeconds: project.rule.windowSeconds,
+      repeatAfterSeconds: project.rule.repeatAfterSeconds,
+    } : EMPTY_RULE.rule,
+  };
+}
+
 export function NoxAlertTab() {
   const isAdmin = useIsAdmin();
   const projects = useNoxAlertProjects();
   const save = useSaveNoxAlertProject();
   const createKey = useCreateNoxAlertKey();
   const revokeKey = useRevokeNoxAlertKey();
-  const [projectId, setProjectId] = useState("");
-  const [draft, setDraft] = useState<NoxAlertProjectInput>(EMPTY_RULE);
-  const [originText, setOriginText] = useState("");
-  const [environmentText, setEnvironmentText] = useState("production");
-  const [serviceText, setServiceText] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, NoxAlertProjectInput>>({});
+  const [originTexts, setOriginTexts] = useState<Record<string, string>>({});
+  const [environmentTexts, setEnvironmentTexts] = useState<Record<string, string>>({});
+  const [serviceTexts, setServiceTexts] = useState<Record<string, string>>({});
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const projectId = selectedProjectId || projects.data?.projects[0]?.id || "";
   const selected = useMemo(() => projects.data?.projects.find((project) => project.id === projectId), [projects.data, projectId]);
-
-  useEffect(() => {
-    if (!projectId && projects.data?.projects[0]) setProjectId(projects.data.projects[0].id);
-  }, [projectId, projects.data]);
-
-  useEffect(() => {
-    if (!selected) return;
-    const next: NoxAlertProjectInput = {
-      enabled: selected.enabled,
-      allowedOrigins: selected.allowedOrigins,
-      rule: selected.rule ? {
-        name: selected.rule.name,
-        filters: selected.rule.filters,
-        notifyAfterCount: selected.rule.notifyAfterCount,
-        windowSeconds: selected.rule.windowSeconds,
-        repeatAfterSeconds: selected.rule.repeatAfterSeconds,
-      } : EMPTY_RULE.rule,
-    };
-    setDraft(next);
-    setOriginText(next.allowedOrigins.join("\n"));
-    setEnvironmentText(next.rule.filters.environments.join(", "));
-    setServiceText(next.rule.filters.services.join(", "));
-    setNewKey(null);
-  }, [selected]);
+  const storedInput = projectInput(selected);
+  const draft = drafts[projectId] ?? storedInput;
+  const setDraft = (next: NoxAlertProjectInput) => setDrafts((current) => ({ ...current, [projectId]: next }));
+  const originText = originTexts[projectId] ?? storedInput.allowedOrigins.join("\n");
+  const setOriginText = (value: string) => setOriginTexts((current) => ({ ...current, [projectId]: value }));
+  const environmentText = environmentTexts[projectId] ?? storedInput.rule.filters.environments.join(", ");
+  const setEnvironmentText = (value: string) => setEnvironmentTexts((current) => ({ ...current, [projectId]: value }));
+  const serviceText = serviceTexts[projectId] ?? storedInput.rule.filters.services.join(", ");
+  const setServiceText = (value: string) => setServiceTexts((current) => ({ ...current, [projectId]: value }));
 
   if (!isAdmin) {
     return <div className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-stone-600">An organization admin manages NoxAlert projects, filters, and ingest keys.</div>;
@@ -110,7 +111,7 @@ export function NoxAlertTab() {
           <section className="rounded-xl border border-stone-200 bg-white p-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <label className="text-sm font-medium text-stone-700">Project
-                <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
+                <select value={projectId} onChange={(event) => { setSelectedProjectId(event.target.value); setNewKey(null); }} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
                   {projects.data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}{project.repo ? ` · ${project.repo}` : ""}</option>)}
                 </select>
               </label>

@@ -16,14 +16,12 @@ interface PageShellProps {
 
 // Derive the "active" top-nav tab from the current pathname so the tab
 // highlight makes sense on detail/list pages that came from a tab. Falls
-// through to the settings-invalid "issues" default when nothing matches,
+// through to the nav-invalid "engineers" pseudo-tab when nothing matches,
 // which just means no tab renders as active — safe visual state.
 function tabFromPath(pathname: string): TabId {
   if (pathname.startsWith("/prs/")) return "current";
   if (pathname.startsWith("/issues/")) return "issues";
-  // fallthrough: return a TabId value the nav bar won't render as active
-  // in the top row (settings is a gear icon, not a nav item).
-  return "settings";
+  return "engineers";
 }
 
 export function PageShell({ backTo, backLabel = "Back", children }: PageShellProps) {

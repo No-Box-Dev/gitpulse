@@ -45,11 +45,8 @@ vi.mock("@/components/tabs/PostsTab", () => ({
 vi.mock("@/components/tabs/ReposTab", () => ({
   ReposTab: () => <div data-testid="tab-repos" />,
 }));
-vi.mock("@/components/tabs/SettingsTab", () => ({
-  SettingsTab: () => <div data-testid="tab-settings" />,
-}));
-vi.mock("@/components/tabs/IntegrationsTab", () => ({
-  IntegrationsTab: () => <div data-testid="tab-integrations" />,
+vi.mock("@/components/tabs/AdminTab", () => ({
+  AdminTab: () => <div data-testid="tab-admin" />,
 }));
 
 import { DashboardPage } from "../DashboardPage";
@@ -98,25 +95,25 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(screen.getByTestId("tab-sprint")).toBeInTheDocument());
   });
 
-  it("renders the settings tab when tab=settings", async () => {
+  it("renders the admin tab when tab=admin", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
-    renderAt("/?tab=settings");
-    await waitFor(() => expect(screen.getByTestId("tab-settings")).toBeInTheDocument());
+    renderAt("/?tab=admin");
+    await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
   });
 
-  it("starts organization onboarding in NoxConnect when GitHub is not ready", async () => {
+  it("starts organization onboarding in Admin when GitHub is not ready", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: true } } });
     renderAt("/");
-    await waitFor(() => expect(screen.getByTestId("tab-integrations")).toBeInTheDocument());
-    expect(screen.getByTestId("topnav").textContent).toContain("active:integrations");
+    await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
+    expect(screen.getByTestId("topnav").textContent).toContain("active:admin");
   });
 
   it("respects an explicit destination during onboarding", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: true } } });
-    renderAt("/?tab=settings");
-    await waitFor(() => expect(screen.getByTestId("tab-settings")).toBeInTheDocument());
+    renderAt("/?tab=sprint");
+    await waitFor(() => expect(screen.getByTestId("tab-sprint")).toBeInTheDocument());
   });
 
   it("falls back to issues for an unknown tab value", async () => {

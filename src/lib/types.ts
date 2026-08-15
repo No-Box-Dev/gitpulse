@@ -66,11 +66,10 @@ export type TabId =
   | "issues"
   | "noxalert"
   | "noxspot"
-  | "integrations"
+  | "admin"
   | "posts"
   | "repos"
-  | "engineers"
-  | "settings";
+  | "engineers";
 
 export interface NoxSpotSite {
   id: string;

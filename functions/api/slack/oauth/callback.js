@@ -80,7 +80,7 @@ function redirectHome(url, status) {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${url.origin}/?tab=integrations&slack=${encodeURIComponent(status)}`,
+      Location: `${url.origin}/?tab=admin&slack=${encodeURIComponent(status)}`,
       "Cache-Control": "no-store",
       // Always clear the CSRF cookie even on failure paths.
       "Set-Cookie": "ut_slack_state=; Path=/; Max-Age=0; SameSite=Lax; Secure; HttpOnly",

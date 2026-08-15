@@ -34,6 +34,27 @@ vi.mock("@/hooks/useNoxlink", () => ({
   useFeedProjects: vi.fn(),
   useSetProjectArchived: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
 }));
+vi.mock("@/hooks/useNoxAlert", () => ({
+  useNoxAlertProjects: vi.fn(() => ({
+    data: {
+      projects: [{
+        id: "p1",
+        name: "api",
+        repo: "api",
+        enabled: false,
+        allowedOrigins: [],
+        rule: null,
+        keys: [],
+      }],
+      slackReady: true,
+    },
+    isLoading: false,
+    isError: false,
+  })),
+  useSaveNoxAlertProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isSuccess: false })),
+  useCreateNoxAlertKey: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useRevokeNoxAlertKey: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}));
 vi.mock("@/hooks/useNoxSpot", () => ({
   useNoxSpotSites: vi.fn(() => ({ data: [], isLoading: false })),
   useNoxSpotIssues: vi.fn(() => ({ data: [], isLoading: false })),
@@ -189,6 +210,7 @@ describe("AdminTab", () => {
     expect(screen.queryByText("Background failures")).not.toBeInTheDocument();
     expect(screen.queryByText("Manual sync")).not.toBeInTheDocument();
     expect(screen.queryByText("Add site")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alert rules")).not.toBeInTheDocument();
     expect(screen.getByText("Sign out")).toBeInTheDocument();
   });
 
@@ -209,6 +231,9 @@ describe("AdminTab", () => {
     // NoxSpot site management lives here now, not on the NoxSpot tab.
     expect(screen.getByText("Capture sites")).toBeInTheDocument();
     expect(screen.getByText("Add site")).toBeInTheDocument();
+    // NoxAlert project rules and ingest keys live here too.
+    expect(screen.getByText("Alert rules")).toBeInTheDocument();
+    expect(screen.getByText("Public ingest keys")).toBeInTheDocument();
   });
 
   it("renders separate NoxFeed route fields for posts and release notes", () => {

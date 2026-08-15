@@ -229,10 +229,10 @@ export function AdminTab() {
           </section>
 
           <section id="admin-noxalert" className="space-y-6 scroll-mt-24">
-            <SectionHeading title="NoxAlert" description="Slack alerts for GitHub and NoxSpot activity." />
+            <SectionHeading title="NoxAlert" description="Slack alerts for browser errors, with per-project rules and ingest keys." />
             <AdminGate
               title="NoxAlert settings"
-              description="Alert channel routing. Requires GitHub and Slack."
+              description="Alert channel routing, per-project rules, filters, and ingest keys. Requires GitHub and Slack."
             >
               {status ? <NoxAlertSection noxConnect={status} /> : connectionsLoading}
             </AdminGate>

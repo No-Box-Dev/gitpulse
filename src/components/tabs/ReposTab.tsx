@@ -1,24 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useFeedProjects,
   useFeedActors,
-  useBackfillProjectPrs,
-  useSetProjectArchived,
   useFeedEvents,
 } from "@/hooks/useNoxlink";
 import { useAllPRs, useOpenIssues, useClosedIssues } from "@/hooks/useGitHub";
-import { backfillProjectPrs } from "@/lib/noxlink-api";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/cn";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
 import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
 import {
-  Archive,
-  ArchiveRestore,
   ArrowLeft,
   Circle,
   CircleCheck,
@@ -27,14 +21,12 @@ import {
   GitCommit,
   GitMerge,
   GitPullRequest,
-  Loader2,
   MessageSquare,
   Rocket,
-  Sparkles,
   Tag,
   XCircle,
 } from "lucide-react";
-import type { BackfillResult, FeedEvent } from "@/lib/noxlink-api";
+import type { FeedEvent } from "@/lib/noxlink-api";
 
 // ---------- Helpers ----------
 
@@ -48,19 +40,6 @@ function formatRelative(iso: string): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(iso).toLocaleDateString();
-}
-
-function renderBackfillStatus(r: BackfillResult): string {
-  const parts: string[] = [];
-  if (r.queued > 0) {
-    parts.push(`Queued ${r.queued} PR${r.queued === 1 ? "" : "s"}`);
-    if (r.skipped) parts.push(`${r.skipped} already done`);
-  }
-  if (r.renarrated > 0) {
-    parts.push(`re-narrated ${r.renarrated} fallback post${r.renarrated === 1 ? "" : "s"}`);
-  }
-  if (parts.length === 0) return r.message || `All ${r.found} PRs already backfilled.`;
-  return parts.join(" · ") + ". Posts appear in the Feed shortly.";
 }
 
 // ---------- Types ----------
@@ -187,13 +166,7 @@ function ItemListPanel({
 // ---------- Repo Card (grid view) ----------
 
 function RepoCard({ repo, onSelect, statsLoading }: { repo: RepoSummary; onSelect: () => void; statsLoading?: boolean }) {
-  const setArchived = useSetProjectArchived();
   const isArchived = !!repo.archived;
-
-  const handleArchive = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setArchived.mutate({ id: repo.id, archived: !isArchived });
-  };
 
   return (
     <div
@@ -230,151 +203,11 @@ function RepoCard({ repo, onSelect, statsLoading }: { repo: RepoSummary; onSelec
         )}
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 text-xs text-stone-500">
-          <CardStat label="Open PRs" value={repo.openPRs} loading={statsLoading} />
-          <CardStat label="Issues" value={repo.openIssues} loading={statsLoading} />
-        </div>
-        <button
-          type="button"
-          onClick={handleArchive}
-          disabled={setArchived.isPending}
-          title={isArchived ? "Restore this repo" : "Archive this repo"}
-          className="p-1 rounded text-stone-300 hover:text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
-        >
-          {isArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-        </button>
+      <div className="flex items-center gap-4 text-xs text-stone-500">
+        <CardStat label="Open PRs" value={repo.openPRs} loading={statsLoading} />
+        <CardStat label="Issues" value={repo.openIssues} loading={statsLoading} />
       </div>
     </div>
-  );
-}
-
-// ---------- Backfill All Button ----------
-
-function BackfillAllButton({ activeProjects, days }: { activeProjects: RepoSummary[]; days: number }) {
-  const qc = useQueryClient();
-  const { selectedOrg } = useAuth();
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number; current: string | null }>({
-    done: 0,
-    total: 0,
-    current: null,
-  });
-  const [summary, setSummary] = useState<string | null>(null);
-
-  const handleClick = async () => {
-    if (activeProjects.length === 0 || running) return;
-    setRunning(true);
-    setSummary(null);
-    setProgress({ done: 0, total: activeProjects.length, current: null });
-
-    let queued = 0;
-    let found = 0;
-    let errors = 0;
-
-    for (let i = 0; i < activeProjects.length; i++) {
-      const p = activeProjects[i];
-      setProgress({ done: i, total: activeProjects.length, current: p.repo ?? p.name });
-      try {
-        const r = await backfillProjectPrs(p.id, days);
-        queued += r.queued ?? 0;
-        found += r.found ?? 0;
-      } catch {
-        errors += 1;
-      }
-    }
-
-    setProgress({ done: activeProjects.length, total: activeProjects.length, current: null });
-    setSummary(
-      `Queued ${queued} new post${queued === 1 ? "" : "s"} from ${found} PR${found === 1 ? "" : "s"}${errors ? ` · ${errors} error${errors === 1 ? "" : "s"}` : ""}.`,
-    );
-    setRunning(false);
-    qc.invalidateQueries({ queryKey: ["noxlink", "events", selectedOrg] });
-  };
-
-  return (
-    <div className="flex items-center gap-3">
-      {summary && !running && <span className="text-xs text-stone-500">{summary}</span>}
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={running || activeProjects.length === 0}
-        title={`Generate posts for the last ${days} day${days === 1 ? "" : "s"} of merged PRs across every active repo. Idempotent — already-backfilled PRs are skipped.`}
-        className={cn(
-          "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer",
-          running
-            ? "bg-stone-100 text-stone-500 cursor-not-allowed"
-            : "bg-stone-700 text-white hover:bg-stone-900 disabled:opacity-50",
-        )}
-      >
-        {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-        {running
-          ? `${progress.current ?? ""} (${progress.done}/${progress.total})`
-          : `Backfill all ${activeProjects.length} repo${activeProjects.length === 1 ? "" : "s"}`}
-      </button>
-    </div>
-  );
-}
-
-// ---------- Detail view action buttons ----------
-
-function DetailBackfillButton({ project, days }: { project: RepoSummary; days: number }) {
-  const backfill = useBackfillProjectPrs();
-  const [result, setResult] = useState<BackfillResult | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const handleBackfill = async () => {
-    setResult(null);
-    setErr(null);
-    try {
-      const r = await backfill.mutateAsync({ id: project.id, days });
-      setResult(r);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Backfill failed");
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={handleBackfill}
-        disabled={backfill.isPending}
-        title={`Generate posts for the last ${days} days of merged PRs.`}
-        className={cn(
-          "px-3 py-1.5 text-xs rounded-lg font-medium transition-colors cursor-pointer",
-          backfill.isPending
-            ? "bg-stone-100 text-stone-400 cursor-not-allowed"
-            : "bg-stone-700 text-white hover:bg-stone-900",
-        )}
-      >
-        {backfill.isPending ? "Backfilling…" : "Backfill"}
-      </button>
-      {result && <span className="text-xs text-stone-400">{renderBackfillStatus(result)}</span>}
-      {err && <span className="text-xs text-severity-high">{err}</span>}
-    </div>
-  );
-}
-
-function DetailArchiveButton({ project }: { project: RepoSummary }) {
-  const setArchived = useSetProjectArchived();
-  const isArchived = !!project.archived;
-
-  return (
-    <button
-      type="button"
-      onClick={() => setArchived.mutate({ id: project.id, archived: !isArchived })}
-      disabled={setArchived.isPending}
-      title={isArchived ? "Restore this repo" : "Archive this repo"}
-      className={cn(
-        "p-1.5 rounded-md transition-colors cursor-pointer",
-        setArchived.isPending
-          ? "text-stone-300 cursor-not-allowed"
-          : "text-stone-400 hover:text-stone-700 hover:bg-stone-100",
-      )}
-    >
-      {isArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-    </button>
   );
 }
 
@@ -815,7 +648,6 @@ export function ReposTab({ repoNames }: { repoNames: string[] }) {
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
   const [subPage, setSubPage] = useState<"prs" | "issues" | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [days, setDays] = useState(3);
 
   const repos = useMemo<RepoSummary[]>(() => {
     const list = projects.data ?? [];
@@ -965,18 +797,6 @@ export function ReposTab({ repoNames }: { repoNames: string[] }) {
           </div>
           <div className="flex items-center gap-3">
             <AllMeToggle me={meOnly} onChange={setMeOnly} />
-            <label className="text-xs text-stone-600 flex items-center gap-2">
-              Days:
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={days}
-                onChange={(e) => setDays(Math.max(1, Math.min(30, Number(e.target.value) || 3)))}
-                className="w-14 px-2 py-1 rounded border border-stone-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
-              />
-            </label>
-            <BackfillAllButton activeProjects={active} days={days} />
           </div>
         </header>
 
@@ -1109,8 +929,6 @@ export function ReposTab({ repoNames }: { repoNames: string[] }) {
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
-          <DetailBackfillButton project={selected} days={days} />
-          <DetailArchiveButton project={selected} />
         </div>
       </div>
 

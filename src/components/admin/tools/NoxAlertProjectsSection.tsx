@@ -1,9 +1,18 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Check, Clipboard, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Check, Clipboard, KeyRound, Plus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
-import { useIsAdmin } from "@/hooks/useGitHub";
-import { useCreateNoxAlertKey, useNoxAlertProjects, useRevokeNoxAlertKey, useSaveNoxAlertProject } from "@/hooks/useNoxAlert";
-import type { NoxAlertCondition, NoxAlertFilterField, NoxAlertFilterOperator, NoxAlertProjectInput } from "@/lib/noxalert-api";
+import {
+  useCreateNoxAlertKey,
+  useNoxAlertProjects,
+  useRevokeNoxAlertKey,
+  useSaveNoxAlertProject,
+} from "@/hooks/useNoxAlert";
+import type {
+  NoxAlertCondition,
+  NoxAlertFilterField,
+  NoxAlertFilterOperator,
+  NoxAlertProjectInput,
+} from "@/lib/noxalert-api";
 
 const EMPTY_RULE: NoxAlertProjectInput = {
   enabled: false,
@@ -39,8 +48,10 @@ function projectInput(project: NonNullable<ReturnType<typeof useNoxAlertProjects
   };
 }
 
-export function NoxAlertTab() {
-  const isAdmin = useIsAdmin();
+// Per-project NoxAlert rules for the Admin page: enable/disable, browser
+// origins, error filters, alert thresholds, and public ingest keys. All
+// NoxAlert configuration lives here — there is no separate alerts surface.
+export function NoxAlertProjectsSection() {
   const projects = useNoxAlertProjects();
   const save = useSaveNoxAlertProject();
   const createKey = useCreateNoxAlertKey();
@@ -65,11 +76,20 @@ export function NoxAlertTab() {
   const serviceText = serviceTexts[projectId] ?? storedInput.rule.filters.services.join(", ");
   const setServiceText = (value: string) => setServiceTexts((current) => ({ ...current, [projectId]: value }));
 
-  if (!isAdmin) {
-    return <div className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-stone-600">An organization admin manages NoxAlert projects, filters, and ingest keys.</div>;
+  if (projects.isLoading) {
+    return (
+      <div className="bg-white rounded-xl border border-stone-200 p-5 flex justify-center">
+        <Spinner className="h-5 w-5 text-accent" />
+      </div>
+    );
   }
-  if (projects.isLoading) return <div className="flex justify-center py-20"><Spinner className="h-6 w-6 text-accent" /></div>;
-  if (projects.isError || !projects.data) return <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">Could not load NoxAlert settings.</div>;
+  if (projects.isError || !projects.data) {
+    return (
+      <div className="bg-white rounded-xl border border-stone-200 p-5 text-sm text-red-700">
+        Could not load NoxAlert settings.
+      </div>
+    );
+  }
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -92,23 +112,27 @@ export function NoxAlertTab() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5" data-tab="noxalert">
-      <div>
-        <div className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-accent" /><h1 className="text-xl font-semibold text-stone-900">NoxAlert</h1></div>
-        <p className="mt-1 text-sm text-stone-500">Turn browser errors into deduplicated Slack alerts. Configuration is restricted to organization admins.</p>
-      </div>
-
-      {!projects.data.slackReady && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          Select a NoxAlert channel (or an organization fallback) in Settings before enabling a project.
-        </div>
-      )}
-
+    <div className="space-y-6">
       {!projects.data.projects.length ? (
-        <div className="rounded-xl border border-stone-200 bg-white p-6 text-sm text-stone-600">No active synced projects are available yet.</div>
+        <div className="bg-white rounded-xl border border-stone-200 p-5 text-sm text-stone-600">
+          No active synced projects are available yet.
+        </div>
       ) : (
-        <form onSubmit={submit} className="space-y-5">
-          <section className="rounded-xl border border-stone-200 bg-white p-5 space-y-4">
+        <form onSubmit={submit} className="bg-white rounded-xl border border-stone-200 p-5 space-y-5">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-900">Alert rules</h3>
+            <p className="mt-1 text-xs text-stone-500">
+              Turn browser errors into deduplicated Slack alerts. Pick a project, then tune its filter and thresholds.
+            </p>
+          </div>
+
+          {!projects.data.slackReady && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Select a NoxAlert channel (or an organization fallback) in General before enabling a project.
+            </div>
+          )}
+
+          <div className="space-y-4 border-t border-stone-100 pt-4">
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <label className="text-sm font-medium text-stone-700">Project
                 <select value={projectId} onChange={(event) => { setSelectedProjectId(event.target.value); setNewKey(null); }} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
@@ -123,35 +147,47 @@ export function NoxAlertTab() {
               <textarea value={originText} onChange={(event) => setOriginText(event.target.value)} rows={3} placeholder={"https://app.example.com\nhttp://localhost:5173"} className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm" />
               <span className="mt-1 block text-xs font-normal text-stone-400">One exact origin per line. Paths and wildcards are rejected.</span>
             </label>
-          </section>
+          </div>
 
-          <section className="rounded-xl border border-stone-200 bg-white p-5 space-y-4">
-            <div><h2 className="font-medium text-stone-900">Error filter</h2><p className="mt-1 text-xs text-stone-500">Environment and service lists narrow events first. Every include must match; any exclusion suppresses the alert.</p></div>
+          <div className="space-y-4 border-t border-stone-100 pt-4">
+            <div><h4 className="text-sm font-medium text-stone-900">Error filter</h4><p className="mt-1 text-xs text-stone-500">Environment and service lists narrow events first. Every include must match; any exclusion suppresses the alert.</p></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Environments" value={environmentText} onChange={setEnvironmentText} placeholder="production, staging" />
               <Field label="Services (empty means all)" value={serviceText} onChange={setServiceText} placeholder="web-app, checkout" />
             </div>
             <ConditionEditor label="Include all" items={draft.rule.filters.include} onChange={(include) => setDraft({ ...draft, rule: { ...draft.rule, filters: { ...draft.rule.filters, include } } })} />
             <ConditionEditor label="Exclude any" items={draft.rule.filters.exclude} onChange={(exclude) => setDraft({ ...draft, rule: { ...draft.rule, filters: { ...draft.rule.filters, exclude } } })} />
-          </section>
+          </div>
 
-          <section className="rounded-xl border border-stone-200 bg-white p-5 space-y-4">
-            <h2 className="font-medium text-stone-900">Alert behavior</h2>
+          <div className="space-y-4 border-t border-stone-100 pt-4">
+            <h4 className="text-sm font-medium text-stone-900">Alert behavior</h4>
             <div className="grid gap-4 sm:grid-cols-3">
               <NumberField label="Notify after errors" value={draft.rule.notifyAfterCount} min={1} max={10000} onChange={(notifyAfterCount) => setDraft({ ...draft, rule: { ...draft.rule, notifyAfterCount } })} />
               <NumberField label="Within seconds" value={draft.rule.windowSeconds} min={60} max={86400} onChange={(windowSeconds) => setDraft({ ...draft, rule: { ...draft.rule, windowSeconds } })} />
               <NumberField label="Repeat after seconds" value={draft.rule.repeatAfterSeconds} min={60} max={604800} onChange={(repeatAfterSeconds) => setDraft({ ...draft, rule: { ...draft.rule, repeatAfterSeconds } })} />
             </div>
-          </section>
+          </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 border-t border-stone-100 pt-4">
             <button disabled={save.isPending || (draft.enabled && !projects.data.slackReady)} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{save.isPending ? "Saving…" : "Save NoxAlert settings"}</button>
             {save.isSuccess && <span className="flex items-center gap-1 text-xs text-green-700"><Check size={13} /> Saved</span>}
           </div>
         </form>
       )}
 
-      {selected && <KeySection projectId={selected.id} keys={selected.keys} newKey={newKey} setNewKey={setNewKey} copied={copied} setCopied={setCopied} createKey={createKey} revokeKey={revokeKey} canCreate={Boolean(selected.rule)} />}
+      {selected && (
+        <KeySection
+          projectId={selected.id}
+          keys={selected.keys}
+          newKey={newKey}
+          setNewKey={setNewKey}
+          copied={copied}
+          setCopied={setCopied}
+          createKey={createKey}
+          revokeKey={revokeKey}
+          canCreate={Boolean(selected.rule)}
+        />
+      )}
     </div>
   );
 }
@@ -177,5 +213,5 @@ function KeySection({ projectId, keys, newKey, setNewKey, copied, setCopied, cre
 }) {
   const activeKeys = keys.filter((key) => !key.revokedAt);
   const create = () => createKey.mutate({ projectId, name: "Browser ingest" }, { onSuccess: (result) => { setNewKey(result.key.value); setCopied(false); } });
-  return <section className="rounded-xl border border-stone-200 bg-white p-5 space-y-4"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><KeyRound size={16} /><h2 className="font-medium text-stone-900">Public ingest keys</h2></div><p className="mt-1 text-xs text-stone-500">Safe to place in browser code only with exact origins configured. Keys are stored hashed.</p></div><button type="button" onClick={create} disabled={!canCreate || createKey.isPending} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">Create key</button></div>{newKey && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900">Copy now—this value is shown once.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey}</code><button type="button" onClick={() => navigator.clipboard.writeText(newKey).then(() => setCopied(true))} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div></div>}<div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name}</div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `used ${new Date(key.lastUsedAt).toLocaleString()}` : "never used"}</div></div><button type="button" onClick={() => { if (window.confirm("Revoke this ingest key? Existing applications will stop sending errors.")) revokeKey.mutate({ projectId, keyId: key.id }); }} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length && <p className="py-3 text-xs text-stone-400">No active keys.</p>}</div></section>;
+  return <section className="bg-white rounded-xl border border-stone-200 p-5 space-y-4"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><KeyRound size={16} /><h3 className="text-sm font-semibold text-stone-900">Public ingest keys</h3></div><p className="mt-1 text-xs text-stone-500">Safe to place in browser code only with exact origins configured. Keys are stored hashed.</p></div><button type="button" onClick={create} disabled={!canCreate || createKey.isPending} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">Create key</button></div>{newKey && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900">Copy now—this value is shown once.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey}</code><button type="button" onClick={() => navigator.clipboard.writeText(newKey).then(() => setCopied(true))} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div></div>}<div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name}</div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `used ${new Date(key.lastUsedAt).toLocaleString()}` : "never used"}</div></div><button type="button" onClick={() => { if (window.confirm("Revoke this ingest key? Existing applications will stop sending errors.")) revokeKey.mutate({ projectId, keyId: key.id }); }} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length && <p className="py-3 text-xs text-stone-400">No active keys.</p>}</div></section>;
 }

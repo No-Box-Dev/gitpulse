@@ -9,6 +9,7 @@
 // callback stores the bot token. Posting uses `chat.postMessage` against
 // that token rather than the webhook URLs the v1 of this feature used.
 
+import { z } from "zod";
 import { decryptToken, encryptToken } from "./crypto";
 
 const SLACK_API = "https://slack.com";
@@ -429,12 +430,42 @@ export function resolveSlackOAuthRedirectUri() {
 // stop unfurling until an admin re-runs the Connect flow.
 export const SLACK_BOT_SCOPES = ["channels:read", "groups:read", "chat:write", "chat:write.public", "links:read", "links:write"];
 
-export function buildOAuthAuthorizeUrl(clientId, origin, state, redirectUri = `${origin}${REDIRECT_PATH}`) {
+// Slack team IDs look like T08B8C3E91N. Validated everywhere a `team` value
+// enters the OAuth flow so a crafted value can only ever be dropped, never
+// injected into the authorize URL.
+export function isSlackTeamId(value) {
+  return typeof value === "string" && /^T[A-Z0-9]{5,20}$/.test(value);
+}
+
+// The `team` request param, shared by /api/slack/oauth/start (body) and
+// /api/slack/oauth/handoff (query). Trimmed; an empty string means "leave
+// the workspace choice to Slack's picker" and anything else must be a team
+// ID. Non-strings are rejected by the schema rather than coerced —
+// String(["T..."]) would otherwise forge a valid-looking ID.
+export const SlackTeamParamSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || isSlackTeamId(value), {
+    message: "Invalid Slack team id",
+  });
+
+export function buildOAuthAuthorizeUrl(
+  clientId,
+  origin,
+  state,
+  redirectUri = `${origin}${REDIRECT_PATH}`,
+  team = "",
+) {
   const u = new URL(`${SLACK_API}/oauth/v2/authorize`);
   u.searchParams.set("client_id", clientId);
   u.searchParams.set("scope", SLACK_BOT_SCOPES.join(","));
   u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("state", state);
+  // Without `team`, Slack defaults the authorize page to whatever workspace
+  // the admin's browser session last used — the wrong one more often than not.
+  // Pinning it makes reconnects land in the org's workspace; an empty value
+  // deliberately leaves the choice to Slack's own workspace picker.
+  if (team) u.searchParams.set("team", team);
   return u.toString();
 }
 

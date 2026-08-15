@@ -9,6 +9,7 @@ vi.mock("../crypto", () => ({
 
 import {
   buildOAuthAuthorizeUrl,
+  isSlackTeamId,
   SLACK_OAUTH_REDIRECT_URI,
   resolveSlackOAuthRedirectUri,
   SLACK_BOT_SCOPES,
@@ -109,6 +110,19 @@ describe("central Slack routing cleanup", () => {
   });
 });
 
+describe("isSlackTeamId", () => {
+  it("accepts real team ids and rejects everything else", () => {
+    expect(isSlackTeamId("T08B8C3E91N")).toBe(true);
+    expect(isSlackTeamId("T1ABC23")).toBe(true);
+    expect(isSlackTeamId("")).toBe(false);
+    expect(isSlackTeamId("C08B8C3E91N")).toBe(false);
+    expect(isSlackTeamId("t08b8c3e91n")).toBe(false);
+    expect(isSlackTeamId("T08B8C3E91N<script>")).toBe(false);
+    expect(isSlackTeamId(null)).toBe(false);
+    expect(isSlackTeamId(42)).toBe(false);
+  });
+});
+
 describe("buildOAuthAuthorizeUrl", () => {
   it("builds an authorize URL with the right scopes + state", () => {
     const url = buildOAuthAuthorizeUrl("client-123", "https://app.example.com", "state-xyz");
@@ -129,6 +143,26 @@ describe("buildOAuthAuthorizeUrl", () => {
       SLACK_OAUTH_REDIRECT_URI,
     ));
     expect(url.searchParams.get("redirect_uri")).toBe(SLACK_OAUTH_REDIRECT_URI);
+  });
+
+  it("pins the workspace when a team is given and omits the param when empty", () => {
+    const pinned = new URL(buildOAuthAuthorizeUrl(
+      "client-123",
+      "https://app.example.com",
+      "state-xyz",
+      SLACK_OAUTH_REDIRECT_URI,
+      "T08B8C3E91N",
+    ));
+    expect(pinned.searchParams.get("team")).toBe("T08B8C3E91N");
+
+    const unpinned = new URL(buildOAuthAuthorizeUrl(
+      "client-123",
+      "https://app.example.com",
+      "state-xyz",
+      SLACK_OAUTH_REDIRECT_URI,
+      "",
+    ));
+    expect(unpinned.searchParams.has("team")).toBe(false);
   });
 
   it("ignores the retired NoxSpot callback override", () => {

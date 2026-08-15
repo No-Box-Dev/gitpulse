@@ -232,6 +232,14 @@ type OpFailure = {
   occurred_at: string;
 };
 
+// D1 returns "YYYY-MM-DD HH:MM:SS" (UTC, no offset). Appending "Z" makes it
+// a valid ISO string, but only when no offset is already present — otherwise
+// Safari yields Invalid Date and the row renders blank.
+function formatOccurredAt(raw: string): string {
+  const normalized = /Z$|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`;
+  return new Date(normalized).toLocaleString();
+}
+
 function RecentFailuresSection() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["op-failures"],
@@ -279,7 +287,7 @@ function RecentFailuresSection() {
                   <span className="text-stone-400 truncate">{f.delivery_id}</span>
                 )}
                 <span className="ml-auto text-stone-400 shrink-0">
-                  {new Date(f.occurred_at + "Z").toLocaleString()}
+                  {formatOccurredAt(f.occurred_at)}
                 </span>
               </div>
               <pre className="text-stone-500 whitespace-pre-wrap break-words font-mono text-[11px] leading-tight pl-5">

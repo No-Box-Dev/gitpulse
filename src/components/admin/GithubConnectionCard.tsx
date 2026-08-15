@@ -51,15 +51,22 @@ export function GithubConnectionCard({
       {!canConfigure && !github.connected && (
         <p className="text-xs text-stone-500">Ask an organization admin to connect GitHub.</p>
       )}
-      <a
-        href={github.connected ? github.manageUrl : github.installUrl}
-        target="_blank"
-        rel="noreferrer"
-        aria-disabled={!canConfigure}
-        className={`inline-flex items-center gap-1.5 text-xs font-medium ${canConfigure ? "text-blue-600 hover:underline" : "pointer-events-none text-stone-300"}`}
-      >
-        {github.connected ? "Manage GitHub installation" : "Connect GitHub"} <ExternalLink size={12} />
-      </a>
+      {/* Non-admins get a span, not a disabled anchor — an <a> with href
+          stays keyboard-activatable even behind pointer-events-none. */}
+      {canConfigure ? (
+        <a
+          href={github.connected ? github.manageUrl : github.installUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:underline"
+        >
+          {github.connected ? "Manage GitHub installation" : "Connect GitHub"} <ExternalLink size={12} />
+        </a>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-300">
+          {github.connected ? "Manage GitHub installation" : "Connect GitHub"} <ExternalLink size={12} />
+        </span>
+      )}
     </div>
   );
 }

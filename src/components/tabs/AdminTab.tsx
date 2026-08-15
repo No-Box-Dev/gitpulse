@@ -41,23 +41,23 @@ const SECTIONS: AdminSectionDef[] = [
 export function AdminTab() {
   const { user, selectedOrg, logout } = useAuth();
   const isAdmin = useIsAdmin();
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const noxConnect = useNoxConnect();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
   const { data: people } = usePeople();
   const savePeople = useSavePeople();
   const { data: orgMembers } = useOrgMembers();
+  const focus = searchParams.get("focus");
 
   // Deep link from banners: ?focus=aiProvider scrolls to the AI provider card.
   useEffect(() => {
-    const focus = new URLSearchParams(window.location.search).get("focus");
     if (!isAdmin || focus !== "aiProvider") return;
     const frame = window.requestAnimationFrame(() => {
       document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [isAdmin]);
+  }, [isAdmin, focus]);
 
   function openTab(tab: string) {
     setSearchParams({ tab }, { replace: true });
@@ -151,15 +151,26 @@ export function AdminTab() {
               </div>
             </div>
 
-            {settings && (
-              <PeopleManagement
-                people={people ?? []}
-                savePeople={savePeople}
-                orgMembers={orgMembers ?? []}
-                settings={settings}
-                saveSettings={saveSettings}
-              />
-            )}
+            {/* People management mutates org settings — render the live
+                component only for admins; non-admins get the gated shell. */}
+            <AdminGate
+              title="People"
+              description="Manage which organization members are tracked and their roles."
+            >
+              {settings ? (
+                <PeopleManagement
+                  people={people ?? []}
+                  savePeople={savePeople}
+                  orgMembers={orgMembers ?? []}
+                  settings={settings}
+                  saveSettings={saveSettings}
+                />
+              ) : (
+                <div className="bg-white rounded-xl border border-stone-200 p-5">
+                  <Spinner className="h-5 w-5 text-accent" />
+                </div>
+              )}
+            </AdminGate>
 
             {noxConnect.isLoading
               ? connectionsLoading

@@ -27,7 +27,9 @@ export function TrackedReposSection() {
     });
   }, [repos, query]);
 
-  const activeCount = rows.filter((r) => !r.inactive).length;
+  // Count over the full list, not the search-filtered rows — the
+  // "X / Y tracked" summary must not change as the admin searches.
+  const activeCount = (repos ?? []).filter((r) => !r.inactive).length;
   const projectIdFor = (name: string) =>
     `proj_${(selectedOrg ?? "").toLowerCase()}_${name.toLowerCase()}`;
 

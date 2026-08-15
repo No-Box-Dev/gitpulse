@@ -68,6 +68,7 @@ export function FeaturesRepoSection() {
             type="text"
             value={draft}
             onChange={(e) => setDraftOverride(e.target.value)}
+            disabled={saveSettings.isPending}
             placeholder="unticket"
             spellCheck={false}
             autoCapitalize="off"

@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useSettings, useSaveSettings } from "@/hooks/useConfigRepo";
-import { apiFetch } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 import type { OrgSettings } from "@/lib/types";
 
 // Slack test-message kinds understood by /api/slack/test. Kept in sync with
@@ -63,14 +63,27 @@ export function SlackRouteField({
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  // Closes the double-click window before isPending flips the button off.
+  const savingRef = useRef(false);
 
   async function handleSave() {
-    if (!settings) return;
+    if (!settings || savingRef.current) return;
+    savingRef.current = true;
     setError(null);
     setSavedAt(null);
     try {
       const slack = { ...(settings.slack ?? {}) };
       // Saving any dedicated route retires the combined feed selection.
+      // The sibling NoxFeed route may still be showing the legacy value —
+      // copy it into its dedicated key before deleting so this save
+      // doesn't silently unroute the other stream.
+      const legacy = slack.noxFeedChannelId;
+      if (legacy) {
+        const sibling: SlackRouteKey | null =
+          routeKey === "postsChannelId" ? "releaseNotesChannelId" :
+          routeKey === "releaseNotesChannelId" ? "postsChannelId" : null;
+        if (sibling && !slack[sibling]) slack[sibling] = legacy;
+      }
       delete slack.noxFeedChannelId;
       const trimmed = value.trim();
       if (trimmed) slack[routeKey] = trimmed;
@@ -82,6 +95,8 @@ export function SlackRouteField({
       setSavedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      savingRef.current = false;
     }
   }
 
@@ -94,14 +109,7 @@ export function SlackRouteField({
     setTesting(true);
     setTestStatus(null);
     try {
-      const res = await apiFetch("/api/slack/test", {
-        method: "POST",
-        body: JSON.stringify({ channelId, kind }),
-      });
-      if (!res.ok) {
-        const detail = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(detail?.error ?? `Test failed (HTTP ${res.status})`);
-      }
+      await apiPost("/api/slack/test", { channelId, kind });
       setTestStatus({ ok: true, msg: "Test message posted." });
     } catch (err) {
       setTestStatus({ ok: false, msg: err instanceof Error ? err.message : String(err) });

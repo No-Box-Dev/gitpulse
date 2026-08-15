@@ -55,6 +55,7 @@ export function ReleaseNotesPromptSection() {
       <textarea
         value={draft}
         onChange={(e) => setDraftOverride(e.target.value)}
+        disabled={saveSettings.isPending}
         rows={12}
         placeholder="Leave empty to use the built-in release-notes prompt. Override here to change tone, sections, or formatting — for example, drop the emoji header or add a required 'Rollback steps' section."
         spellCheck={false}

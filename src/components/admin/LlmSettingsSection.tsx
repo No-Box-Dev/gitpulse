@@ -95,22 +95,28 @@ export function LlmSettingsSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // Set on any user edit; while true, a background refetch won't clobber
+  // the form. Reset after a successful save/clear so the fresh server
+  // state re-seeds the inputs.
+  const [formTouched, setFormTouched] = useState(false);
 
   const configured = (data as LlmSettings | undefined)?.configured === true;
 
-  // When the saved config loads (or refetches), seed the form so the inputs
-  // *are* the current state — no separate "Active:" panel duplicating the
-  // model / base URL.
+  // When the saved config loads, seed the form so the inputs *are* the
+  // current state — no separate "Active:" panel duplicating the model /
+  // base URL. Only runs while the form is untouched: a refetch (window
+  // refocus, manual Refresh) must not wipe unsaved edits.
   useEffect(() => {
-    if (data && data.configured) {
+    if (data && data.configured && !formTouched) {
       setPreset(derivePreset(data.provider, data.baseUrl));
       setBaseUrl(data.baseUrl);
       setModel(data.model);
     }
-  }, [data]);
+  }, [data, formTouched]);
 
   function applyPreset(next: PresetId) {
     setPreset(next);
+    setFormTouched(true);
     // Only overwrite baseUrl with the preset default when the user is
     // starting fresh — once a config is saved, we keep their URL untouched
     // on preset changes (they explicitly picked it).
@@ -140,6 +146,7 @@ export function LlmSettingsSection() {
       });
       setApiKey("");
       setSavedAt(Date.now());
+      setFormTouched(false);
       qc.invalidateQueries({ queryKey: ["llm-settings"] });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -155,6 +162,7 @@ export function LlmSettingsSection() {
     try {
       await clearLlmSettings();
       setApiKey("");
+      setFormTouched(false);
       qc.invalidateQueries({ queryKey: ["llm-settings"] });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -216,7 +224,7 @@ export function LlmSettingsSection() {
               <input
                 type="text"
                 value={model}
-                onChange={(e) => setModel(e.target.value)}
+                onChange={(e) => { setModel(e.target.value); setFormTouched(true); }}
                 disabled={busy}
                 placeholder={PROVIDER_PRESETS[preset].modelHint}
                 className="w-full px-2 py-1.5 rounded border border-stone-200 bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
@@ -229,7 +237,7 @@ export function LlmSettingsSection() {
                     <button
                       key={m}
                       type="button"
-                      onClick={() => setModel(m)}
+                      onClick={() => { setModel(m); setFormTouched(true); }}
                       disabled={busy}
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-mono transition-colors cursor-pointer disabled:opacity-50 ${
                         active
@@ -250,7 +258,7 @@ export function LlmSettingsSection() {
               <input
                 type="text"
                 value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
+                onChange={(e) => { setBaseUrl(e.target.value); setFormTouched(true); }}
                 disabled={busy}
                 className="w-full px-2 py-1.5 rounded border border-stone-200 bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
               />
@@ -270,7 +278,7 @@ export function LlmSettingsSection() {
               <input
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e) => { setApiKey(e.target.value); setFormTouched(true); }}
                 disabled={busy}
                 placeholder={configured ? "leave blank to keep current key" : PROVIDER_PRESETS[preset].apiKeyHint}
                 autoComplete="new-password"

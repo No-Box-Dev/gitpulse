@@ -15,12 +15,19 @@ export function SlackConnectionCard() {
   const qc = useQueryClient();
   const { status, channels, channelOptions } = useSlackChannels();
 
-  const [error, setError] = useState<string | null>(null);
+  // Seed the OAuth-failure banner from the ?slack= param at first render —
+  // the callback redirects back with the failure reason in the URL.
+  const [error, setError] = useState<string | null>(() => {
+    const flag = new URLSearchParams(window.location.search).get("slack");
+    return flag && flag !== "ok" && flag !== "cancelled"
+      ? `Slack connection failed: ${flag}`
+      : null;
+  });
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
 
-  // Honors the ?slack=ok|error param the OAuth callback redirects to.
-  // Strips it from the URL once we've shown the toast so a reload doesn't
-  // re-trigger it.
+  // Honors the ?slack=ok param the OAuth callback redirects to: refetch
+  // everything Slack-shaped, then strip the param so a reload doesn't
+  // re-trigger it. (Failure values are handled by the error initializer.)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const flag = params.get("slack");
@@ -36,8 +43,6 @@ export function SlackConnectionCard() {
       // workspace switch.
         qc.refetchQueries({ queryKey: ["settings"], type: "all" }),
       ]);
-    } else if (flag !== "cancelled") {
-      setError(`Slack connection failed: ${flag}`);
     }
     params.delete("slack");
     const next = params.toString();

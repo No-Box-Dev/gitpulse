@@ -43,7 +43,9 @@ describe("TopNav", () => {
     expect(screen.getAllByText("Feed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Issues").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
+    // Admin is not a main tab — only the gear icon opens it.
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Admin")).toBeInTheDocument();
   });
 
   it("calls onTabChange when a nav item is clicked", () => {

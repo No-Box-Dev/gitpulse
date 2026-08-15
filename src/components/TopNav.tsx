@@ -5,13 +5,14 @@ import { cn } from "@/lib/cn";
 import { Search, Settings, ChevronDown, ArrowLeftRight, LogOut } from "lucide-react";
 import type { TabId } from "@/lib/types";
 
+// Admin is not a main tab — it lives behind the gear icon in the right
+// cluster (and ⌘K), keeping the tab bar purely content surfaces.
 const NAV_ITEMS: { id: TabId; label: string }[] = [
   { id: "current", label: "Current" },
   { id: "sprint", label: "Features" },
   { id: "specs", label: "Specs" },
   { id: "posts", label: "Feed" },
   { id: "issues", label: "Issues" },
-  { id: "admin", label: "Admin" },
   { id: "repos", label: "Repos" },
 ];
 

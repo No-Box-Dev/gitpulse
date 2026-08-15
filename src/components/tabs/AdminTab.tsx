@@ -41,7 +41,7 @@ const SECTIONS: AdminSectionDef[] = [
 export function AdminTab() {
   const { user, selectedOrg, logout } = useAuth();
   const isAdmin = useIsAdmin();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const noxConnect = useNoxConnect();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
@@ -58,10 +58,6 @@ export function AdminTab() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [isAdmin, focus]);
-
-  function openTab(tab: string) {
-    setSearchParams({ tab }, { replace: true });
-  }
 
   const status = noxConnect.data;
   const connectionsLoading = (
@@ -226,11 +222,9 @@ export function AdminTab() {
             <SectionHeading title="NoxSpot" description="Website feedback capture into GitHub issues." />
             <AdminGate
               title="NoxSpot settings"
-              description="Per-site Slack channels are configured on the NoxSpot tab."
+              description="Capture sites, widget embeds, and per-site Slack routing."
             >
-              {status
-                ? <NoxSpotSection noxConnect={status} onOpenNoxSpot={() => openTab("noxspot")} />
-                : connectionsLoading}
+              {status ? <NoxSpotSection noxConnect={status} /> : connectionsLoading}
             </AdminGate>
           </section>
 

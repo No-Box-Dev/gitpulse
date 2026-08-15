@@ -10,8 +10,8 @@ import { useIsAdmin } from "@/hooks/useGitHub";
 export function NoxSpotTab() {
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
-  const { data: sites = [], isLoading: sitesLoading } = useNoxSpotSites();
-  const { data: issues = [], isLoading: issuesLoading } = useNoxSpotIssues();
+  const { data: sites = [], isLoading: sitesLoading, isError: sitesError } = useNoxSpotSites();
+  const { data: issues = [], isLoading: issuesLoading, isError: issuesError } = useNoxSpotIssues();
 
   return (
     <div className="space-y-5" data-tab="noxspot">
@@ -20,7 +20,10 @@ export function NoxSpotTab() {
         <p className="text-sm text-stone-500">Capture, inspect, and share product issues.</p>
       </div>
 
-      {issuesLoading || sitesLoading ? (
+      {/* Failed queries must not masquerade as "no sites" / "no issues". */}
+      {sitesError || issuesError ? (
+        <Empty title="Could not load NoxSpot data — check the connection and refresh." />
+      ) : issuesLoading || sitesLoading ? (
         <Loading />
       ) : sites.length === 0 ? (
         isAdmin ? (

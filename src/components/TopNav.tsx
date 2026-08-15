@@ -11,7 +11,6 @@ const NAV_ITEMS: { id: TabId; label: string }[] = [
   { id: "specs", label: "Specs" },
   { id: "posts", label: "Feed" },
   { id: "issues", label: "Issues" },
-  { id: "noxspot", label: "NoxSpot" },
   { id: "admin", label: "Admin" },
   { id: "repos", label: "Repos" },
 ];

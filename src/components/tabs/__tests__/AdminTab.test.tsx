@@ -34,6 +34,14 @@ vi.mock("@/hooks/useNoxlink", () => ({
   useFeedProjects: vi.fn(),
   useSetProjectArchived: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
 }));
+vi.mock("@/hooks/useNoxSpot", () => ({
+  useNoxSpotSites: vi.fn(() => ({ data: [], isLoading: false })),
+  useNoxSpotIssues: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateNoxSpotSite: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false })),
+  useUpdateNoxSpotSite: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false })),
+  useTestNoxSpotSlack: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isSuccess: false, isError: false })),
+  useRetryNoxSpotDeliveries: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}));
 vi.mock("@/lib/noxlink-api", () => ({
   backfillProjectPrs: vi.fn(),
 }));
@@ -180,6 +188,7 @@ describe("AdminTab", () => {
     expect(screen.queryByText("Posts Backfill")).not.toBeInTheDocument();
     expect(screen.queryByText("Background failures")).not.toBeInTheDocument();
     expect(screen.queryByText("Manual sync")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add site")).not.toBeInTheDocument();
     expect(screen.getByText("Sign out")).toBeInTheDocument();
   });
 
@@ -197,6 +206,9 @@ describe("AdminTab", () => {
     expect(screen.getByText("Manual sync")).toBeInTheDocument();
     expect(screen.getByText("Sync features")).toBeInTheDocument();
     expect(screen.getByText("Sync from GitHub")).toBeInTheDocument();
+    // NoxSpot site management lives here now, not on the NoxSpot tab.
+    expect(screen.getByText("Capture sites")).toBeInTheDocument();
+    expect(screen.getByText("Add site")).toBeInTheDocument();
   });
 
   it("renders separate NoxFeed route fields for posts and release notes", () => {

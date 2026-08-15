@@ -24,7 +24,7 @@ export function NoxAlertSection({ noxConnect }: { noxConnect: IntegrationsStatus
           />
         </div>
         <p className="text-xs leading-5 text-stone-500">
-          Sends selected GitHub and NoxSpot activity to your team in Slack.
+          Sends browser error alerts to your team in Slack.
           Requires both the GitHub connection and Slack.
         </p>
         {slackConnected ? (

@@ -61,6 +61,21 @@ describe("POST /api/slack/oauth/start team pinning", () => {
     expect(await teamFromResponse(response)).toBeNull();
   });
 
+  it("treats a null team as the picker too (what the switch-workspace button sends)", async () => {
+    const response = await onRequestPost(context({ body: { team: null }, existingTeam: "T08B8C3E91N" }));
+    expect(response.status).toBe(200);
+    expect(await teamFromResponse(response)).toBeNull();
+  });
+
+  it("rejects a non-string team instead of coercing it", async () => {
+    // String(["T9ZZZZZZ99"]) would stringify to a valid-looking team id.
+    // Zod's type check fires before the refine, so the message is its
+    // "expected string" wording rather than "Invalid Slack team id".
+    const response = await onRequestPost(context({ body: { team: ["T9ZZZZZZ99"] } }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/Invalid/);
+  });
+
   it("rejects a malformed team id", async () => {
     const response = await onRequestPost(context({ body: { team: "C08B8C3E91N" } }));
     expect(response.status).toBe(400);

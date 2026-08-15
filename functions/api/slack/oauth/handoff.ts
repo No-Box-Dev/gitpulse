@@ -1,19 +1,11 @@
-import { z } from "zod";
 import { errorResponse } from "../../../lib/db";
 import {
   buildOAuthAuthorizeUrl,
-  isSlackTeamId,
   resolveSlackOAuthRedirectUri,
+  SlackTeamParamSchema,
   verifyOAuthState,
 } from "../../../lib/slack";
 import { validate } from "../../../lib/validate";
-
-const TeamParamSchema = z
-  .string()
-  .trim()
-  .refine((value) => value === "" || isSlackTeamId(value), {
-    message: "Invalid Slack team id",
-  });
 
 interface Ctx {
   request: Request;
@@ -37,7 +29,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     return errorResponse("Invalid or expired Slack authorization link", 400);
   }
 
-  const parsedTeam = validate(TeamParamSchema, requestUrl.searchParams.get("team") ?? "");
+  const parsedTeam = validate(SlackTeamParamSchema, requestUrl.searchParams.get("team") ?? "");
   if (!parsedTeam.ok) return parsedTeam.response;
   const team = parsedTeam.data;
 

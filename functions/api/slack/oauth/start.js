@@ -1,5 +1,6 @@
 import { getCtx, errorResponse } from "../../../lib/db";
-import { isSlackTeamId, signOAuthState } from "../../../lib/slack";
+import { isSlackTeamId, signOAuthState, SlackTeamParamSchema } from "../../../lib/slack";
+import { validate } from "../../../lib/validate";
 
 // POST /api/slack/oauth/start
 //
@@ -12,9 +13,10 @@ import { isSlackTeamId, signOAuthState } from "../../../lib/slack";
 // org even if the cookie comparison were somehow bypassed.
 //
 // Body (optional): { "team": "T08B8C3E91N" } pins the authorize page to a
-// specific Slack workspace; `""` explicitly leaves the workspace choice to
-// Slack's picker. When omitted, an existing install's workspace is pinned so
-// reconnects can't silently hop workspaces.
+// specific Slack workspace; `""` (or `null`, what the UI's switch-workspace
+// button sends) explicitly leaves the workspace choice to Slack's picker.
+// When omitted, an existing install's workspace is pinned so reconnects
+// can't silently hop workspaces.
 export async function onRequestPost(context) {
   const { isAdmin, orgId, orgLogin, userLogin } = getCtx(context);
   if (!isAdmin) return errorResponse("Admin required", 403);
@@ -34,15 +36,28 @@ export async function onRequestPost(context) {
   }
   if (body == null || typeof body !== "object" || Array.isArray(body)) body = {};
 
-  let team = body.team === undefined ? undefined : String(body.team ?? "").trim();
-  if (team === undefined) {
-    const install = await context.env.DB
-      .prepare("SELECT team_id FROM slack_settings WHERE org_id = ?")
-      .bind(orgId).first()
-      .catch(() => null);
-    team = install?.team_id || "";
-  } else if (team !== "" && !isSlackTeamId(team)) {
-    return errorResponse("Invalid Slack team id", 400);
+  const parsedTeam = validate(SlackTeamParamSchema.nullish(), body.team);
+  if (!parsedTeam.ok) return parsedTeam.response;
+
+  let team = parsedTeam.data ?? "";
+  if (parsedTeam.data === undefined) {
+    // No team requested: pin the org's existing workspace so a reconnect
+    // can't silently hop. Failures degrade to Slack's picker — logged, never
+    // silent, since a silent fallback here is the exact bug pinning prevents.
+    team = "";
+    try {
+      const install = await context.env.DB
+        .prepare("SELECT team_id FROM slack_settings WHERE org_id = ?")
+        .bind(orgId).first();
+      const teamId = install?.team_id;
+      if (teamId && !isSlackTeamId(teamId)) {
+        console.error(`slack oauth start: stored team_id "${teamId}" for org ${orgId} is malformed; leaving workspace to Slack's picker`);
+      } else {
+        team = teamId || "";
+      }
+    } catch (err) {
+      console.error(`slack oauth start: failed to read existing install for org ${orgId}`, err);
+    }
   }
 
   const origin = new URL(context.request.url).origin;

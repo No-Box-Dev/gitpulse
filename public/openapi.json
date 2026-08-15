@@ -28,6 +28,7 @@
         "summary": "Start a provider connection",
         "description": "Returns a userAction URL for human OAuth approval.",
         "parameters": [{ "$ref": "#/components/parameters/provider" }],
+        "requestBody": { "required": false, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StartConnectionBody" } } } },
         "responses": { "200": { "description": "Human action required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserAction" } } } } }
       }
     },
@@ -178,6 +179,15 @@
             "properties": { "type": { "const": "open_url" }, "url": { "type": "string", "format": "uri" }, "instructions": { "type": "string" } }
           },
           "resume": { "type": "object" }
+        }
+      },
+      "StartConnectionBody": {
+        "type": "object",
+        "properties": {
+          "team": {
+            "type": ["string", "null"],
+            "description": "Slack only: team (workspace) ID like T08B8C3E91N that pins Slack's authorize page to one workspace. An empty string or null leaves the workspace choice to Slack's picker. Omitted pins the organization's currently connected workspace so reconnects can't hop."
+          }
         }
       },
       "RoutingPatch": {

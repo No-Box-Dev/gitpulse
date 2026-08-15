@@ -497,7 +497,8 @@ export async function signOAuthState(secret, payload) {
 // Constant-time HMAC verify so a callback can recover orgId + user from a
 // signed state without trusting the URL alone. Returns the parsed payload
 // or null on mismatch / malformed input.
-export async function verifyOAuthState(secret, state) {
+/** @param {number | null} maxAgeMs */
+export async function verifyOAuthState(secret, state, maxAgeMs = null) {
   if (typeof state !== "string") return null;
   const idx = state.lastIndexOf(".");
   if (idx <= 0) return null;
@@ -508,11 +509,20 @@ export async function verifyOAuthState(secret, state) {
   let diff = 0;
   for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
   if (diff !== 0) return null;
-  // payload format: `<nonce>:<orgId>:<userLogin>`
+  // Current payload format: `<nonce>:<orgId>:<encodedUserLogin>:<issuedAtMs>`.
+  // The legacy three-part shape remains valid for callbacks already in flight,
+  // but cannot pass a max-age check at the agent browser handoff.
   const parts = payload.split(":");
   if (parts.length < 3) return null;
   const orgId = Number(parts[1]);
   if (!Number.isFinite(orgId) || orgId <= 0) return null;
+  if (parts.length === 4) {
+    const issuedAt = Number(parts[3]);
+    if (!Number.isFinite(issuedAt) || issuedAt <= 0) return null;
+    if (maxAgeMs != null && (Date.now() - issuedAt > maxAgeMs || issuedAt > Date.now() + 60_000)) return null;
+    return { orgId, userLogin: parts[2], issuedAt };
+  }
+  if (maxAgeMs != null) return null;
   return { orgId, userLogin: parts.slice(2).join(":") };
 }
 

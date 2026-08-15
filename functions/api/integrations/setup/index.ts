@@ -1,0 +1,137 @@
+import { getCtx, errorResponse, jsonResponse } from "../../../lib/db";
+import { onRequestGet as getConnections } from "../connections/index";
+import { readSlackSettings, resolveSavedSlackChannel } from "../../../lib/slack-settings";
+
+interface ConnectionState {
+  id: string;
+  connected: boolean;
+}
+
+interface ConnectionsResponse {
+  connections: ConnectionState[];
+}
+
+interface Ctx {
+  env: Record<string, unknown> & { DB: D1Database };
+  data: { orgId: number; orgLogin: string; isAdmin: boolean };
+}
+
+function apiAction(method: string, href: string, bodySchema?: Record<string, unknown>) {
+  return { method, href, ...(bodySchema ? { bodySchema } : {}) };
+}
+
+// GET /api/integrations/setup
+// A resumable, machine-readable setup plan. Agents poll this endpoint after a
+// human completes either OAuth handoff and execute every available API action.
+export async function onRequestGet(context: Ctx): Promise<Response> {
+  const { orgId, orgLogin, isAdmin } = getCtx(context);
+  if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
+
+  const connectionsResponse = await getConnections(context);
+  if (!connectionsResponse.ok) return connectionsResponse;
+  const connections = await connectionsResponse.json() as ConnectionsResponse;
+  const byId = Object.fromEntries(connections.connections.map((item) => [item.id, item]));
+  const githubComplete = byId.github?.connected === true;
+  const slackComplete = byId.slack?.connected === true;
+  let slack: Record<string, unknown>;
+  try { slack = (await readSlackSettings(context.env.DB, orgId)).slack; }
+  catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
+  const routeFields = ["fallbackChannelId", "noxAlertChannelId", "unticketChannelId", "postsChannelId", "releaseNotesChannelId"];
+  const configuredRouteCount = routeFields.filter((field) => typeof slack[field] === "string" && slack[field].trim()).length;
+  const hasRoute = (field: string) => Boolean(resolveSavedSlackChannel(slack, field));
+  const [spotCount, alertCount] = await Promise.all([
+    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM spot_sites WHERE org_id = ?", orgId),
+    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM alert_project_settings WHERE org_id = ? AND enabled = 1", orgId),
+  ]);
+
+  const steps = {
+    connect_github: {
+      title: "Connect GitHub",
+      required: true,
+      state: githubComplete ? "complete" : (isAdmin ? "available" : "blocked"),
+      automatable: false,
+      reason: githubComplete ? null : "GitHub requires a human to approve the App installation.",
+      action: githubComplete ? null : apiAction("POST", "/api/integrations/connections/github/start"),
+    },
+    connect_slack: {
+      title: "Connect Slack",
+      required: false,
+      state: slackComplete ? "complete" : (isAdmin ? "available" : "blocked"),
+      automatable: false,
+      reason: slackComplete ? null : "Slack requires a human workspace admin to approve OAuth.",
+      action: slackComplete ? null : apiAction("POST", "/api/integrations/connections/slack/start"),
+    },
+    configure_slack_routing: {
+      title: "Configure Slack delivery routes",
+      required: false,
+      dependsOn: ["connect_slack"],
+      state: !slackComplete || !isAdmin ? "blocked" : (configuredRouteCount > 0 ? "complete" : "available"),
+      automatable: true,
+      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing", {
+        type: "object",
+        required: ["routes"],
+        properties: { routes: { type: "object", additionalProperties: { type: ["string", "null"] } } },
+      }) : null,
+      discover: slackComplete && isAdmin ? apiAction("GET", "/api/slack/channels") : null,
+    },
+    configure_noxfeed: {
+      title: "Configure NoxFeed delivery",
+      required: false,
+      dependsOn: ["connect_slack"],
+      state: !slackComplete || !isAdmin ? "blocked" : (hasRoute("postsChannelId") && hasRoute("releaseNotesChannelId") ? "complete" : "available"),
+      automatable: true,
+      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing", {
+        type: "object",
+        properties: { routes: { type: "object", properties: { noxfeed_posts: { type: ["string", "null"] }, noxfeed_release_notes: { type: ["string", "null"] } } } },
+      }) : null,
+    },
+    configure_unticket: {
+      title: "Configure Unticket delivery",
+      required: false,
+      dependsOn: ["connect_slack"],
+      state: !slackComplete || !isAdmin ? "blocked" : (hasRoute("unticketChannelId") ? "complete" : "available"),
+      automatable: true,
+      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing") : null,
+    },
+    configure_noxalert: {
+      title: "Configure NoxAlert",
+      required: false,
+      dependsOn: ["connect_slack"],
+      state: !slackComplete || !hasRoute("noxAlertChannelId") || !isAdmin ? "blocked" : (Number(alertCount?.count || 0) > 0 ? "complete" : "available"),
+      automatable: true,
+      action: slackComplete && isAdmin ? apiAction("GET", "/api/alerts/projects") : null,
+      instructions: "Select a route, PUT project alert settings, then POST an ingest key and return its one-time value securely to the user.",
+    },
+    configure_noxspot: {
+      title: "Configure NoxSpot",
+      required: false,
+      dependsOn: ["connect_github"],
+      state: !githubComplete || !isAdmin ? "blocked" : (Number(spotCount?.count || 0) > 0 ? "complete" : "available"),
+      automatable: true,
+      action: githubComplete && isAdmin ? apiAction("POST", "/api/spots/sites") : null,
+      discover: githubComplete ? apiAction("GET", "/api/spots/sites") : null,
+    },
+  };
+
+  const response = jsonResponse({
+    apiVersion: 1,
+    organization: { login: orgLogin },
+    complete: githubComplete,
+    documentation: { openapi: "/openapi.json", aiGuide: "/docs/ai-setup.md", discovery: "/llms.txt" },
+    authentication: { type: "bearer", organizationHeader: "X-Org" },
+    steps,
+  });
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Link", '</openapi.json>; rel="service-desc", </docs/ai-setup.md>; rel="describedby"');
+  return response;
+}
+
+async function countRows(db: D1Database, sql: string, orgId: number): Promise<{ count: number }> {
+  try {
+    const row = await db.prepare(sql).bind(orgId).first<{ count: number }>();
+    return { count: Number(row?.count || 0) };
+  } catch (error) {
+    console.error("[nox setup] optional readiness count failed", error);
+    return { count: 0 };
+  }
+}

@@ -1,0 +1,277 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Nox Setup API",
+    "version": "1.0.0",
+    "description": "Agent-oriented API for connecting providers and configuring Nox services."
+  },
+  "servers": [{ "url": "/" }],
+  "security": [{ "bearerAuth": [], "organization": [] }],
+  "paths": {
+    "/api/integrations/setup": {
+      "get": {
+        "operationId": "getSetupPlan",
+        "summary": "Get resumable setup state and next actions",
+        "responses": { "200": { "description": "Current setup plan", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupPlan" } } } } }
+      }
+    },
+    "/api/integrations/connections": {
+      "get": {
+        "operationId": "listConnections",
+        "summary": "List provider connection state",
+        "responses": { "200": { "description": "Connection registry" } }
+      }
+    },
+    "/api/integrations/connections/{provider}/start": {
+      "post": {
+        "operationId": "startConnection",
+        "summary": "Start a provider connection",
+        "description": "Returns a userAction URL for human OAuth approval.",
+        "parameters": [{ "$ref": "#/components/parameters/provider" }],
+        "responses": { "200": { "description": "Human action required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserAction" } } } } }
+      }
+    },
+    "/api/integrations/connections/{provider}/disconnect": {
+      "post": {
+        "operationId": "disconnectConnection",
+        "summary": "Disconnect a provider",
+        "parameters": [{ "$ref": "#/components/parameters/provider" }],
+        "responses": { "200": { "description": "Disconnected" }, "409": { "description": "Provider-managed disconnect" } }
+      }
+    },
+    "/api/slack/channels": {
+      "get": {
+        "operationId": "listSlackChannels",
+        "summary": "List channels visible to the connected Nox bot",
+        "responses": { "200": { "description": "Slack channels" } }
+      }
+    },
+    "/api/integrations/slack/routing": {
+      "get": {
+        "operationId": "getSlackRouting",
+        "summary": "Get service-to-channel routing",
+        "responses": { "200": { "description": "Current routes" } }
+      },
+      "patch": {
+        "operationId": "patchSlackRouting",
+        "summary": "Partially update service-to-channel routing",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RoutingPatch" } } } },
+        "responses": { "200": { "description": "Updated routes" }, "409": { "description": "Slack is disconnected or a channel is unavailable" } }
+      }
+    },
+    "/api/integrations/slack/test": {
+      "post": {
+        "operationId": "testSlackRoute",
+        "summary": "Send a test message through a saved or candidate route",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RouteTest" } } } },
+        "responses": { "200": { "description": "Test sent" }, "409": { "description": "No channel configured" } }
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "List active projects used by feature setup",
+        "responses": { "200": { "description": "Projects" } }
+      }
+    },
+    "/api/spots/sites": {
+      "get": {
+        "operationId": "listNoxSpotSites",
+        "summary": "List NoxSpot sites",
+        "responses": { "200": { "description": "Sites" } }
+      },
+      "post": {
+        "operationId": "createNoxSpotSite",
+        "summary": "Create a NoxSpot site",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxSpotSiteCreate" } } }
+        },
+        "responses": { "201": { "description": "Site created" } }
+      }
+    },
+    "/api/spots/sites/{siteId}": {
+      "patch": {
+        "operationId": "updateNoxSpotSite",
+        "summary": "Update a NoxSpot site including its channel override",
+        "parameters": [{ "$ref": "#/components/parameters/siteId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxSpotSitePatch" } } } },
+        "responses": { "200": { "description": "Site updated" } }
+      }
+    },
+    "/api/alerts/projects": {
+      "get": {
+        "operationId": "listNoxAlertProjects",
+        "summary": "List NoxAlert project settings, rules, and keys",
+        "responses": { "200": { "description": "Projects" } }
+      }
+    },
+    "/api/alerts/projects/{projectId}": {
+      "put": {
+        "operationId": "configureNoxAlertProject",
+        "summary": "Configure a NoxAlert project and error rule",
+        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxAlertProjectUpdate" } } } },
+        "responses": { "200": { "description": "Project configured" } }
+      }
+    },
+    "/api/alerts/projects/{projectId}/keys": {
+      "post": {
+        "operationId": "createNoxAlertKey",
+        "summary": "Create a one-time NoxAlert ingest key",
+        "description": "The key value is returned once. Do not log it.",
+        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } } } } },
+        "responses": { "201": { "description": "Key created" } }
+      }
+    },
+    "/api/alerts/projects/{projectId}/keys/{keyId}": {
+      "delete": {
+        "operationId": "revokeNoxAlertKey",
+        "summary": "Revoke a NoxAlert ingest key",
+        "parameters": [{ "$ref": "#/components/parameters/projectId" }, { "$ref": "#/components/parameters/keyId" }],
+        "responses": { "200": { "description": "Key revoked" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "description": "GitHub OAuth access token" },
+      "organization": { "type": "apiKey", "in": "header", "name": "X-Org" }
+    },
+    "parameters": {
+      "provider": { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "enum": ["github", "slack"] } },
+      "projectId": { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "siteId": { "name": "siteId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "keyId": { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string" } }
+    },
+    "schemas": {
+      "SetupPlan": {
+        "type": "object",
+        "required": ["apiVersion", "complete", "steps"],
+        "properties": {
+          "apiVersion": { "type": "integer" },
+          "complete": { "type": "boolean" },
+          "steps": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SetupStep" } }
+        }
+      },
+      "SetupStep": {
+        "type": "object",
+        "required": ["title", "required", "state", "automatable"],
+        "properties": {
+          "title": { "type": "string" },
+          "required": { "type": "boolean" },
+          "state": { "type": "string", "enum": ["available", "blocked", "complete"] },
+          "automatable": { "type": "boolean" },
+          "action": { "type": ["object", "null"] }
+        }
+      },
+      "UserAction": {
+        "type": "object",
+        "required": ["provider", "status", "userAction", "resume"],
+        "properties": {
+          "provider": { "type": "string" },
+          "status": { "const": "requires_user_action" },
+          "userAction": {
+            "type": "object",
+            "required": ["type", "url", "instructions"],
+            "properties": { "type": { "const": "open_url" }, "url": { "type": "string", "format": "uri" }, "instructions": { "type": "string" } }
+          },
+          "resume": { "type": "object" }
+        }
+      },
+      "RoutingPatch": {
+        "type": "object",
+        "required": ["routes"],
+        "properties": {
+          "routes": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fallback": { "type": ["string", "null"] },
+              "noxalert": { "type": ["string", "null"] },
+              "unticket": { "type": ["string", "null"] },
+              "noxfeed_posts": { "type": ["string", "null"] },
+              "noxfeed_release_notes": { "type": ["string", "null"] }
+            }
+          }
+        }
+      },
+      "RouteTest": {
+        "type": "object",
+        "required": ["route"],
+        "properties": {
+          "route": { "type": "string", "enum": ["fallback", "noxalert", "unticket", "noxfeed_posts", "noxfeed_release_notes"] },
+          "channelId": { "type": "string", "description": "Optional candidate channel; otherwise uses saved routing and fallback." }
+        }
+      },
+      "NoxSpotSiteCreate": {
+        "type": "object",
+        "required": ["name", "projectId"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 120 },
+          "projectId": { "type": "string" },
+          "buttonColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+          "buttonText": { "type": "string", "maxLength": 40 },
+          "widgetMode": { "type": "string", "enum": ["development", "release"] },
+          "autoErrorLogging": { "type": "boolean" }
+        }
+      },
+      "NoxSpotSitePatch": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "slackChannelId": { "type": ["string", "null"], "maxLength": 80 },
+          "buttonColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+          "buttonText": { "type": "string", "maxLength": 40 },
+          "widgetMode": { "type": "string", "enum": ["development", "release"] },
+          "autoErrorLogging": { "type": "boolean" },
+          "environments": { "type": "array", "maxItems": 50, "items": { "type": "object" } },
+          "blocks": { "type": "array", "maxItems": 100, "items": { "type": "object" } }
+        }
+      },
+      "NoxAlertProjectUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled", "allowedOrigins", "rule"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "allowedOrigins": { "type": "array", "maxItems": 20, "items": { "type": "string", "format": "uri", "description": "Exact origin without a path." } },
+          "rule": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "filters", "notifyAfterCount", "windowSeconds", "repeatAfterSeconds"],
+            "properties": {
+              "name": { "type": "string", "maxLength": 120 },
+              "filters": { "$ref": "#/components/schemas/NoxAlertFilters" },
+              "notifyAfterCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "windowSeconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+              "repeatAfterSeconds": { "type": "integer", "minimum": 60, "maximum": 604800 }
+            }
+          }
+        }
+      },
+      "NoxAlertFilters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["environments", "services", "include", "exclude"],
+        "properties": {
+          "environments": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 64 } },
+          "services": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 120 } },
+          "include": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/NoxAlertCondition" } },
+          "exclude": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/NoxAlertCondition" } }
+        }
+      },
+      "NoxAlertCondition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "operator", "value"],
+        "properties": {
+          "field": { "type": "string", "enum": ["service", "environment", "release", "error.type", "error.message", "page.url", "page.route"] },
+          "operator": { "type": "string", "enum": ["equals", "starts_with", "contains"] },
+          "value": { "type": "string", "maxLength": 256 }
+        }
+      }
+    }
+  }
+}

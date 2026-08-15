@@ -44,7 +44,7 @@ describe("TopNav", () => {
     expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Issues").length).toBeGreaterThan(0);
     expect(screen.getAllByText("NoxSpot").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Setup").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
   });
 
   it("calls onTabChange when a nav item is clicked", () => {
@@ -54,11 +54,11 @@ describe("TopNav", () => {
     expect(onTabChange).toHaveBeenCalledWith("current");
   });
 
-  it("clicking the gear icon switches to settings", () => {
+  it("clicking the gear icon switches to admin", () => {
     const onTabChange = vi.fn();
     render(<TopNav activeTab="sprint" onTabChange={onTabChange} />);
-    fireEvent.click(screen.getByTitle("Settings"));
-    expect(onTabChange).toHaveBeenCalledWith("settings");
+    fireEvent.click(screen.getByTitle("Admin"));
+    expect(onTabChange).toHaveBeenCalledWith("admin");
   });
 
   it("does not show the rate-limit dot when remaining is healthy", () => {

@@ -13,7 +13,7 @@ const NAV_ITEMS: { id: TabId; label: string }[] = [
   { id: "issues", label: "Issues" },
   { id: "noxalert", label: "Alerts" },
   { id: "noxspot", label: "NoxSpot" },
-  { id: "integrations", label: "Setup" },
+  { id: "admin", label: "Admin" },
   { id: "repos", label: "Repos" },
 ];
 
@@ -99,17 +99,17 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
           )}
 
           <button
-            onClick={() => onTabChange("settings")}
+            onClick={() => onTabChange("admin")}
             className={cn(
               "relative p-1.5 rounded-lg transition-colors cursor-pointer",
-              activeTab === "settings"
+              activeTab === "admin"
                 ? "bg-accent/10 text-accent"
                 : "text-stone-400 hover:bg-stone-100 hover:text-stone-600",
             )}
             title={
               newRepoCount > 0
-                ? `${newRepoCount} new repo${newRepoCount === 1 ? "" : "s"} detected — review in Settings`
-                : "Settings"
+                ? `${newRepoCount} new repo${newRepoCount === 1 ? "" : "s"} detected — review in Admin`
+                : "Admin"
             }
           >
             <Settings className="w-4 h-4" />

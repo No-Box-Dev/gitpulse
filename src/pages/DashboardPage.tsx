@@ -19,12 +19,11 @@ const CurrentTab = lazy(() => import("@/components/tabs/CurrentTab").then(m => (
 const IssuesTab = lazy(() => import("@/components/tabs/IssuesTab").then(m => ({ default: m.IssuesTab })));
 const NoxAlertTab = lazy(() => import("@/components/tabs/NoxAlertTab").then(m => ({ default: m.NoxAlertTab })));
 const NoxSpotTab = lazy(() => import("@/components/tabs/NoxSpotTab").then(m => ({ default: m.NoxSpotTab })));
-const IntegrationsTab = lazy(() => import("@/components/tabs/IntegrationsTab").then(m => ({ default: m.IntegrationsTab })));
+const AdminTab = lazy(() => import("@/components/tabs/AdminTab").then(m => ({ default: m.AdminTab })));
 const PostsTab = lazy(() => import("@/components/tabs/PostsTab").then(m => ({ default: m.PostsTab })));
 const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then(m => ({ default: m.ReposTab })));
-const SettingsTab = lazy(() => import("@/components/tabs/SettingsTab").then(m => ({ default: m.SettingsTab })));
 
-const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxalert", "noxspot", "integrations", "posts", "repos", "engineers", "settings"]);
+const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxalert", "noxspot", "admin", "posts", "repos", "engineers"]);
 
 export function DashboardPage() {
   const { selectedOrg } = useAuth();
@@ -44,11 +43,11 @@ export function DashboardPage() {
   const shouldStartOnSetup = !tabParam && noxConnect.data?.setup.needsOnboarding === true;
   const activeTab: TabId = tabParam && VALID_TABS.has(tabParam)
     ? tabParam as TabId
-    : shouldStartOnSetup ? "integrations" : "issues";
+    : shouldStartOnSetup ? "admin" : "issues";
 
   useEffect(() => {
     if (!shouldStartOnSetup) return;
-    setSearchParams({ tab: "integrations" }, { replace: true });
+    setSearchParams({ tab: "admin" }, { replace: true });
   }, [setSearchParams, shouldStartOnSetup]);
   const rawF = searchParams.get("f");
   const featureId = rawF ? (Number.isFinite(Number(rawF)) ? Number(rawF) : undefined) : undefined;
@@ -75,11 +74,11 @@ export function DashboardPage() {
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
         <NewRepoBanner
-          onReview={() => setSearchParams({ tab: "settings", focus: "newRepos" }, { replace: true })}
+          onReview={() => setSearchParams({ tab: "admin", focus: "newRepos" }, { replace: true })}
         />
         <Suspense fallback={<div className="flex items-center justify-center py-20"><Spinner className="w-6 h-6 text-accent" /></div>}>
           <ErrorBoundary key={activeTab}>
-            {activeTab === "settings" && <SettingsTab />}
+            {activeTab === "admin" && <AdminTab />}
             {activeTab === "sprint" && <SprintTab navFilter={navFilter} urlFeatureId={featureId} onUrlChange={(f) => {
               const params: Record<string, string> = { tab: "sprint" };
               if (f != null) params.f = String(f);
@@ -95,7 +94,6 @@ export function DashboardPage() {
             {activeTab === "issues" && <IssuesTab repoNames={repoNames} navFilter={navFilter} />}
             {activeTab === "noxalert" && <NoxAlertTab />}
             {activeTab === "noxspot" && <NoxSpotTab />}
-            {activeTab === "integrations" && <IntegrationsTab />}
             {activeTab === "posts" && <PostsTab />}
             {activeTab === "repos" && <ReposTab repoNames={repoNames} />}
           </ErrorBoundary>

@@ -48,7 +48,7 @@ describe("CommandPalette", () => {
     expect(screen.getByPlaceholderText("Search features, people...")).toBeInTheDocument();
     expect(screen.getByText("Features")).toBeInTheDocument();
     expect(screen.getByText("Merged")).toBeInTheDocument();
-    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByText("Admin")).toBeInTheDocument();
   });
 
   it("closes on Escape", () => {

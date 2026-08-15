@@ -9,18 +9,25 @@ import { onRequestGet as slackHandoff } from "../slack/oauth/handoff.ts";
 import { onRequestGet as getRouting, onRequestPatch as patchRouting } from "../integrations/slack/routing.ts";
 import { onRequestPost as testRoute } from "../integrations/slack/test.ts";
 
-function dbWithSettings(settings = {}) {
-  return {
+function dbWithSettings(settings = {}, options = {}) {
+  const configRows = [...(options.configRows ?? [{ data: JSON.stringify(settings) }])];
+  const db = {
     prepare: vi.fn((sql) => {
       const statement = {
         bind: vi.fn(() => statement),
-        first: vi.fn(async () => sql.includes("SELECT data FROM config") ? { data: JSON.stringify(settings) } : null),
+        first: vi.fn(async () => sql.includes("SELECT data FROM config") ? (configRows.shift() ?? null) : null),
         all: vi.fn(async () => ({ results: [] })),
-        run: vi.fn(async () => ({ success: true, meta: { changes: 1 } })),
+        run: vi.fn(async () => ({ success: true, meta: { changes: options.changes ?? 1 } })),
       };
       return statement;
     }),
+    batch: vi.fn(async (statements) => {
+      const results = [];
+      for (const statement of statements) results.push(await statement.run());
+      return results;
+    }),
   };
+  return db;
 }
 
 describe("agent setup APIs", () => {
@@ -80,11 +87,50 @@ describe("agent setup APIs", () => {
       params: {},
     });
     expect(response.status).toBe(200);
+    expect(DB.batch).toHaveBeenCalledOnce();
+    expect(DB.batch.mock.calls[0][0]).toHaveLength(6);
     const updateCall = DB.prepare.mock.calls.find(([sql]) => sql.includes("WHERE org_id = ? AND key = ? AND data = ?"));
     expect(updateCall).toBeTruthy();
+    const dependentSql = DB.prepare.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql) => sql.includes("UPDATE delivery_outbox"));
+    expect(dependentSql).toHaveLength(5);
+    expect(dependentSql.every((sql) => sql.includes("config_guard.key = ?") && sql.includes("config_guard.data = ?"))).toBe(true);
     const updateStatement = DB.prepare.mock.results[DB.prepare.mock.calls.indexOf(updateCall)].value;
     const serialized = updateStatement.bind.mock.calls[0][0];
     expect(JSON.parse(serialized)).toEqual({ theme: "dark", slack: { postsChannelId: "" } });
+  });
+
+  it("treats an identical compare-and-swap race as idempotent success", async () => {
+    const oldSettings = { theme: "dark", slack: {} };
+    const desiredSettings = { theme: "dark", slack: { postsChannelId: "" } };
+    const DB = dbWithSettings(oldSettings, {
+      changes: 0,
+      configRows: [{ data: JSON.stringify(oldSettings) }, { data: JSON.stringify(desiredSettings) }],
+    });
+    const response = await patchRouting({
+      request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
+        method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
+      }),
+      env: { DB }, data: { orgId: 7, isAdmin: true }, params: {},
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("returns 409 when compare-and-swap loses to a different value", async () => {
+    const oldSettings = { theme: "dark", slack: {} };
+    const DB = dbWithSettings(oldSettings, {
+      changes: 0,
+      configRows: [{ data: JSON.stringify(oldSettings) }, { data: JSON.stringify({ theme: "light", slack: {} }) }],
+    });
+    const response = await patchRouting({
+      request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
+        method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
+      }),
+      env: { DB }, data: { orgId: 7, isAdmin: true }, params: {},
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Settings changed concurrently; fetch routing and retry" });
   });
 
   it.each([

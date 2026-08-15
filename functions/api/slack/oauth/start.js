@@ -42,7 +42,7 @@ export async function onRequestPost(context) {
     userAction: {
       type: "open_url",
       url: handoffUrl.toString(),
-      instructions: "Open this URL in a browser and approve the Slack connection.",
+      instructions: "Open this URL in a browser and approve the Slack connection. Do not log, persist, or include this temporary URL in chat history.",
       expiresInSeconds: 600,
     },
     resume: {

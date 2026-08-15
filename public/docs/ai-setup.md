@@ -23,7 +23,7 @@ Obtain the bearer token through Nox's normal GitHub sign-in flow. An agent must 
 4. Give that URL to the user and ask them to open it in a browser and approve the provider. Do not fetch it in a headless HTTP client.
 5. Poll `GET /api/integrations/setup` no more than once every five seconds until that step is `complete`, then continue.
 
-GitHub and Slack consent are intentionally human actions. The Slack URL is a signed first-party browser handoff: opening it sets the OAuth CSRF cookie and redirects to Slack. This works even when the agent initiated the API request on a different machine.
+GitHub and Slack consent are intentionally human actions. The Slack URL is a signed first-party browser handoff: opening it sets the OAuth CSRF cookie and redirects to Slack. This works even when the agent initiated the API request on a different machine. The URL expires after 10 minutes (600 seconds); an expired link returns an invalid-or-expired authorization error, after which the agent must restart the Slack connection step to obtain a fresh URL.
 
 ## Slack routing
 

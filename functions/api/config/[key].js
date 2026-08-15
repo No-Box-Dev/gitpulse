@@ -137,37 +137,38 @@ export async function onRequestPut(context) {
   }
 
   const compareAndSwap = context.data?.configCompareAndSwap;
-  if (compareAndSwap) {
-    const result = compareAndSwap.expectedRaw == null
-      ? await context.env.DB.prepare(
+  const configStatement = compareAndSwap
+    ? compareAndSwap.expectedRaw == null
+      ? context.env.DB.prepare(
           `INSERT INTO config (org_id, key, data, updated_at)
            VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
            ON CONFLICT(org_id, key) DO NOTHING`,
-        ).bind(orgId, key, serialized).run()
-      : await context.env.DB.prepare(
+        ).bind(orgId, key, serialized)
+      : context.env.DB.prepare(
           `UPDATE config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
            WHERE org_id = ? AND key = ? AND data = ?`,
-        ).bind(serialized, orgId, key, compareAndSwap.expectedRaw).run();
-    if (!result.meta?.changes) {
-      return errorResponse("Settings changed concurrently; fetch routing and retry", 409);
-    }
-  } else {
-    await context.env.DB
-      .prepare(
+        ).bind(serialized, orgId, key, compareAndSwap.expectedRaw)
+    : context.env.DB.prepare(
         `INSERT INTO config (org_id, key, data, updated_at)
          VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
          ON CONFLICT(org_id, key) DO UPDATE SET
            data = excluded.data,
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
       )
-      .bind(orgId, key, serialized)
-      .run();
-  }
+      .bind(orgId, key, serialized);
 
+  const dependentStatements = [];
   if (slackWasSupplied) {
     const slack = body?.slack && typeof body.slack === "object" ? body.slack : {};
     const clean = (value) => typeof value === "string" ? value.trim() : "";
     const fallbackChannelId = clean(slack.fallbackChannelId);
+    // A CAS miss must not mutate the outbox. Every dependent statement is
+    // guarded by the desired config value, and D1 batch executes the config
+    // write + repairs in one transaction.
+    const configGuard = compareAndSwap
+      ? " AND EXISTS (SELECT 1 FROM config config_guard WHERE config_guard.org_id = ? AND config_guard.key = ? AND config_guard.data = ?)"
+      : "";
+    const configGuardBinds = compareAndSwap ? [orgId, key, serialized] : [];
     const routes = [
       { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
       { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
@@ -177,47 +178,68 @@ export async function onRequestPut(context) {
     for (const { sources, channelId } of routes) {
       const placeholders = sources.map(() => "?").join(",");
       if (channelId) {
-        await context.env.DB.prepare(
+        dependentStatements.push(context.env.DB.prepare(
           `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
              last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
            WHERE org_id = ? AND source IN (${placeholders})
-             AND destination = 'slack' AND status != 'delivered'`,
-        ).bind(channelId, orgId, ...sources).run();
+             AND destination = 'slack' AND status != 'delivered'${configGuard}`,
+        ).bind(channelId, orgId, ...sources, ...configGuardBinds));
       } else {
-        await context.env.DB.prepare(
+        dependentStatements.push(context.env.DB.prepare(
           `UPDATE delivery_outbox SET status = 'blocked_configuration',
              last_error_code = 'alerts_disabled', last_error = 'No Slack channel is configured for this service',
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
            WHERE org_id = ? AND source IN (${placeholders})
-             AND destination = 'slack' AND status != 'delivered'`,
-        ).bind(orgId, ...sources).run();
+             AND destination = 'slack' AND status != 'delivered'${configGuard}`,
+        ).bind(orgId, ...sources, ...configGuardBinds));
       }
     }
 
     // NoxSpot keeps its per-site override. Only captures from sites without
     // one follow the organization fallback.
     if (fallbackChannelId) {
-      await context.env.DB.prepare(
+      dependentStatements.push(context.env.DB.prepare(
         `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
            last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
          WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
            AND status != 'delivered' AND site_id IN (
              SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
-           )`,
-      ).bind(fallbackChannelId, orgId, orgId).run();
+           )${configGuard}`,
+      ).bind(fallbackChannelId, orgId, orgId, ...configGuardBinds));
     } else {
-      await context.env.DB.prepare(
+      dependentStatements.push(context.env.DB.prepare(
         `UPDATE delivery_outbox SET status = 'blocked_configuration',
            last_error_code = 'alerts_disabled', last_error = 'No NoxSpot site or organization fallback channel is configured',
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
          WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
            AND status != 'delivered' AND site_id IN (
              SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
-           )`,
-      ).bind(orgId, orgId).run();
+           )${configGuard}`,
+      ).bind(orgId, orgId, ...configGuardBinds));
     }
+  }
+
+  const [configResult] = slackWasSupplied
+    ? await context.env.DB.batch([configStatement, ...dependentStatements])
+    : [await configStatement.run()];
+  if (compareAndSwap && !configResult.meta?.changes) {
+    // An INSERT retry can lose its race to an identical desired value. Its
+    // guarded repairs are safe and idempotent, so treat that as success rather
+    // than telling an agent to retry forever. Raw equality is deliberately
+    // conservative: equivalent JSON with different key order returns 409 and
+    // asks the caller to refetch instead of guessing. A different stored value
+    // is a genuine conflict.
+    const current = await context.env.DB.prepare(
+      "SELECT data FROM config WHERE org_id = ? AND key = ?",
+    ).bind(orgId, key).first();
+    if (String(current?.data ?? "") !== serialized) {
+      return errorResponse("Settings changed concurrently; fetch routing and retry", 409);
+    }
+  }
+
+  if (slackWasSupplied) {
     await recoverOutboxDeliveries(context.env);
   }
 

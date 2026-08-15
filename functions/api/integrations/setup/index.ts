@@ -1,6 +1,7 @@
 import { getCtx, errorResponse, jsonResponse } from "../../../lib/db";
 import { onRequestGet as getConnections } from "../connections/index";
 import { readSlackSettings, resolveSavedSlackChannel } from "../../../lib/slack-settings";
+import { INTEGRATION_DISCOVERY_LINK, SLACK_ROUTING_BODY_SCHEMA } from "../../../lib/integration-discovery";
 
 interface ConnectionState {
   id: string;
@@ -37,7 +38,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   try { slack = (await readSlackSettings(context.env.DB, orgId)).slack; }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
   const routeFields = ["fallbackChannelId", "noxAlertChannelId", "unticketChannelId", "postsChannelId", "releaseNotesChannelId"];
-  const configuredRouteCount = routeFields.filter((field) => typeof slack[field] === "string" && slack[field].trim()).length;
+  const configuredRouteCount = routeFields.filter((field) => {
+    const value = slack[field];
+    return typeof value === "string" && Boolean(value.trim());
+  }).length;
   const hasRoute = (field: string) => Boolean(resolveSavedSlackChannel(slack, field));
   const [spotCount, alertCount] = await Promise.all([
     countRows(context.env.DB, "SELECT COUNT(*) AS count FROM spot_sites WHERE org_id = ?", orgId),
@@ -67,11 +71,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       dependsOn: ["connect_slack"],
       state: !slackComplete || !isAdmin ? "blocked" : (configuredRouteCount > 0 ? "complete" : "available"),
       automatable: true,
-      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing", {
-        type: "object",
-        required: ["routes"],
-        properties: { routes: { type: "object", additionalProperties: { type: ["string", "null"] } } },
-      }) : null,
+      action: slackComplete && isAdmin
+        ? apiAction("PATCH", "/api/integrations/slack/routing", SLACK_ROUTING_BODY_SCHEMA)
+        : null,
       discover: slackComplete && isAdmin ? apiAction("GET", "/api/slack/channels") : null,
     },
     configure_noxfeed: {
@@ -122,7 +124,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     steps,
   });
   response.headers.set("Cache-Control", "no-store");
-  response.headers.set("Link", '</openapi.json>; rel="service-desc", </docs/ai-setup.md>; rel="describedby"');
+  response.headers.set("Link", INTEGRATION_DISCOVERY_LINK);
   return response;
 }
 

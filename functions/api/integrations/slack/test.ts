@@ -10,16 +10,18 @@ interface Ctx {
   request: Request;
 }
 
-const ROUTES: Record<string, { field: string; kind: string }> = {
+const ROUTES = {
   fallback: { field: "fallbackChannelId", kind: "fallback" },
   noxalert: { field: "noxAlertChannelId", kind: "noxalert" },
   unticket: { field: "unticketChannelId", kind: "unticket" },
   noxfeed_posts: { field: "postsChannelId", kind: "noxfeed_posts" },
   noxfeed_release_notes: { field: "releaseNotesChannelId", kind: "noxfeed_release_notes" },
-};
+} as const;
+
+const ROUTE_NAMES = Object.keys(ROUTES) as [keyof typeof ROUTES, ...(keyof typeof ROUTES)[]];
 
 const RouteTest = z.object({
-  route: z.enum(["fallback", "noxalert", "unticket", "noxfeed_posts", "noxfeed_release_notes"]),
+  route: z.enum(ROUTE_NAMES),
   channelId: z.string().trim().max(80).optional(),
 });
 

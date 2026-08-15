@@ -1,6 +1,7 @@
 import { getCtx, jsonResponse } from "../../../lib/db";
 import { buildIntegrationConnections } from "../../../lib/integration-connections.js";
 import { onRequestGet as getIntegrationStatus } from "../status";
+import { INTEGRATION_DISCOVERY_LINK } from "../../../lib/integration-discovery";
 
 interface Ctx {
   env: Record<string, unknown>;
@@ -23,6 +24,6 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     connections: buildIntegrationConnections(overview),
   });
   response.headers.set("Cache-Control", "no-store");
-  response.headers.set("Link", '</openapi.json>; rel="service-desc", </docs/ai-setup.md>; rel="describedby"');
+  response.headers.set("Link", INTEGRATION_DISCOVERY_LINK);
   return response;
 }

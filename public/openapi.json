@@ -202,7 +202,7 @@
         "required": ["route"],
         "properties": {
           "route": { "type": "string", "enum": ["fallback", "noxalert", "unticket", "noxfeed_posts", "noxfeed_release_notes"] },
-          "channelId": { "type": "string", "description": "Optional candidate channel; otherwise uses saved routing and fallback." }
+          "channelId": { "type": "string", "maxLength": 80, "description": "Optional candidate channel; otherwise uses saved routing and fallback." }
         }
       },
       "NoxSpotSiteCreate": {

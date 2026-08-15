@@ -246,6 +246,17 @@ describe("HMAC state signing", () => {
     const sig = await signOAuthState("secret-1", payload);
     expect(await verifyOAuthState("secret-1", `${payload}.${sig}`)).toBeNull();
   });
+
+  it("enforces expiry for versioned browser handoff state", async () => {
+    const freshPayload = `nonce:42:alice:${Date.now()}`;
+    const freshSig = await signOAuthState("secret-1", freshPayload);
+    expect(await verifyOAuthState("secret-1", `${freshPayload}.${freshSig}`, 600_000))
+      .toMatchObject({ orgId: 42, userLogin: "alice" });
+
+    const oldPayload = `nonce:42:alice:${Date.now() - 600_001}`;
+    const oldSig = await signOAuthState("secret-1", oldPayload);
+    expect(await verifyOAuthState("secret-1", `${oldPayload}.${oldSig}`, 600_000)).toBeNull();
+  });
 });
 
 describe("resolveSlackInstall", () => {

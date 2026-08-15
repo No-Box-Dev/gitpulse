@@ -23,5 +23,6 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     connections: buildIntegrationConnections(overview),
   });
   response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Link", '</openapi.json>; rel="service-desc", </docs/ai-setup.md>; rel="describedby"');
   return response;
 }

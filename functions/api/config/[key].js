@@ -136,16 +136,33 @@ export async function onRequestPut(context) {
     return errorResponse("Config payload too large (max 256KB)", 413);
   }
 
-  await context.env.DB
-    .prepare(
-      `INSERT INTO config (org_id, key, data, updated_at)
-       VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-       ON CONFLICT(org_id, key) DO UPDATE SET
-         data = excluded.data,
-         updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
-    )
-    .bind(orgId, key, serialized)
-    .run();
+  const compareAndSwap = context.data?.configCompareAndSwap;
+  if (compareAndSwap) {
+    const result = compareAndSwap.expectedRaw == null
+      ? await context.env.DB.prepare(
+          `INSERT INTO config (org_id, key, data, updated_at)
+           VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+           ON CONFLICT(org_id, key) DO NOTHING`,
+        ).bind(orgId, key, serialized).run()
+      : await context.env.DB.prepare(
+          `UPDATE config SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND key = ? AND data = ?`,
+        ).bind(serialized, orgId, key, compareAndSwap.expectedRaw).run();
+    if (!result.meta?.changes) {
+      return errorResponse("Settings changed concurrently; fetch routing and retry", 409);
+    }
+  } else {
+    await context.env.DB
+      .prepare(
+        `INSERT INTO config (org_id, key, data, updated_at)
+         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+         ON CONFLICT(org_id, key) DO UPDATE SET
+           data = excluded.data,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
+      )
+      .bind(orgId, key, serialized)
+      .run();
+  }
 
   if (slackWasSupplied) {
     const slack = body?.slack && typeof body.slack === "object" ? body.slack : {};

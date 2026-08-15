@@ -1,5 +1,5 @@
 import { getCtx, errorResponse } from "../../../lib/db";
-import { buildOAuthAuthorizeUrl, resolveSlackOAuthRedirectUri, signOAuthState } from "../../../lib/slack";
+import { signOAuthState } from "../../../lib/slack";
 
 // POST /api/slack/oauth/start
 //
@@ -25,14 +25,31 @@ export async function onRequestPost(context) {
   const nonceArr = new Uint8Array(32);
   crypto.getRandomValues(nonceArr);
   const nonce = [...nonceArr].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const payload = `${nonce}:${orgId}:${encodeURIComponent(userLogin || "")}`;
+  const payload = `${nonce}:${orgId}:${encodeURIComponent(userLogin || "")}:${Date.now()}`;
   const sig = await signOAuthState(clientSecret, payload);
   const state = `${payload}.${sig}`;
+  const handoffUrl = new URL("/api/slack/oauth/handoff", origin);
+  handoffUrl.searchParams.set("state", state);
 
   return new Response(JSON.stringify({
     provider: "slack",
     mode: "redirect",
-    url: buildOAuthAuthorizeUrl(clientId, origin, state, resolveSlackOAuthRedirectUri(context.env)),
+    status: "requires_user_action",
+    // This first-party URL sets the CSRF cookie in the user's browser before
+    // redirecting to Slack. It therefore works when an API client or AI agent
+    // starts OAuth on somebody else's behalf.
+    url: handoffUrl.toString(),
+    userAction: {
+      type: "open_url",
+      url: handoffUrl.toString(),
+      instructions: "Open this URL in a browser and approve the Slack connection.",
+      expiresInSeconds: 600,
+    },
+    resume: {
+      method: "GET",
+      href: "/api/integrations/setup",
+      until: "steps.connect_slack.state is complete",
+    },
   }), {
     status: 200,
     headers: {

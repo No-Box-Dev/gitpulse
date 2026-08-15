@@ -67,11 +67,14 @@ describe("NoxConnect provider API", () => {
   it("starts GitHub through the shared redirect contract", async () => {
     const response = await startConnection(context({ provider: "github" }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toEqual(expect.objectContaining({
       provider: "github",
       mode: "redirect",
+      status: "requires_user_action",
       url: "https://github.com/apps/noxconnect/installations/new",
-    });
+      userAction: expect.objectContaining({ type: "open_url" }),
+      resume: expect.objectContaining({ href: "/api/integrations/setup" }),
+    }));
   });
 
   it("delegates Slack start and disconnect to the existing secure flows", async () => {

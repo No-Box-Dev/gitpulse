@@ -4,8 +4,9 @@ import { ReadinessBadge } from "@/components/admin/ReadinessBadge";
 import { NoxSpotSitesSection } from "@/components/admin/tools/NoxSpotSitesSection";
 
 // NoxSpot section of the Admin page: readiness status plus the full site
-// management (widgets, per-site Slack routing, delivery health). The NoxSpot
-// tab is a read-only browser for captured issues — all management lives here.
+// management (widgets, per-site Slack routing, delivery health). This is the
+// only NoxSpot surface — captured issues are regular GitHub issues, viewed
+// on the Issues tab.
 export function NoxSpotSection({ noxConnect }: { noxConnect: IntegrationsStatus }) {
   return (
     <div className="space-y-6">

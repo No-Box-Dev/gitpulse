@@ -1,23 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { NoxSpotIssue, NoxSpotSite } from "@/lib/types";
+import type { NoxSpotSite } from "@/lib/types";
 
 export function useNoxSpotSites() {
   const { selectedOrg } = useAuth();
   return useQuery({
     queryKey: ["noxspot-sites", selectedOrg],
     queryFn: async () => (await apiGet<{ sites: NoxSpotSite[] }>("/api/spots/sites")).sites,
-    enabled: Boolean(selectedOrg),
-  });
-}
-
-export function useNoxSpotIssues(state?: "open" | "closed") {
-  const { selectedOrg } = useAuth();
-  const query = state ? `?state=${encodeURIComponent(state)}` : "";
-  return useQuery({
-    queryKey: ["noxspot-issues", selectedOrg, state ?? "all"],
-    queryFn: async () => (await apiGet<{ issues: NoxSpotIssue[] }>(`/api/spots/issues${query}`)).issues,
     enabled: Boolean(selectedOrg),
   });
 }

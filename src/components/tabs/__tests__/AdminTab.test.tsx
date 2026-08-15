@@ -57,7 +57,6 @@ vi.mock("@/hooks/useNoxAlert", () => ({
 }));
 vi.mock("@/hooks/useNoxSpot", () => ({
   useNoxSpotSites: vi.fn(() => ({ data: [], isLoading: false })),
-  useNoxSpotIssues: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateNoxSpotSite: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false })),
   useUpdateNoxSpotSite: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false })),
   useTestNoxSpotSlack: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isSuccess: false, isError: false })),
@@ -228,7 +227,7 @@ describe("AdminTab", () => {
     expect(screen.getByText("Manual sync")).toBeInTheDocument();
     expect(screen.getByText("Sync features")).toBeInTheDocument();
     expect(screen.getByText("Sync from GitHub")).toBeInTheDocument();
-    // NoxSpot site management lives here now, not on the NoxSpot tab.
+    // NoxSpot site management lives here — there is no NoxSpot tab.
     expect(screen.getByText("Capture sites")).toBeInTheDocument();
     expect(screen.getByText("Add site")).toBeInTheDocument();
     // NoxAlert project rules and ingest keys live here too.

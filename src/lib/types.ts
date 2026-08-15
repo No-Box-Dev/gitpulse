@@ -64,7 +64,6 @@ export type TabId =
   | "specs"
   | "prs"
   | "issues"
-  | "noxspot"
   | "admin"
   | "posts"
   | "repos"
@@ -89,20 +88,6 @@ export interface NoxSpotSite {
   slackLastError: string | null;
   issueCount: number;
   openIssueCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface NoxSpotIssue {
-  id: string;
-  siteName: string;
-  repo: string;
-  number: number;
-  type: "bug" | "feature" | "feedback" | "error";
-  status: "open" | "closed";
-  title: string;
-  reporterName: string | null;
-  shareUrl: string;
   createdAt: string;
   updatedAt: string;
 }

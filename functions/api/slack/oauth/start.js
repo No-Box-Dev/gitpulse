@@ -1,5 +1,5 @@
 import { getCtx, errorResponse } from "../../../lib/db";
-import { signOAuthState } from "../../../lib/slack";
+import { isSlackTeamId, signOAuthState } from "../../../lib/slack";
 
 // POST /api/slack/oauth/start
 //
@@ -10,6 +10,11 @@ import { signOAuthState } from "../../../lib/slack";
 // Slack client secret, server-side only) BEFORE trusting orgId — so a
 // forged state can't trick the callback into installing into another
 // org even if the cookie comparison were somehow bypassed.
+//
+// Body (optional): { "team": "T08B8C3E91N" } pins the authorize page to a
+// specific Slack workspace; `""` explicitly leaves the workspace choice to
+// Slack's picker. When omitted, an existing install's workspace is pinned so
+// reconnects can't silently hop workspaces.
 export async function onRequestPost(context) {
   const { isAdmin, orgId, orgLogin, userLogin } = getCtx(context);
   if (!isAdmin) return errorResponse("Admin required", 403);
@@ -21,6 +26,25 @@ export async function onRequestPost(context) {
     return errorResponse("Slack app not configured on this deployment", 503);
   }
 
+  let body = {};
+  try {
+    body = await context.request.json();
+  } catch {
+    body = {};
+  }
+  if (body == null || typeof body !== "object" || Array.isArray(body)) body = {};
+
+  let team = body.team === undefined ? undefined : String(body.team ?? "").trim();
+  if (team === undefined) {
+    const install = await context.env.DB
+      .prepare("SELECT team_id FROM slack_settings WHERE org_id = ?")
+      .bind(orgId).first()
+      .catch(() => null);
+    team = install?.team_id || "";
+  } else if (team !== "" && !isSlackTeamId(team)) {
+    return errorResponse("Invalid Slack team id", 400);
+  }
+
   const origin = new URL(context.request.url).origin;
   const nonceArr = new Uint8Array(32);
   crypto.getRandomValues(nonceArr);
@@ -30,6 +54,7 @@ export async function onRequestPost(context) {
   const state = `${payload}.${sig}`;
   const handoffUrl = new URL("/api/slack/oauth/handoff", origin);
   handoffUrl.searchParams.set("state", state);
+  if (team) handoffUrl.searchParams.set("team", team);
 
   return new Response(JSON.stringify({
     provider: "slack",

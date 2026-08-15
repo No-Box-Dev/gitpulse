@@ -99,8 +99,22 @@ export interface ConnectionStart {
   url: string;
 }
 
-export function startIntegrationConnection(provider: IntegrationProvider): Promise<ConnectionStart> {
-  return apiPost<ConnectionStart>(`/api/integrations/connections/${provider}/start`, {});
+export interface ConnectionStartOptions {
+  /**
+   * Slack workspace to pin the authorize page to. `null` explicitly leaves the
+   * choice to Slack's own workspace picker ("switch workspace"); omitted lets
+   * the server default to the org's current workspace.
+   */
+  team?: string | null;
+}
+
+export function startIntegrationConnection(
+  provider: IntegrationProvider,
+  options: ConnectionStartOptions = {},
+): Promise<ConnectionStart> {
+  const body: Record<string, unknown> = {};
+  if (options.team !== undefined) body.team = options.team;
+  return apiPost<ConnectionStart>(`/api/integrations/connections/${provider}/start`, body);
 }
 
 export function disconnectIntegrationConnection(provider: IntegrationProvider): Promise<{

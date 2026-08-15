@@ -49,11 +49,11 @@ export function SlackConnectionCard() {
     window.history.replaceState({}, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [qc]);
 
-  async function handleConnect() {
+  async function handleConnect(options?: { team?: string | null }) {
     setError(null);
     setBusy("connect");
     try {
-      const { url } = await startSlackOAuth();
+      const { url } = await startSlackOAuth(options);
       window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -107,6 +107,8 @@ export function SlackConnectionCard() {
         Connect once for this organization, then route each service independently
         in its own section below. The bot must be added to private channels before
         it can post there; public channels work without an invite.
+        Slack's authorize page picks the workspace — if the wrong one is preselected,
+        switch workspaces in its top-right corner before allowing.
       </p>
 
       {data?.connected && (
@@ -137,7 +139,7 @@ export function SlackConnectionCard() {
       {!data?.connected ? (
         <button
           type="button"
-          onClick={handleConnect}
+          onClick={() => handleConnect()}
           disabled={busy === "connect" || !data?.canConfigure || !data?.appConfigured}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 disabled:opacity-50 cursor-pointer"
         >
@@ -162,7 +164,7 @@ export function SlackConnectionCard() {
             {(data.health === "degraded" || data.needsReconnect) && (
               <button
                 type="button"
-                onClick={handleConnect}
+                onClick={() => handleConnect()}
                 disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
               >
@@ -170,6 +172,14 @@ export function SlackConnectionCard() {
                 Reconnect Slack
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => handleConnect({ team: null })}
+              disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
+              className="text-xs text-stone-500 hover:text-stone-700 disabled:opacity-50 cursor-pointer"
+            >
+              {busy === "connect" ? "Opening Slack…" : "Switch workspace"}
+            </button>
             <button
               type="button"
               onClick={handleDisconnect}

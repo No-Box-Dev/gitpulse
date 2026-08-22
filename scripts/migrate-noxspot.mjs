@@ -10,6 +10,7 @@ const DEFAULT_SLACK_APP_ID = "A0BQ8HATE4R";
 function parseArgs(argv) {
   const options = {
     apply: false,
+    overwriteExisting: false,
     remote: true,
     source: "blindspot-db",
     target: "unticket",
@@ -18,6 +19,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--apply") options.apply = true;
+    else if (argument === "--overwrite-existing") options.overwriteExisting = true;
     else if (argument === "--local") options.remote = false;
     else if (["--source", "--target", "--expected-slack-app"].includes(argument)) {
       const value = argv[index + 1];
@@ -32,6 +34,7 @@ function parseArgs(argv) {
 Runs a read-only census by default. Configuration is written only with --apply.
 
   --apply                     Apply the preflighted migration to Unticket
+  --overwrite-existing        Replace existing widget config (requires --apply)
   --local                     Use local D1 databases instead of remote databases
   --source <database>         Legacy database name (default: blindspot-db)
   --target <database>         Unticket database name (default: unticket)
@@ -42,6 +45,7 @@ Runs a read-only census by default. Configuration is written only with --apply.
       throw new Error(`Unknown argument: ${argument}`);
     }
   }
+  if (options.overwriteExisting && !options.apply) throw new Error("--overwrite-existing requires --apply");
   return options;
 }
 
@@ -101,19 +105,28 @@ function buildPlan(options, data) {
   const environmentsBySite = groupBy(data.environments, (row) => row.site_id);
   const blocksBySite = groupBy(data.blocks, (row) => row.site_id);
   const orgByLogin = new Map(data.orgs.map((org) => [normalized(org.github_login), org]));
+  const orgById = new Map(data.orgs.map((org) => [org.id, org]));
   const projectByRepo = new Map(data.projects.map((project) => [`${normalized(project.owner_id)}/${normalized(project.repo)}`, project]));
   const connectionsByOrg = groupBy(data.connections, (connection) => connection.org_id);
+  const existingBySite = new Map((data.existingSites ?? []).map((site) => [site.id, site]));
 
   return data.sites.map((site) => {
     const blockers = [];
     const warnings = [];
-    const org = orgByLogin.get(normalized(site.repo_owner));
-    const project = projectByRepo.get(`${normalized(site.repo_owner)}/${normalized(site.repo_name)}`);
-    if (!org) blockers.push(`Unticket organization not found for ${site.repo_owner}`);
-    if (!project) blockers.push(`active Unticket project not found for ${site.repo_owner}/${site.repo_name}`);
+    const existing = existingBySite.get(site.id) ?? null;
+    const org = existing ? orgById.get(existing.org_id) : orgByLogin.get(normalized(site.repo_owner));
+    const project = existing
+      ? (existing.project_id ? { id: existing.project_id } : null)
+      : projectByRepo.get(`${normalized(site.repo_owner)}/${normalized(site.repo_name)}`);
+    if (!existing && !org) blockers.push(`Unticket organization not found for ${site.repo_owner}`);
+    if (!existing && !project) blockers.push(`active Unticket project not found for ${site.repo_owner}/${site.repo_name}`);
 
     let slackConnection = null;
-    if (site.slack_channel_id && org) {
+    if (existing) {
+      slackConnection = existing.slack_connection_id
+        ? { id: existing.slack_connection_id }
+        : null;
+    } else if (site.slack_channel_id && org) {
       const selection = selectConnection(connectionsByOrg.get(org.id) ?? [], { ...site, expectedSlackApp: options.expectedSlackApp });
       slackConnection = selection.connection ?? null;
       if (selection.blocker) blockers.push(selection.blocker);
@@ -154,54 +167,62 @@ function buildPlan(options, data) {
       environments: parseJson(block.environments, []),
     }));
 
+    const sourceWidgetConfig = {
+      buttonColor: site.button_color || "#FE795D",
+      buttonText: site.button_text || "Report issue",
+      widgetMode: site.widget_mode === "release" ? "release" : "development",
+      autoErrorLogging: Boolean(site.auto_error_logging),
+      environments: explicitEnvironments.length ? explicitEnvironments : legacyEnvironments,
+      blocks: formBlocks,
+    };
+    const targetWidgetConfig = existing ? parseJson(existing.widget_config, {}) : null;
+    const operation = existing ? (options.overwriteExisting ? "update" : "preserve") : "insert";
+    if (existing && JSON.stringify(targetWidgetConfig) !== JSON.stringify(sourceWidgetConfig)) {
+      warnings.push(options.overwriteExisting
+        ? "existing Unticket widget configuration will be replaced"
+        : "target differs from the legacy source; preserving newer Unticket state");
+    }
+
     return {
       id: site.id,
-      name: site.name,
-      orgId: org?.id ?? null,
+      name: operation === "preserve" ? existing.name : site.name,
+      orgId: existing?.org_id ?? org?.id ?? null,
       org: org?.github_login ?? site.repo_owner,
-      projectId: project?.id ?? null,
-      repo: site.repo_name,
-      slackChannelId: site.slack_channel_id || null,
+      projectId: existing?.project_id ?? project?.id ?? null,
+      repo: existing?.repo ?? site.repo_name,
+      slackChannelId: existing ? existing.slack_channel_id : (site.slack_channel_id || null),
       slackConnectionId: slackConnection?.id ?? null,
       createdAt: site.created_at,
+      operation,
       blockers,
       warnings,
-      widgetConfig: {
-        buttonColor: site.button_color || "#FE795D",
-        buttonText: site.button_text || "Report issue",
-        widgetMode: site.widget_mode === "release" ? "release" : "development",
-        autoErrorLogging: Boolean(site.auto_error_logging),
-        environments: explicitEnvironments.length ? explicitEnvironments : legacyEnvironments,
-        blocks: formBlocks,
-      },
+      widgetConfig: operation === "preserve" ? targetWidgetConfig : sourceWidgetConfig,
     };
   });
 }
 
 function migrationSql(plan, source, expectedSlackApp) {
-  const statements = plan.flatMap((site) => [
-    `INSERT INTO spot_sites
+  const statements = plan.filter((site) => site.operation !== "preserve").flatMap((site) => [
+    site.operation === "update"
+      ? `UPDATE spot_sites
+            SET name = ${sql(site.name)}, widget_config = ${sql(JSON.stringify(site.widgetConfig))},
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          WHERE id = ${sql(site.id)} AND org_id = ${site.orgId}`
+      : `INSERT INTO spot_sites
        (id, org_id, project_id, repo, name, widget_config, slack_channel_id, slack_connection_id, created_at, updated_at)
      VALUES
        (${sql(site.id)}, ${site.orgId}, ${sql(site.projectId)}, ${sql(site.repo)}, ${sql(site.name)},
         ${sql(JSON.stringify(site.widgetConfig))}, ${sql(site.slackChannelId)}, ${sql(site.slackConnectionId)},
-        ${sql(site.createdAt)}, ${sql(site.createdAt)})
-     ON CONFLICT(id) DO UPDATE SET
-       org_id = excluded.org_id,
-       project_id = excluded.project_id,
-       repo = excluded.repo,
-       name = excluded.name,
-       widget_config = excluded.widget_config,
-       slack_channel_id = excluded.slack_channel_id,
-       slack_connection_id = excluded.slack_connection_id,
-       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
+        ${sql(site.createdAt)}, ${sql(site.createdAt)}) ON CONFLICT(id) DO NOTHING`,
     `INSERT OR IGNORE INTO noxspot_config_audit
        (id, org_id, site_id, actor_login, action, changes_json)
      VALUES
        (${sql(`migration:${site.id}`)}, ${site.orgId}, ${sql(site.id)}, 'migration:noxspot', 'site.migrated',
         ${sql(JSON.stringify({ source, slackAppId: site.slackConnectionId ? expectedSlackApp : null }))})`,
   ]);
-  return `BEGIN TRANSACTION;\n${statements.map((statement) => `${statement};`).join("\n")}\nCOMMIT;\n`;
+  // D1's remote SQL executor rejects BEGIN/COMMIT. Every statement is
+  // idempotent so an interrupted import can be safely rerun to completion.
+  return `${statements.map((statement) => `${statement};`).join("\n")}\n`;
 }
 
 function main() {
@@ -235,6 +256,11 @@ function main() {
       SELECT id, org_id, app_id, team_id, team_name, is_default
         FROM slack_connections ORDER BY org_id, is_default DESC, installed_at
     `),
+    existingSites: query(options, options.target, `
+      SELECT id, org_id, project_id, repo, name, widget_config,
+             slack_channel_id, slack_connection_id
+        FROM spot_sites
+    `),
   };
 
   const plan = buildPlan(options, data);
@@ -246,7 +272,9 @@ function main() {
     expectedSlackApp: options.expectedSlackApp,
     summary: {
       sites: plan.length,
-      ready: plan.filter((site) => site.blockers.length === 0).length,
+      existingPreserved: plan.filter((site) => site.operation === "preserve").length,
+      toInsert: plan.filter((site) => site.operation === "insert").length,
+      toUpdate: plan.filter((site) => site.operation === "update").length,
       blocked: blockers.length,
       slackRouted: plan.filter((site) => site.slackConnectionId).length,
     },
@@ -256,9 +284,10 @@ function main() {
       org: site.org,
       repo: site.repo,
       projectId: site.projectId,
-      environments: site.widgetConfig.environments.length,
-      blocks: site.widgetConfig.blocks.length,
+      environments: Array.isArray(site.widgetConfig?.environments) ? site.widgetConfig.environments.length : 0,
+      blocks: Array.isArray(site.widgetConfig?.blocks) ? site.widgetConfig.blocks.length : 0,
       slackConnectionId: site.slackConnectionId,
+      operation: site.operation,
       blockers: site.blockers,
       warnings: site.warnings,
     })),
@@ -269,15 +298,18 @@ function main() {
   }
 
   if (options.apply) {
-    const directory = mkdtempSync(join(tmpdir(), "unticket-noxspot-migration-"));
-    const file = join(directory, "migration.sql");
-    try {
-      writeFileSync(file, migrationSql(plan, options.source, options.expectedSlackApp), { mode: 0o600 });
-      execute(options.target, ["--file", file], { json: false, remote: options.remote });
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
+    const writeCount = plan.filter((site) => site.operation !== "preserve").length;
+    if (writeCount > 0) {
+      const directory = mkdtempSync(join(tmpdir(), "unticket-noxspot-migration-"));
+      const file = join(directory, "migration.sql");
+      try {
+        writeFileSync(file, migrationSql(plan, options.source, options.expectedSlackApp), { mode: 0o600 });
+        execute(options.target, ["--file", file], { json: false, remote: options.remote });
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
     }
-    console.log(`Migrated ${plan.length} NoxSpot site configuration(s) into Unticket.`);
+    console.log(`Migrated ${writeCount} NoxSpot site configuration(s); preserved ${plan.length - writeCount} existing Unticket site(s).`);
   }
 }
 

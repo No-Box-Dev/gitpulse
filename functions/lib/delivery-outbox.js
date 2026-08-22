@@ -1,5 +1,6 @@
 import { TASK } from "./tasks.js";
 import { postSlackMessage, resolveSlackInstall } from "./slack.js";
+import { markSlackChannelVerified, markSlackDeliveryChannelIssue } from "./slack-channel-status.js";
 
 const RECOVERY_LIMIT = 100;
 const SLACK_CONFIGURATION_ERRORS = new Set([
@@ -8,14 +9,15 @@ const SLACK_CONFIGURATION_ERRORS = new Set([
   "app_mismatch",
 ]);
 
-export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, channelId, payload }) {
+export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, connectionId, channelId, payload }) {
   const id = crypto.randomUUID();
   return db.prepare(
     `INSERT INTO delivery_outbox
-       (id, org_id, source, source_id, destination, site_id, channel_id, payload_json, status)
-     VALUES (?, ?, ?, ?, 'slack', ?, ?, ?, 'pending')
+       (id, org_id, source, source_id, destination, site_id, slack_connection_id, channel_id, payload_json, status)
+     VALUES (?, ?, ?, ?, 'slack', ?, ?, ?, ?, 'pending')
      ON CONFLICT(source, destination, source_id) DO UPDATE SET
        site_id = excluded.site_id,
+       slack_connection_id = excluded.slack_connection_id,
        channel_id = excluded.channel_id,
        payload_json = excluded.payload_json,
        status = CASE WHEN delivery_outbox.status = 'delivered' THEN 'delivered' ELSE 'pending' END,
@@ -25,7 +27,7 @@ export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, 
        next_attempt_at = NULL,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      RETURNING id, status`,
-  ).bind(id, orgId, source, sourceId, siteId ?? null, channelId, JSON.stringify(payload)).first();
+  ).bind(id, orgId, source, sourceId, siteId ?? null, connectionId ?? null, channelId, JSON.stringify(payload)).first();
 }
 
 export async function queueOutboxDelivery(env, deliveryId, ownerId = null) {
@@ -102,10 +104,11 @@ export async function deliverSlackOutbox(env, deliveryId) {
     await markOutboxFailed(env.DB, deliveryId, "Incomplete Slack delivery payload", "invalid_payload");
     return { failed: "invalid_payload" };
   }
-  const install = await resolveSlackInstall(env, delivery.org_id);
+  const install = await resolveSlackInstall(env, delivery.org_id, delivery.slack_connection_id);
   if (!install) {
-    const configured = await env.DB.prepare("SELECT 1 FROM slack_settings WHERE org_id = ?")
-      .bind(delivery.org_id).first();
+    const configured = await env.DB.prepare(
+      "SELECT 1 FROM slack_connections WHERE org_id = ? AND (? IS NULL OR id = ?)",
+    ).bind(delivery.org_id, delivery.slack_connection_id, delivery.slack_connection_id).first();
     const code = configured ? "slack_credentials_invalid" : "slack_not_connected";
     await markOutboxBlocked(env.DB, deliveryId, code, configured
       ? "Slack credentials could not be decrypted"
@@ -119,7 +122,10 @@ export async function deliverSlackOutbox(env, deliveryId) {
         code: "invalid_slack_receipt",
       });
     }
-    await markOutboxDelivered(env.DB, deliveryId, receipt.ts);
+    await Promise.all([
+      markOutboxDelivered(env.DB, deliveryId, receipt.ts),
+      markSlackChannelVerified(env.DB, delivery.org_id, install.id, delivery.channel_id),
+    ]);
     return { delivered: true, slackMessageTs: receipt.ts };
   } catch (error) {
     const code = error?.code || "slack_delivery_failed";
@@ -189,6 +195,7 @@ async function noteQueueFailure(db, deliveryId, code, message) {
     `UPDATE delivery_outbox SET status = 'pending', last_error_code = ?, last_error = ?,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ? AND status != 'delivered'`,
   ).bind(code, String(message).slice(0, 1000), deliveryId).run();
+  await markSlackDeliveryChannelIssue(db, deliveryId, message);
 }
 
 async function updateFailure(db, deliveryId, status, code, error, delay) {
@@ -198,6 +205,7 @@ async function updateFailure(db, deliveryId, status, code, error, delay) {
        next_attempt_at = ${nextAttempt}, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      WHERE id = ?`,
   ).bind(status, code, errorMessage(error).slice(0, 1000), deliveryId).run();
+  await markSlackDeliveryChannelIssue(db, deliveryId, error);
 }
 
 function errorMessage(error) {

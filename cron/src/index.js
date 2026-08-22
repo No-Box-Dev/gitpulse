@@ -164,7 +164,7 @@ async function runTick(env) {
 
 async function runSlackHealthSweep(env) {
   const { results } = await env.DB.prepare(
-    `SELECT org_id FROM slack_settings
+    `SELECT id, org_id FROM slack_connections
       WHERE last_checked_at IS NULL
          OR last_checked_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 minutes')
       ORDER BY COALESCE(last_checked_at, '')
@@ -172,7 +172,7 @@ async function runSlackHealthSweep(env) {
   ).all();
   for (const row of results ?? []) {
     try {
-      const health = await checkSlackOrgHealth(env, row.org_id);
+      const health = await checkSlackOrgHealth(env, row.org_id, row.id);
       if (health.recovered) await requeueBlockedForOrg(env, row.org_id);
     } catch (error) {
       console.error(JSON.stringify({

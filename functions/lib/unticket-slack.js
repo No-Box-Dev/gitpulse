@@ -1,6 +1,6 @@
 import { queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
 import { getUnticketRepoName } from "./inactive-repos.js";
-import { resolveSlackChannels, resolveSlackRoute } from "./slack.js";
+import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } from "./slack.js";
 
 const TICKET_ACTIONS = new Set(["opened", "closed", "reopened"]);
 
@@ -10,6 +10,7 @@ export async function stageUnticketActivity(env, { orgId, ownerId, repo, action,
   if (repo !== unticketRepo || hasLabel(issue, "noxspot")) return { skipped: "not_unticket" };
   const channels = await resolveSlackChannels(env.DB, orgId);
   const channelId = resolveSlackRoute(channels, "unticket");
+  const connectionId = resolveSlackConnectionId(channels, "unticket");
   if (!channelId) return { skipped: "channel_not_configured" };
 
   const delivery = await stageSlackDelivery(env.DB, {
@@ -17,6 +18,7 @@ export async function stageUnticketActivity(env, { orgId, ownerId, repo, action,
     source: "unticket",
     sourceId: `${repo}:${issue.number}:${action}`,
     siteId: null,
+    connectionId,
     channelId,
     payload: {
       message: {

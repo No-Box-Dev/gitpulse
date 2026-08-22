@@ -27,13 +27,13 @@ export function useConfigRepoExists() {
   });
 }
 
-export function useFeatures() {
+export function useFeatures(enabled = true) {
   const { selectedOrg } = useAuth();
   const excluded = useExcludedMembers();
   return useQuery({
     queryKey: ["features", selectedOrg],
     queryFn: () => fetchFeaturesFromD1("open"),
-    enabled: !!selectedOrg,
+    enabled: !!selectedOrg && enabled,
     // Strip excluded members from feature.owners at the source so every
     // downstream render — kanban card, backlog list, detail modal,
     // person-filter dropdown — automatically respects the admin config

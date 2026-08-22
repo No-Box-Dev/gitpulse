@@ -8,6 +8,7 @@ vi.mock("../inactive-repos.js", () => ({ getUnticketRepoName: vi.fn(async () => 
 vi.mock("../slack.js", () => ({
   resolveSlackChannels: vi.fn(async () => ({ fallbackChannelId: "C0", unticketChannelId: "CU" })),
   resolveSlackRoute: vi.fn((channels) => channels.unticketChannelId || channels.fallbackChannelId || ""),
+  resolveSlackConnectionId: vi.fn((channels) => channels.unticketConnectionId || channels.fallbackConnectionId || ""),
 }));
 
 import { stageUnticketActivity } from "../unticket-slack.js";

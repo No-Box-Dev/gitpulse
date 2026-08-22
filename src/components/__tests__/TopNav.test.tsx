@@ -36,19 +36,20 @@ beforeEach(() => {
 });
 
 describe("TopNav", () => {
-  it("renders the logo and every primary nav item", () => {
+  it("renders one flat navigation menu", () => {
     render(<TopNav activeTab="sprint" onTabChange={vi.fn()} />);
-    // Both desktop + mobile nav lists render — multiple matches expected.
     expect(screen.getAllByText("Features").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Feed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Specs").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Feed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Issues").length).toBeGreaterThan(0);
-    // Admin is not a main tab — only the gear icon opens it.
-    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
-    expect(screen.getByTitle("Admin")).toBeInTheDocument();
+    expect(screen.queryByText("NoxSpot")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
+    expect(screen.queryByText("NoxTicket")).not.toBeInTheDocument();
+    expect(screen.queryByText("NoxFeed")).not.toBeInTheDocument();
   });
 
-  it("calls onTabChange when a nav item is clicked", () => {
+  it("navigates directly to a selected view", () => {
     const onTabChange = vi.fn();
     render(<TopNav activeTab="sprint" onTabChange={onTabChange} />);
     fireEvent.click(screen.getAllByText("Current")[0]);
@@ -60,6 +61,17 @@ describe("TopNav", () => {
     render(<TopNav activeTab="sprint" onTabChange={onTabChange} />);
     fireEvent.click(screen.getByTitle("Admin"));
     expect(onTabChange).toHaveBeenCalledWith("admin");
+  });
+
+  it("uses app toggles to filter the flat menu items", () => {
+    render(<TopNav activeTab="sprint" onTabChange={vi.fn()} enabledApps={["noxconnect", "noxticket"]} />);
+    expect(screen.getAllByText("Features").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Specs").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Current")).not.toBeInTheDocument();
+    expect(screen.queryByText("Feed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Issues")).not.toBeInTheDocument();
+    expect(screen.queryByText("Repos")).not.toBeInTheDocument();
+    expect(screen.queryByText("NoxSpot")).not.toBeInTheDocument();
   });
 
   it("does not show the rate-limit dot when remaining is healthy", () => {

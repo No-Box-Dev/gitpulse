@@ -17,6 +17,11 @@ vi.mock("../slack.js", () => ({
     if (service === "noxalert") return channels.noxAlertChannelId || channels.fallbackChannelId || "";
     return siteChannelId || channels.fallbackChannelId || "";
   }),
+  resolveSlackConnectionId: vi.fn((channels, service, siteConnectionId) => {
+    if (service === "noxspot") return siteConnectionId || channels.fallbackConnectionId || "";
+    if (service === "noxalert") return channels.noxAlertConnectionId || channels.fallbackConnectionId || "";
+    return channels.fallbackConnectionId || "";
+  }),
 }));
 
 import { createNoxSpotGitHubIssue } from "../noxspot.js";

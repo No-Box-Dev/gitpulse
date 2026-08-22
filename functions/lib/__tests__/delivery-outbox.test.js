@@ -35,11 +35,12 @@ describe("delivery outbox", () => {
     const database = db({ first: { id: "delivery-1", status: "pending" } });
     const result = await stageSlackDelivery(database, {
       orgId: 7, source: "noxspot", sourceId: "capture-1", siteId: "site-1",
-      channelId: "C123", payload: { title: "Broken" },
+      connectionId: "conn-2", channelId: "C123", payload: { title: "Broken" },
     });
     expect(result).toEqual({ id: "delivery-1", status: "pending" });
     expect(database.calls[0].sql).toContain("ON CONFLICT(source, destination, source_id)");
     expect(database.calls[0].binds.slice(1, 4)).toEqual([7, "noxspot", "capture-1"]);
+    expect(database.calls[0].binds).toContain("conn-2");
   });
 
   it("blocks visibly instead of silently succeeding when Slack is disconnected", async () => {

@@ -5,10 +5,12 @@ import { Search } from "lucide-react";
 import { useFeatures, usePeople } from "@/hooks/useConfigRepo";
 import { useActiveMembers } from "@/hooks/useGitHub";
 import { cn } from "@/lib/cn";
+import { NOX_APPS, getAppForTab, type NoxAppId } from "@/lib/apps";
 import type { TabId } from "@/lib/types";
 
 interface CommandPaletteProps {
   onNavigate: (tab: TabId) => void;
+  enabledApps?: readonly NoxAppId[];
 }
 
 interface SearchResult {
@@ -21,20 +23,30 @@ interface SearchResult {
 const TAB_ITEMS: { id: TabId; label: string; keywords: string }[] = [
   { id: "current", label: "Current", keywords: "current people engineers team members prs pull requests" },
   { id: "sprint", label: "Features", keywords: "features kanban board" },
+  { id: "specs", label: "Specs", keywords: "specs product requirements designs" },
   { id: "posts", label: "Merged", keywords: "merged feed posts narrator agents activity" },
   { id: "issues", label: "Issues", keywords: "issues bugs" },
-  { id: "admin", label: "Admin", keywords: "admin settings setup integrations github slack connect oauth config webhook noxspot capture feedback" },
+  { id: "noxalert", label: "NoxAlert", keywords: "alerts opentelemetry otel errors ingest" },
+  { id: "admin", label: "Admin", keywords: "admin settings setup integrations github slack connect oauth config webhook" },
   { id: "repos", label: "Repos", keywords: "repos projects backfill narrator" },
 ];
 
-export function CommandPalette({ onNavigate }: CommandPaletteProps) {
+export function CommandPalette({ onNavigate, enabledApps = NOX_APPS.map((app) => app.id) }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { data: features } = useFeatures();
+  const noxTicketEnabled = enabledApps.includes("noxticket");
+  const visibleTabs = useMemo(
+    () => TAB_ITEMS.filter((tab) => {
+      const appId = getAppForTab(tab.id);
+      return appId !== null && enabledApps.includes(appId);
+    }),
+    [enabledApps],
+  );
+  const { data: features } = useFeatures(noxTicketEnabled);
   const { data: people } = usePeople();
   const { data: orgMembers } = useActiveMembers();
   const [, setSearchParams] = useSearchParams();
@@ -70,7 +82,6 @@ export function CommandPalette({ onNavigate }: CommandPaletteProps) {
   // Focus input when opened
   useEffect(() => {
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 0);
@@ -81,7 +92,7 @@ export function CommandPalette({ onNavigate }: CommandPaletteProps) {
     const q = query.toLowerCase().trim();
     if (!q) {
       return [
-        ...TAB_ITEMS.map((t) => ({
+        ...visibleTabs.map((t) => ({
           type: "tab" as const,
           label: t.label,
           action: () => { onNavigate(t.id); setOpen(false); },
@@ -92,7 +103,7 @@ export function CommandPalette({ onNavigate }: CommandPaletteProps) {
     const items: SearchResult[] = [];
 
     // Search features
-    for (const f of features ?? []) {
+    for (const f of noxTicketEnabled ? features ?? [] : []) {
       if (items.length >= 30) break;
       const searchText = `${f.title} ${f.owners.join(" ")}`.toLowerCase();
       if (searchText.includes(q)) {
@@ -123,7 +134,7 @@ export function CommandPalette({ onNavigate }: CommandPaletteProps) {
     }
 
     // Search tabs
-    for (const t of TAB_ITEMS) {
+    for (const t of visibleTabs) {
       if (t.label.toLowerCase().includes(q) || t.keywords.includes(q)) {
         items.push({
           type: "tab",
@@ -134,10 +145,9 @@ export function CommandPalette({ onNavigate }: CommandPaletteProps) {
     }
 
     return items.slice(0, 30);
-  }, [query, features, allPeople, onNavigate, setSearchParams]);
+  }, [query, features, allPeople, noxTicketEnabled, onNavigate, setSearchParams, visibleTabs]);
 
   // Keyboard navigation
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setSelectedIndex(0); }, [query]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

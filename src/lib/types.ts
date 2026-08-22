@@ -64,6 +64,7 @@ export type TabId =
   | "specs"
   | "prs"
   | "issues"
+  | "noxalert"
   | "admin"
   | "posts"
   | "repos"
@@ -78,7 +79,10 @@ export interface NoxSpotSite {
   buttonText: string;
   widgetMode: "development" | "release";
   autoErrorLogging: boolean;
+  environments: NoxSpotEnvironment[];
+  blocks: NoxSpotBlock[];
   slackChannelId: string | null;
+  slackConnectionId: string | null;
   slackEffectiveChannelId: string | null;
   slackUsesFallback: boolean;
   slackHealth: "disabled" | "disconnected" | "pending" | "connected" | "degraded";
@@ -90,6 +94,24 @@ export interface NoxSpotSite {
   openIssueCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NoxSpotEnvironment {
+  name: string;
+  url: string;
+  buttonColor?: string | null;
+  buttonText?: string | null;
+  widgetMode?: "development" | "release" | null;
+  enabled?: boolean;
+}
+
+export interface NoxSpotBlock {
+  id: string;
+  type: string;
+  label?: string | null;
+  required?: boolean;
+  options?: unknown;
+  environments?: string[];
 }
 
 export interface NavFilter {
@@ -214,6 +236,14 @@ export interface Spec {
 }
 
 export interface OrgSettings {
+  // NoxConnect is always enabled and is therefore not stored here. Missing
+  // optional-app values default to true for backwards compatibility.
+  apps?: {
+    noxticket?: boolean;
+    noxfeed?: boolean;
+    noxspot?: boolean;
+    noxalert?: boolean;
+  };
   excludedMembers?: string[];
   unticketRepo?: string;
   boardStages?: BoardStage[];
@@ -226,12 +256,15 @@ export interface OrgSettings {
   // lives in slack_settings; config stores public channel IDs only.
   slack?: {
     fallbackChannelId?: string;
+    fallbackConnectionId?: string;
     noxAlertChannelId?: string;
+    noxAlertConnectionId?: string;
     unticketChannelId?: string;
+    unticketConnectionId?: string;
     postsChannelId?: string;
+    postsConnectionId?: string;
     releaseNotesChannelId?: string;
-    /** Empty/missing mirrors every project; otherwise only this project posts to Slack. */
-    noxFeedProjectId?: string;
+    releaseNotesConnectionId?: string;
     /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
     noxFeedChannelId?: string;
   };

@@ -20,7 +20,7 @@ const CreateSite = z.object({
 
 const SITE_SELECT = `
   site.id, site.name, site.project_id, site.repo, site.widget_config,
-  site.slack_channel_id, site.created_at, site.updated_at`;
+  site.slack_channel_id, site.slack_connection_id, site.created_at, site.updated_at`;
 
 function siteDto(row: Record<string, unknown>) {
   let config: Record<string, unknown> = {};
@@ -45,6 +45,7 @@ function siteDto(row: Record<string, unknown>) {
     environments: Array.isArray(config.environments) ? config.environments : [],
     blocks: Array.isArray(config.blocks) ? config.blocks : [],
     slackChannelId: row.slack_channel_id,
+    slackConnectionId: row.slack_connection_id ?? null,
     slackEffectiveChannelId: effectiveSlackChannelId ?? null,
     slackUsesFallback: Boolean(!row.slack_channel_id && row.slack_fallback_channel_id),
     slackHealth,
@@ -72,10 +73,22 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
               WHERE issue.org_id = site.org_id AND issue.repo = site.repo AND issue.state = 'open'
                 AND EXISTS (SELECT 1 FROM json_each(issue.labels_json)
                              WHERE json_extract(value, '$.name') = 'noxspot')) AS open_issue_count,
-            EXISTS(SELECT 1 FROM slack_settings slack WHERE slack.org_id = site.org_id) AS slack_connected,
-            (SELECT slack.health_status FROM slack_settings slack WHERE slack.org_id = site.org_id) AS slack_install_health,
+            EXISTS(SELECT 1 FROM slack_connections slack WHERE slack.org_id = site.org_id
+              AND slack.id = COALESCE(site.slack_connection_id,
+                (SELECT json_extract(config.data, '$.slack.fallbackConnectionId') FROM config
+                  WHERE config.org_id = site.org_id AND config.key = 'settings'),
+                (SELECT id FROM slack_connections default_slack WHERE default_slack.org_id = site.org_id
+                  ORDER BY is_default DESC, installed_at LIMIT 1))) AS slack_connected,
+            (SELECT slack.health_status FROM slack_connections slack WHERE slack.org_id = site.org_id
+              AND slack.id = COALESCE(site.slack_connection_id,
+                (SELECT json_extract(config.data, '$.slack.fallbackConnectionId') FROM config
+                  WHERE config.org_id = site.org_id AND config.key = 'settings'),
+                (SELECT id FROM slack_connections default_slack WHERE default_slack.org_id = site.org_id
+                  ORDER BY is_default DESC, installed_at LIMIT 1))) AS slack_install_health,
             (SELECT json_extract(config.data, '$.slack.fallbackChannelId') FROM config
               WHERE config.org_id = site.org_id AND config.key = 'settings') AS slack_fallback_channel_id,
+            (SELECT json_extract(config.data, '$.slack.fallbackConnectionId') FROM config
+              WHERE config.org_id = site.org_id AND config.key = 'settings') AS slack_fallback_connection_id,
             (SELECT COUNT(*) FROM delivery_outbox delivery
               WHERE delivery.site_id = site.id AND delivery.destination = 'slack'
                 AND delivery.status IN ('pending', 'queued', 'processing', 'retrying')) AS slack_pending_count,

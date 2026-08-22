@@ -1,10 +1,11 @@
 import { queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
-import { resolveSlackChannels, resolveSlackRoute } from "./slack.js";
+import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } from "./slack.js";
 
 export async function stageResolvedNoxAlert(env, { orgId, ownerId, repo, issue, resolvedBy }) {
   if (!isNoxAlertIssue(issue)) return { skipped: "not_noxalert" };
   const channels = await resolveSlackChannels(env.DB, orgId);
   const channelId = resolveSlackRoute(channels, "noxalert");
+  const connectionId = resolveSlackConnectionId(channels, "noxalert");
   if (!channelId) return { skipped: "channel_not_configured" };
 
   const issueNumber = Number(issue.number);
@@ -13,6 +14,7 @@ export async function stageResolvedNoxAlert(env, { orgId, ownerId, repo, issue, 
     source: "noxalert",
     sourceId: `${repo}:${issueNumber}:resolved`,
     siteId: null,
+    connectionId,
     channelId,
     payload: {
       message: {

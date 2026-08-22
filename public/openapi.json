@@ -98,6 +98,12 @@
         "parameters": [{ "$ref": "#/components/parameters/siteId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxSpotSitePatch" } } } },
         "responses": { "200": { "description": "Site updated" } }
+      },
+      "delete": {
+        "operationId": "deleteNoxSpotSite",
+        "summary": "Delete a NoxSpot site and its screenshots",
+        "parameters": [{ "$ref": "#/components/parameters/siteId" }],
+        "responses": { "200": { "description": "Site deleted" } }
       }
     },
     "/api/alerts/projects": {

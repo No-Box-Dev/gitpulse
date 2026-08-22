@@ -24,3 +24,8 @@ queue = "unticket-tasks"
 [[r2_buckets]]
 binding = "SPEC_ATTACHMENTS"
 bucket_name = "unticket-spec-attachments"
+
+# NoxSpot screenshots are deleted from the same admin surface that owns sites.
+[[r2_buckets]]
+binding = "NOXSPOT_ASSETS"
+bucket_name = "noxspot-assets"

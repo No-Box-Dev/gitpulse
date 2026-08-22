@@ -1,13 +1,16 @@
 import { ScanSearch } from "lucide-react";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { ReadinessBadge } from "@/components/admin/ReadinessBadge";
-import { NoxSpotSitesSection } from "@/components/admin/tools/NoxSpotSitesSection";
+import { NoxSpotAdminSetup } from "@/components/admin/tools/NoxSpotSiteManagement";
 
-// NoxSpot section of the Admin page: readiness status plus the full site
-// management (widgets, per-site Slack routing, delivery health). This is the
-// only NoxSpot surface — captured issues are regular GitHub issues, viewed
-// on the Issues tab.
-export function NoxSpotSection({ noxConnect }: { noxConnect: IntegrationsStatus }) {
+// NoxSpot has no product tab. Its complete site/widget management surface is
+// mounted here under Unticket Admin.
+export function NoxSpotSection({
+  noxConnect,
+}: {
+  noxConnect: IntegrationsStatus;
+}) {
+  const ready = noxConnect.features.noxSpot.state === "ready";
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-3">
@@ -27,8 +30,14 @@ export function NoxSpotSection({ noxConnect }: { noxConnect: IntegrationsStatus 
           </p>
         )}
       </div>
-
-      <NoxSpotSitesSection noxConnect={noxConnect} />
+      <p className="text-xs leading-5 text-stone-500">
+        Captures website feedback and creates a GitHub issue with its screenshot
+        and context. GitHub receives the issues; Slack notifications are optional.
+      </p>
+      <div className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500 border-t border-stone-100">
+        <span className="font-medium text-stone-700">Slack routing:</span> choose a channel per site below. Sites without one use the organization fallback (set in NoxConnect). Automatic errors always use NoxAlert instead.
+      </div>
+      {ready ? <NoxSpotAdminSetup /> : null}
     </div>
   );
 }

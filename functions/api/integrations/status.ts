@@ -34,7 +34,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     resolveSlackInstall(context.env, orgId),
     resolveSlackChannels(db, orgId),
     db.prepare(
-      "SELECT health_status, last_checked_at, last_error FROM slack_settings WHERE org_id = ?",
+      `SELECT health_status, last_checked_at, last_error FROM slack_connections
+        WHERE org_id = ? ORDER BY is_default DESC, installed_at LIMIT 1`,
     ).bind(orgId).first<Record<string, unknown>>(),
     db.prepare(
       `SELECT
@@ -103,6 +104,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       needsReconnect: slackNeedsReconnect,
       teamId: slackInstall?.teamId ?? null,
       teamName: slackInstall?.teamName ?? null,
+      connectionId: slackInstall?.id ?? null,
       defaultChannelId: slackChannels.fallbackChannelId || null,
       channels: {
         fallback: slackChannels.fallbackChannelId || null,

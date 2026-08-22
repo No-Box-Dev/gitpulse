@@ -4,16 +4,20 @@ import { Loader2, MessageSquare } from "lucide-react";
 import {
   startSlackOAuth,
   disconnectSlack,
+  type SlackConnection,
 } from "@/lib/slack-api";
+import { apiPost } from "@/lib/api";
 import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { SlackRouteField } from "@/components/admin/slack/SlackRouteField";
+import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelStatusBadge";
+import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 
 // The General-section Slack card: connection lifecycle (connect / reconnect /
 // disconnect), health stats, and the organization fallback channel. Per-tool
 // routes live in their own tool sections via SlackRouteField.
 export function SlackConnectionCard() {
   const qc = useQueryClient();
-  const { status, channels, channelOptions } = useSlackChannels();
+  const { status } = useSlackChannels();
 
   // Seed the OAuth-failure banner from the ?slack= param at first render —
   // the callback redirects back with the failure reason in the URL.
@@ -61,11 +65,11 @@ export function SlackConnectionCard() {
     }
   }
 
-  async function handleDisconnect() {
+  async function handleDisconnect(connectionId: string) {
     setError(null);
     setBusy("disconnect");
     try {
-      await disconnectSlack();
+      await disconnectSlack(connectionId);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["slack-status"] }),
         qc.invalidateQueries({ queryKey: ["integrations-status"] }),
@@ -103,13 +107,24 @@ export function SlackConnectionCard() {
         )}
       </div>
       <p className="text-xs text-stone-400">
-        One NoxConnect installation serves NoxAlert, NoxFeed, NoxSpot, and NoxTicket.
-        Connect once for this organization, then route each service independently
-        in its own section below. The bot must be added to private channels before
-        it can post there; public channels work without an invite.
-        Slack's authorize page picks the workspace — if the wrong one is preselected,
-        switch workspaces in its top-right corner before allowing.
+        Connect every Slack workspace this organization needs. Each Nox service can
+        then choose its workspace and channel independently. The bot must be added
+        to private channels before it can post there.
       </p>
+
+      {data?.connections?.length ? (
+        <div className="space-y-2">
+          {data.connections.map((connection) => (
+            <SlackConnectionRow
+              key={connection.id}
+              connection={connection}
+              disconnecting={busy === "disconnect"}
+              onDisconnect={handleDisconnect}
+              onError={setError}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {data?.connected && (
         <div className="grid gap-2 rounded-lg bg-stone-50 p-3 text-xs sm:grid-cols-3">
@@ -154,44 +169,116 @@ export function SlackConnectionCard() {
               helpText="Used only when a service-specific channel is empty."
               kind="fallback"
               routeKey="fallbackChannelId"
-              options={channelOptions}
-              channelsLoading={channels.isLoading}
-              channelsError={channels.isError}
             />
           </div>
 
           <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
-            {(data.health === "degraded" || data.needsReconnect) && (
-              <button
-                type="button"
-                onClick={() => handleConnect()}
-                disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
-              >
-                {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
-                Reconnect Slack
-              </button>
-            )}
             <button
               type="button"
-              onClick={() => handleConnect({ team: null })}
+              onClick={handleConnect}
               disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
-              className="text-xs text-stone-500 hover:text-stone-700 disabled:opacity-50 cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
             >
-              {busy === "connect" ? "Opening Slack…" : "Switch workspace"}
+              {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
+              Add Slack workspace
             </button>
-            <button
-              type="button"
-              onClick={handleDisconnect}
-              disabled={busy === "disconnect"}
-              className="text-xs text-stone-500 hover:text-stone-700 disabled:opacity-50 cursor-pointer"
-            >
-              {busy === "disconnect" ? "Disconnecting…" : "Disconnect"}
-            </button>
+            {(data.health === "degraded" || data.needsReconnect) ? <span className="text-xs text-amber-700">Reconnect by adding the affected workspace again.</span> : null}
           </div>
         </>
       )}
       {error && <span className="text-xs text-red-500">{error}</span>}
+    </div>
+  );
+}
+
+function SlackConnectionRow({
+  connection,
+  disconnecting,
+  onDisconnect,
+  onError,
+}: {
+  connection: SlackConnection;
+  disconnecting: boolean;
+  onDisconnect: (connectionId: string) => Promise<void>;
+  onError: (message: string | null) => void;
+}) {
+  const qc = useQueryClient();
+  const { channels, status } = useSlackChannels(connection.id);
+  const [channelId, setChannelId] = useState("");
+  const [testing, setTesting] = useState(false);
+
+  async function handleTest() {
+    if (!channelId) return;
+    onError(null);
+    setTesting(true);
+    try {
+      await apiPost("/api/slack/test", {
+        connectionId: connection.id,
+        channelId,
+        kind: "connection",
+      });
+      await Promise.all([
+        status.refetch(),
+        qc.invalidateQueries({ queryKey: ["integrations-status"] }),
+      ]);
+    } catch (err) {
+      await status.refetch();
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const statusText = connection.needsReconnect
+    ? "Reconnect required"
+    : connection.health === "degraded"
+      ? connection.lastError ?? "Needs attention"
+      : "Connected";
+  const channelStatus = findSlackChannelStatus(status.data?.channelStatuses, connection.id, channelId);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2">
+      <div>
+        <p className="text-xs font-medium text-stone-800">
+          {connection.teamName}
+          {connection.isDefault ? <span className="ml-2 text-[10px] font-normal text-stone-400">Default</span> : null}
+        </p>
+        <p className={`text-[11px] ${connection.health === "degraded" || connection.needsReconnect ? "text-amber-700" : "text-stone-400"}`}>
+          {statusText}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={channelId}
+          onChange={(event) => setChannelId(event.target.value)}
+          disabled={channels.isLoading || channels.isError}
+          aria-label={`Test channel for ${connection.teamName}`}
+          className="min-w-44 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600 disabled:opacity-50"
+        >
+          <option value="">{channels.isLoading ? "Loading channels…" : channels.isError ? "Channels unavailable" : "Choose test channel"}</option>
+          {(channels.data ?? []).map((channel) => (
+            <option key={channel.id} value={channel.id}>{channel.is_private ? "🔒 " : "#"}{channel.name}</option>
+          ))}
+        </select>
+        {channelId ? <SlackChannelStatusBadge status={channelStatus} /> : null}
+        <button
+          type="button"
+          onClick={handleTest}
+          disabled={testing || !channelId}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+        >
+          {testing ? <Loader2 size={12} className="animate-spin" /> : null}
+          {testing ? "Sending…" : "Send test"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void onDisconnect(connection.id)}
+          disabled={disconnecting}
+          className="cursor-pointer text-xs text-stone-500 hover:text-red-600 disabled:opacity-50"
+        >
+          Disconnect
+        </button>
+      </div>
     </div>
   );
 }

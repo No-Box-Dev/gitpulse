@@ -1,15 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, PlugZap } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useIsAdmin, useOrgMembers } from "@/hooks/useGitHub";
 import { useSettings, useSaveSettings, usePeople, useSavePeople } from "@/hooks/useConfigRepo";
 import { useNoxConnect } from "@/hooks/useNoxConnect";
+import { getEnabledNoxApps, type OptionalNoxAppId } from "@/lib/apps";
 import { Spinner } from "@/components/Spinner";
 import { PeopleManagement } from "@/components/settings/PeopleManagement";
 import {
-  AdminSectionNavDesktop,
-  AdminSectionNavMobile,
+  AdminSectionTabs,
   type AdminSectionDef,
 } from "@/components/admin/AdminSectionNav";
 import { AdminGate } from "@/components/admin/AdminGate";
@@ -24,20 +24,10 @@ import { NoxFeedSection } from "@/components/admin/tools/NoxFeedSection";
 import { NoxSpotSection } from "@/components/admin/tools/NoxSpotSection";
 import { NoxAlertSection } from "@/components/admin/tools/NoxAlertSection";
 import { MaintenanceSection } from "@/components/admin/MaintenanceSection";
+import { NoxAppsSection } from "@/components/admin/NoxAppsSection";
 
-const SECTIONS: AdminSectionDef[] = [
-  { id: "admin-general", label: "General" },
-  { id: "admin-unticket", label: "Unticket" },
-  { id: "admin-noxfeed", label: "NoxFeed" },
-  { id: "admin-noxspot", label: "NoxSpot" },
-  { id: "admin-noxalert", label: "NoxAlert" },
-  { id: "admin-maintenance", label: "Maintenance" },
-];
-
-// One Admin page for everything: shared connections and org-wide settings in
-// General, a section per tool, and maintenance operations at the end.
-// Non-admins see the same layout with the admin-only sections rendered as
-// gated shells ("ask an admin") instead of being hidden.
+// Each service has a real Admin tab. Only the active tab is mounted, keeping
+// setup independent and avoiding background queries for unrelated services.
 export function AdminTab() {
   const { user, selectedOrg, logout } = useAuth();
   const isAdmin = useIsAdmin();
@@ -49,8 +39,31 @@ export function AdminTab() {
   const savePeople = useSavePeople();
   const { data: orgMembers } = useOrgMembers();
   const focus = searchParams.get("focus");
+  const enabledApps = useMemo(() => getEnabledNoxApps(settings), [settings]);
+  const sections = useMemo<AdminSectionDef[]>(() => [
+    { id: "admin-noxconnect", label: "NoxConnect" },
+    ...(enabledApps.includes("noxticket") ? [{ id: "admin-noxticket", label: "NoxTicket" }] : []),
+    ...(enabledApps.includes("noxfeed") ? [{ id: "admin-noxfeed", label: "NoxFeed" }] : []),
+    ...(enabledApps.includes("noxspot") ? [{ id: "admin-noxspot", label: "NoxSpot" }] : []),
+    ...(enabledApps.includes("noxalert") ? [{ id: "admin-noxalert", label: "NoxAlert" }] : []),
+    { id: "admin-maintenance", label: "Maintenance" },
+  ], [enabledApps]);
+  const requestedSection = searchParams.get("section");
+  const focusedSection = focus === "newRepos" && enabledApps.includes("noxticket")
+    ? "admin-noxticket"
+    : "admin-noxconnect";
+  const activeSection = sections.some((section) => section.id === requestedSection)
+    ? requestedSection!
+    : focus ? focusedSection : "admin-noxconnect";
 
-  // Deep link from banners: ?focus=aiProvider scrolls to the AI provider card.
+  function toggleApp(appId: OptionalNoxAppId, enabled: boolean) {
+    saveSettings.mutate({
+      ...(settings ?? {}),
+      apps: { ...(settings?.apps ?? {}), [appId]: enabled },
+    });
+  }
+
+  // Deep links select their owning tab, then focus the relevant control.
   useEffect(() => {
     if (!isAdmin || focus !== "aiProvider") return;
     const frame = window.requestAnimationFrame(() => {
@@ -58,6 +71,14 @@ export function AdminTab() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [isAdmin, focus]);
+
+  function selectSection(section: string) {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "admin");
+    params.set("section", section);
+    params.delete("focus");
+    setSearchParams(params, { replace: true });
+  }
 
   const status = noxConnect.data;
   const connectionsLoading = (
@@ -86,7 +107,7 @@ export function AdminTab() {
       <div>
         <h1 className="text-xl font-semibold text-stone-900">Admin</h1>
         <p className="mt-1 text-sm text-stone-500">
-          Connections, tools, and org-wide settings — all in one place.
+          Configure NoxConnect and each enabled app independently.
         </p>
       </div>
 
@@ -108,15 +129,17 @@ export function AdminTab() {
         </section>
       )}
 
-      <AdminSectionNavMobile sections={SECTIONS} />
+      <AdminSectionTabs sections={sections} activeId={activeSection} onChange={selectSection} />
 
-      <div className="flex gap-8">
-        <AdminSectionNavDesktop sections={SECTIONS} />
-
-        <div className="flex-1 min-w-0 space-y-10">
-          {/* General — visible to everyone; controls gated per card */}
-          <section id="admin-general" className="space-y-6 scroll-mt-24">
-            <SectionHeading title="General" description="Account, people, shared connections, and the org-wide AI provider." />
+      <div
+        id={`${activeSection}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${activeSection}-tab`}
+        className="min-w-0"
+      >
+          {/* NoxConnect — visible to everyone; controls gated per card */}
+          {activeSection === "admin-noxconnect" ? <section className="space-y-6">
+            <SectionHeading title="NoxConnect" description="The always-on foundation: account, apps, people, GitHub, Slack, and shared AI." />
             <div className="max-w-xl">
               <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-stone-900">Account</h2>
@@ -146,6 +169,13 @@ export function AdminTab() {
                 </button>
               </div>
             </div>
+
+            <NoxAppsSection
+              settings={settings}
+              isAdmin={isAdmin}
+              isSaving={saveSettings.isPending}
+              onToggle={toggleApp}
+            />
 
             {/* People management mutates org settings — render the live
                 component only for admins; non-admins get the gated shell. */}
@@ -196,49 +226,51 @@ export function AdminTab() {
                 <LlmSettingsSection />
               </div>
             </AdminGate>
-          </section>
+          </section> : null}
 
-          <section id="admin-unticket" className="space-y-6 scroll-mt-24">
-            <SectionHeading title="Unticket" description="Feature tracking core: features repo, board stages, repo policy, and the Unticket Slack route." />
+          {activeSection === "admin-noxticket" ? <section className="space-y-6">
+            <SectionHeading title="NoxTicket" description="Features, backlog, specs, board stages, repo policy, and Slack delivery." />
             <AdminGate
-              title="Unticket settings"
+              title="NoxTicket settings"
               description="Features repo, board stages, new-repo policy, tracked repos, and Slack routing."
             >
               {status ? <UnticketSection noxConnect={status} /> : connectionsLoading}
             </AdminGate>
-          </section>
+          </section> : null}
 
-          <section id="admin-noxfeed" className="space-y-6 scroll-mt-24">
-            <SectionHeading title="NoxFeed" description="Posts and Release notes: Slack routes, prompt, and backfills." />
+          {activeSection === "admin-noxfeed" ? <section className="space-y-6">
+            <SectionHeading title="NoxFeed" description="GitHub activity views, narrated posts, release notes, Slack routes, and backfills." />
             <AdminGate
               title="NoxFeed settings"
               description="Slack routes for Posts and Release notes, the release notes prompt, and Posts backfill."
             >
               {status ? <NoxFeedSection noxConnect={status} /> : connectionsLoading}
             </AdminGate>
-          </section>
+          </section> : null}
 
-          <section id="admin-noxspot" className="space-y-6 scroll-mt-24">
-            <SectionHeading title="NoxSpot" description="Website feedback capture into GitHub issues." />
+          {activeSection === "admin-noxspot" ? <section className="space-y-6">
+            <SectionHeading title="NoxSpot" description="Website feedback capture, widgets, sites, and delivery into GitHub." />
             <AdminGate
               title="NoxSpot settings"
-              description="Capture sites, widget embeds, and per-site Slack routing."
+              description="Manage sites, widget installation, capture behavior, and per-site Slack delivery here."
             >
-              {status ? <NoxSpotSection noxConnect={status} /> : connectionsLoading}
+              {status
+                ? <NoxSpotSection noxConnect={status} />
+                : connectionsLoading}
             </AdminGate>
-          </section>
+          </section> : null}
 
-          <section id="admin-noxalert" className="space-y-6 scroll-mt-24">
-            <SectionHeading title="NoxAlert" description="Slack alerts for browser errors, with per-project rules and ingest keys." />
+          {activeSection === "admin-noxalert" ? <section className="space-y-6">
+            <SectionHeading title="NoxAlert" description="OpenTelemetry ingest, project filters, alert rules, keys, and Slack delivery." />
             <AdminGate
               title="NoxAlert settings"
               description="Alert channel routing, per-project rules, filters, and ingest keys. Requires GitHub and Slack."
             >
               {status ? <NoxAlertSection noxConnect={status} /> : connectionsLoading}
             </AdminGate>
-          </section>
+          </section> : null}
 
-          <section id="admin-maintenance" className="space-y-6 scroll-mt-24">
+          {activeSection === "admin-maintenance" ? <section className="space-y-6">
             <SectionHeading title="Maintenance" description="Manual syncs, backfills, history recovery, and background failures." />
             <AdminGate
               title="Maintenance operations"
@@ -246,8 +278,7 @@ export function AdminTab() {
             >
               <MaintenanceSection />
             </AdminGate>
-          </section>
-        </div>
+          </section> : null}
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
-import { resolveSlackInstall, postSlackMessage } from "../../lib/slack";
+import { checkSlackOrgHealth, resolveSlackInstall, postSlackMessage } from "../../lib/slack";
+import { markSlackChannelIssue, markSlackChannelVerified } from "../../lib/slack-channel-status";
 
 // POST /api/slack/test
-// Body: { channelId: string, kind: "fallback" | "noxalert" | "noxspot" | "unticket" | "noxfeed_posts" | "noxfeed_release_notes" }
+// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxalert" | "noxspot" | "unticket" | "noxfeed_posts" | "noxfeed_release_notes" }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -16,20 +17,37 @@ export async function onRequestPost(context) {
   try { body = await context.request.json(); }
   catch { return errorResponse("Invalid JSON body", 400); }
 
+  const connectionId = typeof body?.connectionId === "string" ? body.connectionId.trim() : null;
   const channelId = typeof body?.channelId === "string" ? body.channelId.trim() : "";
-  if (!channelId) return errorResponse("channelId required", 400);
   const legacyKinds = { narrative: "noxfeed_posts", release_notes: "noxfeed_release_notes" };
   const allowedKinds = new Set([
-    "fallback", "noxalert", "noxspot", "unticket", "noxfeed",
+    "connection", "fallback", "noxalert", "noxspot", "unticket", "noxfeed",
     "noxfeed_posts", "noxfeed_release_notes",
   ]);
   const kind = legacyKinds[body?.kind] ?? (allowedKinds.has(body?.kind) ? body.kind : null);
   if (!kind) return errorResponse("Invalid Slack test kind", 400);
+  if (kind === "connection") {
+    if (!connectionId) return errorResponse("connectionId required", 400);
+    if (!channelId) return errorResponse("channelId required", 400);
+    const health = await checkSlackOrgHealth(context.env, orgId, connectionId);
+    if (health.status !== "ok") {
+      const message = health.error instanceof Error ? health.error.message : "Slack connection verification failed";
+      return errorResponse(message, 502);
+    }
+  }
+  if (!channelId) return errorResponse("channelId required", 400);
 
-  const install = await resolveSlackInstall(context.env, orgId);
+  const install = await resolveSlackInstall(context.env, orgId, connectionId);
   if (!install) return errorResponse("Slack not connected", 404);
 
-  const payload = kind === "noxalert" ? {
+  const payload = kind === "connection" ? {
+        text: `NoxConnect workspace test for ${orgLogin}`,
+        blocks: [
+          { type: "header", text: { type: "plain_text", text: "NoxConnect workspace test", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Workspace authentication and channel delivery are working for *${orgLogin}*.` } },
+        ],
+      }
+    : kind === "noxalert" ? {
         text: `NoxAlert delivery test for ${orgLogin}`,
         blocks: [
           { type: "header", text: { type: "plain_text", text: "NoxAlert delivery test", emoji: true } },
@@ -74,16 +92,22 @@ export async function onRequestPost(context) {
 
   try {
     await postSlackMessage(install.botToken, channelId, payload);
-    await context.env.DB.prepare(
-      `UPDATE slack_settings SET health_status = 'ok', last_error = NULL,
-       last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ?`,
-    ).bind(orgId).run();
+    await Promise.all([
+      context.env.DB.prepare(
+        `UPDATE slack_connections SET health_status = 'ok', last_error = NULL,
+         last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ? AND id = ?`,
+      ).bind(orgId, install.id).run(),
+      markSlackChannelVerified(context.env.DB, orgId, install.id, channelId),
+    ]);
     return jsonResponse({ ok: true });
   } catch (err) {
-    await context.env.DB.prepare(
-      `UPDATE slack_settings SET health_status = 'degraded', last_error = ?,
-       last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ?`,
-    ).bind(err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000), orgId).run();
+    await Promise.all([
+      context.env.DB.prepare(
+        `UPDATE slack_connections SET health_status = 'degraded', last_error = ?,
+         last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ? AND id = ?`,
+      ).bind(err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000), orgId, install.id).run(),
+      markSlackChannelIssue(context.env.DB, orgId, install.id, channelId, err),
+    ]);
     return errorResponse(err instanceof Error ? err.message : String(err), 502);
   }
 }

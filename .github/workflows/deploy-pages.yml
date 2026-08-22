@@ -56,3 +56,16 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cron
           command: deploy
+
+      # The anonymous capture plane is isolated from authenticated Pages
+      # Functions, but this repository owns and deploys it with the same CI gate.
+      - name: Install NoxSpot capture Worker dependencies
+        working-directory: workers/noxspot-capture
+        run: npm ci
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/noxspot-capture
+          command: deploy

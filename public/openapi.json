@@ -105,6 +105,52 @@
         "responses": { "200": { "description": "Site deleted" } }
       }
     },
+    "/api/spots/public/v1/sites/{siteId}/config": {
+      "get": {
+        "operationId": "getPublicNoxSpotConfig",
+        "summary": "Get effective public widget configuration for the request origin",
+        "security": [],
+        "servers": [{ "url": "https://api.noxspot.dev" }],
+        "parameters": [{ "$ref": "#/components/parameters/siteId" }],
+        "responses": {
+          "200": { "description": "Effective public widget configuration" },
+          "403": { "description": "Origin is not enabled" },
+          "404": { "description": "Site not found" }
+        }
+      }
+    },
+    "/api/spots/public/v1/reports": {
+      "post": {
+        "operationId": "submitPublicNoxSpotReport",
+        "summary": "Submit a public NoxSpot capture",
+        "security": [],
+        "servers": [{ "url": "https://api.noxspot.dev" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxSpotReport" } } } },
+        "responses": {
+          "200": { "description": "Capture queued" },
+          "400": { "description": "Invalid capture" },
+          "403": { "description": "Origin is not enabled" },
+          "413": { "description": "Request body too large" },
+          "429": { "description": "Rate limited" },
+          "503": { "description": "Delivery unavailable" }
+        }
+      }
+    },
+    "/api/spots/public/v1/errors": {
+      "post": {
+        "operationId": "submitPublicNoxSpotErrors",
+        "summary": "Submit a bounded batch of automatic browser errors",
+        "security": [],
+        "servers": [{ "url": "https://api.noxspot.dev" }],
+        "responses": {
+          "200": { "description": "Errors queued" },
+          "400": { "description": "Invalid error batch" },
+          "403": { "description": "Origin is not enabled" },
+          "429": { "description": "Rate limited" },
+          "503": { "description": "Delivery unavailable" }
+        }
+      }
+    },
     "/api/alerts/projects": {
       "get": {
         "operationId": "listNoxAlertProjects",
@@ -228,12 +274,58 @@
         "minProperties": 1,
         "properties": {
           "slackChannelId": { "type": ["string", "null"], "maxLength": 80 },
+          "slackConnectionId": { "type": ["string", "null"], "maxLength": 120 },
           "buttonColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
           "buttonText": { "type": "string", "maxLength": 40 },
           "widgetMode": { "type": "string", "enum": ["development", "release"] },
           "autoErrorLogging": { "type": "boolean" },
-          "environments": { "type": "array", "maxItems": 50, "items": { "type": "object" } },
-          "blocks": { "type": "array", "maxItems": 100, "items": { "type": "object" } }
+          "environments": { "type": "array", "maxItems": 50, "items": { "$ref": "#/components/schemas/NoxSpotEnvironment" } },
+          "blocks": { "type": "array", "maxItems": 30, "items": { "$ref": "#/components/schemas/NoxSpotBlock" } }
+        }
+      },
+      "NoxSpotEnvironment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "url"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 60 },
+          "url": { "type": "string", "maxLength": 500 },
+          "buttonColor": { "type": ["string", "null"], "pattern": "^#[0-9a-fA-F]{6}$" },
+          "buttonText": { "type": ["string", "null"], "maxLength": 40 },
+          "widgetMode": { "type": ["string", "null"], "enum": ["development", "release", null] },
+          "enabled": { "type": "boolean" }
+        }
+      },
+      "NoxSpotBlock": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,119}$" },
+          "type": { "type": "string", "enum": ["title", "description", "reporter", "contact_email", "custom_text", "custom_textarea", "custom_select", "element_picker", "metadata", "console_logs"] },
+          "label": { "type": ["string", "null"], "maxLength": 120 },
+          "required": { "type": "boolean" },
+          "options": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 120 } },
+          "environments": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 60 } }
+        }
+      },
+      "NoxSpotReport": {
+        "type": "object",
+        "required": ["siteId", "title"],
+        "properties": {
+          "siteId": { "type": "string", "maxLength": 120 },
+          "title": { "type": "string", "maxLength": 256 },
+          "description": { "type": ["string", "null"], "maxLength": 10000 },
+          "reporter": { "type": ["string", "null"], "maxLength": 100 },
+          "reporterEmail": { "type": ["string", "null"], "format": "email", "maxLength": 254 },
+          "type": { "type": "string", "enum": ["bug", "feature", "feedback"] },
+          "environment": { "type": ["string", "null"], "maxLength": 60 },
+          "screenshot": { "type": ["string", "null"], "description": "Bounded PNG, JPEG, or WebP data URL" },
+          "metadata": { "type": ["object", "null"] },
+          "elements": { "type": ["array", "null"], "maxItems": 50, "items": { "type": "object" } },
+          "context": { "type": ["object", "null"] },
+          "blockValues": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
+          "rating": { "type": ["integer", "null"], "minimum": 1, "maximum": 5 }
         }
       },
       "NoxAlertProjectUpdate": {

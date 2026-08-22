@@ -27,7 +27,7 @@ export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, 
        next_attempt_at = NULL,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      RETURNING id, status`,
-  ).bind(id, orgId, source, sourceId, siteId ?? null, connectionId ?? null, channelId, JSON.stringify(payload)).first();
+  ).bind(id, orgId, source, sourceId, siteId ?? null, connectionId || null, channelId, JSON.stringify(payload)).first();
 }
 
 export async function queueOutboxDelivery(env, deliveryId, ownerId = null) {

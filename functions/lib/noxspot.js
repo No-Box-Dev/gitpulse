@@ -17,7 +17,7 @@ const LABELS = {
 
 export async function createNoxSpotGitHubIssue(env, capture) {
   requireCapture(capture);
-  const resolvedCapture = await resolveReporter(env.DB, capture);
+  const resolvedCapture = await resolveCaptureFromSetup(env.DB, capture);
   const installationId = await getInstallationIdForOrg(env.DB, resolvedCapture.orgId);
   if (!installationId) throw new Error(`GitHub App not installed for org ${resolvedCapture.orgId}`);
   const token = await getInstallationToken(env, installationId);
@@ -71,22 +71,44 @@ export async function createNoxSpotGitHubIssue(env, capture) {
   return { number: issue.number, url: issue.html_url };
 }
 
-async function resolveReporter(db, capture) {
-  if (!capture.reporter) return capture;
+async function resolveCaptureFromSetup(db, capture) {
+  const site = await db.prepare(
+    `SELECT site.name AS site_name, site.repo, site.project_id,
+            site.slack_channel_id, site.slack_connection_id,
+            org.github_login AS owner_id
+       FROM spot_sites site
+       JOIN orgs org ON org.id = site.org_id
+      WHERE site.id = ? AND site.org_id = ?
+      LIMIT 1`,
+  ).bind(capture.siteId, capture.orgId).first();
+  if (!site?.owner_id || !site?.repo) {
+    throw new Error(`NoxSpot site ${capture.siteId} is not configured for org ${capture.orgId}`);
+  }
+
+  const resolved = {
+    ...capture,
+    ownerId: site.owner_id,
+    repo: site.repo,
+    projectId: site.project_id ?? null,
+    siteName: site.site_name ?? capture.siteId,
+    slackChannelId: site.slack_channel_id ?? null,
+    slackConnectionId: site.slack_connection_id ?? null,
+  };
+  if (!capture.reporter) return resolved;
   const requestedLogin = String(capture.reporter).trim().replace(/^@/, '');
-  if (!requestedLogin) return capture;
+  if (!requestedLogin) return resolved;
   const member = await db.prepare(
     `SELECT login FROM members
       WHERE org_id = ? AND kind = 'human' AND lower(login) = lower(?)
       LIMIT 1`,
   ).bind(capture.orgId, requestedLogin).first();
   return member?.login
-    ? { ...capture, reporterGithubLogin: member.login }
-    : capture;
+    ? { ...resolved, reporterGithubLogin: member.login }
+    : resolved;
 }
 
 function requireCapture(capture) {
-  for (const field of ["captureId", "orgId", "ownerId", "repo", "siteId", "title"]) {
+  for (const field of ["captureId", "orgId", "siteId", "title"]) {
     if (!capture?.[field]) throw new Error(`Invalid NoxSpot capture: missing ${field}`);
   }
 }
@@ -184,10 +206,12 @@ async function storeEvent(db, capture, issue) {
 }
 
 function buildSlackPayload(capture, issue) {
+  const pageUrl = capturedPageUrl(capture);
   const fields = [
     { type: "mrkdwn", text: `*Type*\n${escapeMrkdwn(capture.issueType)}` },
     { type: "mrkdwn", text: `*Site*\n${escapeMrkdwn(capture.siteName || capture.siteId)}` },
   ];
+  if (pageUrl) fields.push({ type: "mrkdwn", text: `*Page*\n${escapeMrkdwn(truncate(pageUrl, 1000))}` });
   if (capture.reporterGithubLogin) fields.push({ type: "mrkdwn", text: `*Reporter*\n@${escapeMrkdwn(capture.reporterGithubLogin)}` });
   else if (capture.reporter) fields.push({ type: "mrkdwn", text: `*Reporter*\n${escapeMrkdwn(capture.reporter)}` });
   const blocks = [
@@ -196,12 +220,27 @@ function buildSlackPayload(capture, issue) {
   ];
   if (capture.description) blocks.push({ type: "section", text: { type: "mrkdwn", text: truncate(escapeMrkdwn(capture.description), 2800) } });
   if (capture.screenshotUrl) blocks.push({ type: "image", image_url: capture.screenshotUrl, alt_text: "NoxSpot issue screenshot" });
-  blocks.push({ type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: "Open GitHub issue" }, url: issue.html_url }] });
+  const actions = [];
+  if (pageUrl) actions.push({ type: "button", text: { type: "plain_text", text: "Open reported page" }, url: pageUrl });
+  actions.push({ type: "button", text: { type: "plain_text", text: "Open GitHub issue" }, url: issue.html_url });
+  blocks.push({ type: "actions", elements: actions });
   return {
     text: `New NoxSpot issue: ${capture.title}`,
     client_msg_id: capture.captureId,
     blocks,
   };
+}
+
+function capturedPageUrl(capture) {
+  const raw = capture?.metadata?.url;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    const url = new URL(raw.trim());
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.toString().slice(0, 3000);
+  } catch {
+    return null;
+  }
 }
 
 function part(value) { return encodeURIComponent(String(value)); }

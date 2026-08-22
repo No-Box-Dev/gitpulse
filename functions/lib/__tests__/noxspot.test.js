@@ -29,14 +29,23 @@ import { upsertIssue } from "../github-sync.js";
 import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { resolveSlackChannels } from "../slack.js";
 
-function db() {
+function db(site = {}) {
   const calls = [];
+  const configuredSite = {
+    site_name: "Website",
+    repo: "web",
+    project_id: "p1",
+    slack_channel_id: null,
+    slack_connection_id: null,
+    owner_id: "acme",
+    ...site,
+  };
   return {
     _calls: calls,
     prepare(sql) {
       const statement = {
         bind(...binds) { statement.binds = binds; return statement; },
-        async first() { return null; },
+        async first() { return sql.includes("FROM spot_sites site") ? configuredSite : null; },
         async run() { calls.push({ sql, binds: statement.binds }); return { success: true }; },
       };
       return statement;
@@ -59,6 +68,7 @@ const capture = {
   description: "The submit button does nothing.",
   screenshotUrl: "https://cdn.example/shot.png",
   reporter: "Ada",
+  metadata: { url: "https://app.example.com/checkout?cart=1", browser: "Chrome" },
 };
 
 describe("createNoxSpotGitHubIssue", () => {
@@ -152,14 +162,31 @@ describe("createNoxSpotGitHubIssue", () => {
           html_url: "https://github.com/acme/web/issues/14",
         }),
       });
-    const database = db();
+    const database = db({ slack_channel_id: "C123", slack_connection_id: "conn-2" });
     await createNoxSpotGitHubIssue(
       { DB: database, TASK_QUEUE: { send: vi.fn() } },
-      { ...capture, slackChannelId: "C123" },
+      { ...capture, ownerId: "stale-owner", repo: "stale-repo", slackChannelId: "C-STALE", slackConnectionId: "conn-stale" },
     );
     expect(stageSlackDelivery).toHaveBeenCalledWith(database, expect.objectContaining({
-      source: "noxspot", sourceId: "cap-1", channelId: "C123",
+      source: "noxspot", sourceId: "cap-1", connectionId: "conn-2", channelId: "C123",
     }));
+    const stagedMessage = vi.mocked(stageSlackDelivery).mock.calls.at(-1)[1].payload.message;
+    expect(stagedMessage.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "section",
+        fields: expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining("https://app.example.com/checkout?cart=1") }),
+        ]),
+      }),
+      expect.objectContaining({
+        type: "actions",
+        elements: expect.arrayContaining([
+          expect.objectContaining({ text: expect.objectContaining({ text: "Open reported page" }), url: "https://app.example.com/checkout?cart=1" }),
+        ]),
+      }),
+    ]));
+    expect(globalThis.fetch.mock.calls.some(([url]) => String(url).includes("/repos/acme/web/"))).toBe(true);
+    expect(globalThis.fetch.mock.calls.some(([url]) => String(url).includes("stale-owner"))).toBe(false);
     expect(queueOutboxDelivery).toHaveBeenCalledWith(expect.objectContaining({ DB: database }), "delivery-1", "acme");
   });
 

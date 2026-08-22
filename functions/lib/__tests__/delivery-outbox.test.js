@@ -43,6 +43,15 @@ describe("delivery outbox", () => {
     expect(database.calls[0].binds).toContain("conn-2");
   });
 
+  it("normalizes an empty connection id so legacy routes use the default workspace", async () => {
+    const database = db({ first: { id: "delivery-1", status: "pending" } });
+    await stageSlackDelivery(database, {
+      orgId: 7, source: "noxspot", sourceId: "capture-2", siteId: "site-1",
+      connectionId: "", channelId: "C123", payload: { title: "Broken" },
+    });
+    expect(database.calls[0].binds[5]).toBeNull();
+  });
+
   it("blocks visibly instead of silently succeeding when Slack is disconnected", async () => {
     vi.mocked(resolveSlackInstall).mockResolvedValue(null);
     const outbox = {

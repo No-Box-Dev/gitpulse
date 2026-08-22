@@ -1,16 +1,14 @@
-import { ArrowRight, ScanSearch } from "lucide-react";
+import { ScanSearch } from "lucide-react";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { ReadinessBadge } from "@/components/admin/ReadinessBadge";
+import { NoxSpotAdminSetup } from "@/components/admin/tools/NoxSpotSiteManagement";
 
-// NoxSpot-specific setup. The only NoxSpot Slack knob (per-site channel) is
-// configured on the NoxSpot tab itself, so this section is status +
-// guidance.
+// NoxSpot has no product tab. Its complete site/widget management surface is
+// mounted here under Unticket Admin.
 export function NoxSpotSection({
   noxConnect,
-  onOpenNoxSpot,
 }: {
   noxConnect: IntegrationsStatus;
-  onOpenNoxSpot: () => void;
 }) {
   const ready = noxConnect.features.noxSpot.state === "ready";
   return (
@@ -25,17 +23,9 @@ export function NoxSpotSection({
         and context. GitHub receives the issues; Slack notifications are optional.
       </p>
       <div className="rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500 border-t border-stone-100">
-        <span className="font-medium text-stone-700">Slack routing:</span> choose a channel per site on the NoxSpot tab. Sites without one use the organization fallback (set in General). Automatic errors always use NoxAlert instead.
+        <span className="font-medium text-stone-700">Slack routing:</span> choose a channel per site below. Sites without one use the organization fallback (set in NoxConnect). Automatic errors always use NoxAlert instead.
       </div>
-      {ready && (
-        <button
-          type="button"
-          onClick={onOpenNoxSpot}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:underline cursor-pointer"
-        >
-          Open NoxSpot <ArrowRight size={12} />
-        </button>
-      )}
+      {ready ? <NoxSpotAdminSetup /> : null}
     </div>
   );
 }

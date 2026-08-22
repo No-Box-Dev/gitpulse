@@ -59,10 +59,10 @@ export async function onRequestGet(context) {
   }
 
   try {
-    await saveSlackInstall(context.env, orgId, { ...install, installedBy: userLogin });
+    const connectionId = await saveSlackInstall(context.env, orgId, { ...install, installedBy: userLogin });
     // Validate the new token immediately. The redirect target can now render
     // authoritative health instead of the previous install's cached result.
-    const health = await checkSlackOrgHealth(context.env, orgId);
+    const health = await checkSlackOrgHealth(context.env, orgId, connectionId);
     if (health.status === "ok") {
       await requeueBlockedForOrg(context.env, orgId).catch((error) => {
         console.error("[unticket slack oauth] delivery replay failed:", error?.message ?? error);

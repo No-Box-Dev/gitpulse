@@ -19,6 +19,7 @@ import {
   saveSlackInstall,
   resolveSlackChannels,
   resolveSlackRoute,
+  resolveSlackConnectionId,
   slackInstallNeedsReconnect,
   clearSlackChannelsForOrg,
   postSlackMessage,
@@ -83,7 +84,7 @@ describe("saveSlackInstall", () => {
       },
     );
 
-    const upsert = calls.find(({ sql }) => sql.includes("INSERT INTO slack_settings"));
+    const upsert = calls.find(({ sql }) => sql.includes("INSERT INTO slack_connections"));
     expect(upsert.sql).toContain("health_status = 'unknown'");
     expect(upsert.sql).toContain("last_checked_at = NULL");
     expect(upsert.sql).toContain("last_error = NULL");
@@ -274,6 +275,8 @@ describe("resolveSlackInstall", () => {
   it("decrypts + returns the install row", async () => {
     const env = {
       DB: mkDb({
+        id: "conn-1",
+        is_default: 1,
         app_id: "A1",
         team_id: "T1",
         team_name: "Acme",
@@ -283,6 +286,8 @@ describe("resolveSlackInstall", () => {
       ENCRYPTION_KEY: "k",
     };
     expect(await resolveSlackInstall(env, "org-1")).toEqual({
+      id: "conn-1",
+      isDefault: true,
       appId: "A1",
       teamId: "T1",
       teamName: "Acme",
@@ -299,7 +304,8 @@ describe("resolveSlackChannels", () => {
   it("returns empty IDs when no settings", async () => {
     expect(await resolveSlackChannels(mkDb(null), "org-1")).toEqual({
       fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
-      postsChannelId: "", releaseNotesChannelId: "",
+      postsChannelId: "", releaseNotesChannelId: "", fallbackConnectionId: "", noxAlertConnectionId: "",
+      unticketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
     });
   });
   it("adopts a combined NoxFeed route for both streams", async () => {
@@ -308,7 +314,8 @@ describe("resolveSlackChannels", () => {
     } }) };
     expect(await resolveSlackChannels(mkDb(row), "org-1")).toEqual({
       fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
-      postsChannelId: "CF", releaseNotesChannelId: "CF",
+      postsChannelId: "CF", releaseNotesChannelId: "CF", fallbackConnectionId: "", noxAlertConnectionId: "",
+      unticketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
     });
   });
   it("keeps dedicated NoxFeed routes distinct", async () => {
@@ -322,7 +329,8 @@ describe("resolveSlackChannels", () => {
   it("tolerates corrupt JSON", async () => {
     expect(await resolveSlackChannels(mkDb({ data: "not json" }), "org-1")).toEqual({
       fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
-      postsChannelId: "", releaseNotesChannelId: "",
+      postsChannelId: "", releaseNotesChannelId: "", fallbackConnectionId: "", noxAlertConnectionId: "",
+      unticketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
     });
   });
 
@@ -345,6 +353,18 @@ describe("resolveSlackChannels", () => {
     expect(resolveSlackRoute(channels, "unticket")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("C0");
+  });
+
+  it("resolves each service workspace independently from its channel", () => {
+    const channels = {
+      fallbackConnectionId: "conn-default",
+      noxAlertConnectionId: "conn-alerts",
+      postsConnectionId: "conn-feed",
+    };
+    expect(resolveSlackConnectionId(channels, "noxalert")).toBe("conn-alerts");
+    expect(resolveSlackConnectionId(channels, "noxfeed_posts")).toBe("conn-feed");
+    expect(resolveSlackConnectionId(channels, "unticket")).toBe("conn-default");
+    expect(resolveSlackConnectionId(channels, "noxspot", "conn-site")).toBe("conn-site");
   });
 });
 

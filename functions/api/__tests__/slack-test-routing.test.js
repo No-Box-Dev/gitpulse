@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/slack.js", () => ({
-  resolveSlackInstall: vi.fn(async () => ({ botToken: "xoxb-test" })),
+  checkSlackOrgHealth: vi.fn(async () => ({ status: "ok", recovered: false })),
+  resolveSlackInstall: vi.fn(async () => ({ id: "conn-2", botToken: "xoxb-test" })),
   postSlackMessage: vi.fn(async () => ({ ok: true, channel: "C-ALERT", ts: "1.2" })),
 }));
 
 import { onRequestPost } from "../slack/test.js";
-import { postSlackMessage } from "../../lib/slack.js";
+import { checkSlackOrgHealth, postSlackMessage } from "../../lib/slack.js";
 
 function context(body) {
+  const calls = [];
   return {
     request: new Request("https://app.unticket.ai/api/slack/test", {
       method: "POST",
@@ -18,9 +20,14 @@ function context(body) {
     data: { orgId: 7, orgLogin: "acme", isAdmin: true },
     env: {
       DB: {
-        prepare: () => ({ bind: () => ({ run: async () => ({ success: true }) }) }),
+        prepare: (sql) => ({
+          bind: (...binds) => ({
+            run: async () => { calls.push({ sql, binds }); return { success: true }; },
+          }),
+        }),
       },
     },
+    calls,
   };
 }
 
@@ -41,6 +48,20 @@ describe("Slack route tests", () => {
     const response = await onRequestPost(context({ kind: "wrong", channelId: "C-OTHER" }));
     expect(response.status).toBe(400);
     expect(postSlackMessage).not.toHaveBeenCalled();
+  });
+
+  it("verifies one workspace connection and posts a real test message", async () => {
+    const ctx = context({ kind: "connection", connectionId: "conn-2", channelId: "C-ALERT" });
+    const response = await onRequestPost(ctx);
+    expect(response.status).toBe(200);
+    expect(checkSlackOrgHealth).toHaveBeenCalledWith(expect.anything(), 7, "conn-2");
+    expect(postSlackMessage).toHaveBeenCalledWith(
+      "xoxb-test",
+      "C-ALERT",
+      expect.objectContaining({ text: "NoxConnect workspace test for acme" }),
+    );
+    expect(ctx.calls.some((call) => call.sql.includes("INSERT INTO slack_channel_status")
+      && call.binds.includes("C-ALERT"))).toBe(true);
   });
 
   it.each([

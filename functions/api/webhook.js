@@ -23,6 +23,7 @@ import { recordFailure } from "../lib/op-failures";
 import { startRepoTracking } from "../lib/repo-tracking";
 import { stageResolvedNoxAlert } from "../lib/noxalert.js";
 import { stageUnticketActivity } from "../lib/unticket-slack.js";
+import { enqueueReviewJob, cancelReviewJobs } from "../lib/review-jobs.js";
 
 // Every `waitUntil` handler that logs a failure runs after the webhook
 // response has already been returned — a plain console.error is invisible
@@ -262,6 +263,17 @@ export async function onRequestPost(context) {
       // Map merged PRs: GitHub sends action=closed with merged=true
       const pr = payload.pull_request;
       await upsertPR(db, orgId, repo, pr);
+
+      // NoxReview queueing — no-ops unless the repo is enabled in settings.
+      try {
+        if (["opened", "synchronize", "ready_for_review"].includes(action)) {
+          await enqueueReviewJob(db, orgId, orgLogin, repo, pr, action);
+        } else if (action === "closed") {
+          await cancelReviewJobs(db, orgId, repo, pr.number);
+        }
+      } catch (err) {
+        await reportWebhookFailure(db, orgLogin, "review_job", deliveryId, err, { repo, action });
+      }
 
       // Auto-register PR author as member so they appear in People page.
       if (pr.user?.login) {

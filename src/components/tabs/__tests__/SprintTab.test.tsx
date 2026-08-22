@@ -87,7 +87,7 @@ describe("SprintTab", () => {
   it("renders the setup CTA when there are no features (data null)", () => {
     mFeatures.mockReturnValue({ data: null, isLoading: false });
     renderTab();
-    expect(screen.getByRole("heading", { name: /Set up unticket/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Set up NoxTicket/i })).toBeInTheDocument();
   });
 
   it("renders the kanban columns when features load", () => {

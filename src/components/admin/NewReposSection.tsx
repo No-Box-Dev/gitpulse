@@ -99,7 +99,7 @@ export function NewReposSection() {
       <div>
         <h2 className="text-sm font-semibold text-stone-900">New repo policy</h2>
         <p className="text-xs text-stone-400 mt-1">
-          When unticket discovers a repo we haven't seen before, should it appear
+          When NoxConnect discovers a repo we haven't seen before, should it appear
           in PRs / Issues / Engineers right away — or wait for you to mark it
           tracked? Either way, you'll see a banner + dot for newly-detected
           repos in this section.

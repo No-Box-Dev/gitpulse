@@ -12,6 +12,9 @@ vi.mock("../slack.js", () => ({
   resolveSlackRoute: vi.fn((channels, service) => (
     service === "noxfeed_release_notes" ? channels.releaseNotesChannelId : channels.postsChannelId
   ) || channels.noxFeedChannelId || channels.fallbackChannelId || ""),
+  resolveSlackConnectionId: vi.fn((channels, service) => (
+    service === "noxfeed_release_notes" ? channels.releaseNotesConnectionId : channels.postsConnectionId
+  ) || channels.fallbackConnectionId || ""),
   buildPostsBlocks: vi.fn((args) => ({ blocks: ["post", args] })),
   buildReleaseNotesBlocks: vi.fn((args) => ({ blocks: ["release", args] })),
 }));

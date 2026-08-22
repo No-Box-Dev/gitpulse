@@ -200,3 +200,22 @@ describe("PUT /api/config/settings — boardStages validation", () => {
     expect(db._calls.run).toHaveLength(1);
   });
 });
+
+describe("PUT /api/config/settings — app toggles", () => {
+  it("persists optional app booleans", async () => {
+    const db = makeDb();
+    const body = { apps: { noxfeed: false, noxticket: true, noxspot: false, noxalert: true } };
+    const res = await onRequestPut(makeCtx({ db, params: { key: "settings" }, method: "PUT", body }));
+    expect(res.status).toBe(200);
+    expect(db._calls.run[0].binds[2]).toBe(JSON.stringify(body));
+  });
+
+  it("rejects NoxConnect and non-boolean app values", async () => {
+    for (const apps of [{ noxconnect: false }, { noxfeed: "yes" }]) {
+      const res = await onRequestPut(makeCtx({
+        db: makeDb(), params: { key: "settings" }, method: "PUT", body: { apps },
+      }));
+      expect(res.status).toBe(422);
+    }
+  });
+});

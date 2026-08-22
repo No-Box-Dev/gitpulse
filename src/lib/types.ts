@@ -65,7 +65,6 @@ export type TabId =
   | "prs"
   | "issues"
   | "noxalert"
-  | "noxspot"
   | "admin"
   | "posts"
   | "repos"
@@ -80,7 +79,10 @@ export interface NoxSpotSite {
   buttonText: string;
   widgetMode: "development" | "release";
   autoErrorLogging: boolean;
+  environments: NoxSpotEnvironment[];
+  blocks: NoxSpotBlock[];
   slackChannelId: string | null;
+  slackConnectionId: string | null;
   slackEffectiveChannelId: string | null;
   slackUsesFallback: boolean;
   slackHealth: "disabled" | "disconnected" | "pending" | "connected" | "degraded";
@@ -94,18 +96,22 @@ export interface NoxSpotSite {
   updatedAt: string;
 }
 
-export interface NoxSpotIssue {
+export interface NoxSpotEnvironment {
+  name: string;
+  url: string;
+  buttonColor?: string | null;
+  buttonText?: string | null;
+  widgetMode?: "development" | "release" | null;
+  enabled?: boolean;
+}
+
+export interface NoxSpotBlock {
   id: string;
-  siteName: string;
-  repo: string;
-  number: number;
-  type: "bug" | "feature" | "feedback" | "error";
-  status: "open" | "closed";
-  title: string;
-  reporterName: string | null;
-  shareUrl: string;
-  createdAt: string;
-  updatedAt: string;
+  type: string;
+  label?: string | null;
+  required?: boolean;
+  options?: unknown;
+  environments?: string[];
 }
 
 export interface NavFilter {
@@ -230,6 +236,14 @@ export interface Spec {
 }
 
 export interface OrgSettings {
+  // NoxConnect is always enabled and is therefore not stored here. Missing
+  // optional-app values default to true for backwards compatibility.
+  apps?: {
+    noxticket?: boolean;
+    noxfeed?: boolean;
+    noxspot?: boolean;
+    noxalert?: boolean;
+  };
   excludedMembers?: string[];
   unticketRepo?: string;
   boardStages?: BoardStage[];
@@ -242,10 +256,15 @@ export interface OrgSettings {
   // lives in slack_settings; config stores public channel IDs only.
   slack?: {
     fallbackChannelId?: string;
+    fallbackConnectionId?: string;
     noxAlertChannelId?: string;
+    noxAlertConnectionId?: string;
     unticketChannelId?: string;
+    unticketConnectionId?: string;
     postsChannelId?: string;
+    postsConnectionId?: string;
     releaseNotesChannelId?: string;
+    releaseNotesConnectionId?: string;
     /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
     noxFeedChannelId?: string;
   };

@@ -1,116 +1,27 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Bug, Check, Clipboard, Clock3, ExternalLink, Plus, Radar, RefreshCw, Send } from "lucide-react";
+import { AlertTriangle, Check, Clipboard, Clock3, Plus, Radar, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/cn";
 import { useFeedProjects } from "@/hooks/useNoxlink";
 import {
   useCreateNoxSpotSite,
-  useNoxSpotIssues,
+  useDeleteNoxSpotSite,
   useNoxSpotSites,
   useRetryNoxSpotDeliveries,
   useTestNoxSpotSlack,
   useUpdateNoxSpotSite,
 } from "@/hooks/useNoxSpot";
-import { fetchSlackChannels } from "@/lib/slack-api";
-import { useIsAdmin } from "@/hooks/useGitHub";
+import { fetchSlackChannels, fetchSlackStatus, type SlackConnection } from "@/lib/slack-api";
 import { fetchIntegrationsStatus } from "@/lib/integrations-api";
 import type { NoxSpotSite } from "@/lib/types";
-
-export function NoxSpotTab() {
-  const [view, setView] = useState<"issues" | "setup">("issues");
-  const isAdmin = useIsAdmin();
-  const { data: sites = [], isLoading: sitesLoading } = useNoxSpotSites();
-  const { data: issues = [], isLoading: issuesLoading } = useNoxSpotIssues();
-
-  return (
-    <div className="space-y-5" data-tab="noxspot">
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-stone-900">NoxSpot</h1>
-          <p className="text-sm text-stone-500">Capture, inspect, and share product issues.</p>
-        </div>
-        <div className="ml-auto flex rounded-lg border border-stone-200 overflow-hidden">
-          {(["issues", "setup"] as const).map((item) => (
-            <button
-              key={item}
-              onClick={() => setView(item)}
-              className={cn(
-                "px-3 py-1.5 text-xs font-medium capitalize cursor-pointer",
-                view === item ? "bg-accent text-white" : "bg-white text-stone-600 hover:bg-stone-50",
-              )}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {view === "issues" ? (
-        <IssueList issues={issues} loading={issuesLoading} hasSites={sites.length > 0} onSetup={() => setView("setup")} />
-      ) : (
-        isAdmin ? <SiteSetup sites={sites} loading={sitesLoading} /> : (
-          <Empty title="An organization admin manages NoxSpot sites and Slack channels." />
-        )
-      )}
-    </div>
-  );
-}
-
-function IssueList({
-  issues,
-  loading,
-  hasSites,
-  onSetup,
-}: {
-  issues: ReturnType<typeof useNoxSpotIssues>["data"] extends infer T ? NonNullable<T> : never;
-  loading: boolean;
-  hasSites: boolean;
-  onSetup: () => void;
-}) {
-  if (loading) return <Loading />;
-  if (!hasSites) return <Empty title="Set up your first capture site" action="Open setup" onAction={onSetup} />;
-  if (!issues.length) return <Empty title="No captured issues yet" />;
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-      {issues.map((issue, index) => (
-        <div key={issue.id} className={cn("p-4 sm:flex sm:items-center gap-4", index > 0 && "border-t border-stone-100")}>
-          <div className="flex min-w-0 flex-1 gap-3">
-            <div className="mt-0.5 rounded-lg bg-orange-50 p-2 text-accent"><Bug size={16} /></div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-stone-900 truncate">{issue.title}</span>
-                <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] capitalize text-stone-500">{issue.type}</span>
-              </div>
-              <p className="mt-1 text-xs text-stone-400">
-                {issue.repo} #{issue.number} · {new Date(issue.createdAt).toLocaleString()}
-              </p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-2 sm:mt-0">
-            <span className="rounded-full bg-stone-100 px-2 py-1 text-xs capitalize text-stone-500">{issue.status}</span>
-            <a href={issue.shareUrl} target="_blank" rel="noreferrer" className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700" title="Open shared issue">
-              <ExternalLink size={15} />
-            </a>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>; loading: boolean }) {
   const { data: projects = [] } = useFeedProjects();
   const activeProjects = useMemo(() => projects.filter((project) => !project.archived), [projects]);
   const create = useCreateNoxSpotSite();
   const integrations = useQuery({ queryKey: ["integrations-status"], queryFn: fetchIntegrationsStatus, staleTime: 30_000 });
-  const slackChannels = useQuery({
-    queryKey: ["slack-channels"],
-    queryFn: () => fetchSlackChannels().then((result) => result.channels),
-    enabled: Boolean(integrations.data?.slack.connected && integrations.data?.canConfigure),
-    staleTime: 60_000,
-  });
+  const slackStatus = useQuery({ queryKey: ["slack-status"], queryFn: fetchSlackStatus, staleTime: 30_000 });
   const [name, setName] = useState("");
   const [projectId, setProjectId] = useState("");
 
@@ -127,7 +38,7 @@ function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof us
       <form onSubmit={submit} className="h-fit space-y-4 rounded-xl border border-stone-200 bg-white p-5">
         <div>
           <h2 className="font-medium text-stone-900">Add a capture site</h2>
-          <p className="mt-1 text-xs text-stone-500">It uses this Unticket organization, project access, and Slack connection.</p>
+          <p className="mt-1 text-xs text-stone-500">It uses this NoxConnect organization, GitHub project access, and optional Slack connection.</p>
         </div>
         <label className="block text-xs font-medium text-stone-600">
           Name
@@ -151,7 +62,8 @@ function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof us
             key={site.id}
             site={site}
             slackConnected={Boolean(integrations.data?.slack.connected && integrations.data?.canConfigure)}
-            channels={slackChannels.data ?? []}
+            connections={slackStatus.data?.connections ?? []}
+            defaultConnectionId={slackStatus.data?.defaultConnectionId ?? ""}
             fallbackChannelId={integrations.data?.slack.channels.fallback ?? ""}
           />
         ))}
@@ -160,21 +72,36 @@ function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof us
   );
 }
 
+export function NoxSpotAdminSetup() {
+  const { data: sites = [], isLoading } = useNoxSpotSites();
+  return <SiteSetup sites={sites} loading={isLoading} />;
+}
+
 function SiteCard({
   site,
   slackConnected,
-  channels,
+  connections,
+  defaultConnectionId,
   fallbackChannelId,
 }: {
   site: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>[number];
   slackConnected: boolean;
-  channels: { id: string; name: string }[];
+  connections: SlackConnection[];
+  defaultConnectionId: string;
   fallbackChannelId: string;
 }) {
   const [copied, setCopied] = useState(false);
   const update = useUpdateNoxSpotSite();
+  const deleteSite = useDeleteNoxSpotSite();
   const testSlack = useTestNoxSpotSlack();
   const retryDeliveries = useRetryNoxSpotDeliveries();
+  const connectionId = site.slackConnectionId || defaultConnectionId;
+  const slackChannels = useQuery({
+    queryKey: ["slack-channels", connectionId || "default"],
+    queryFn: () => fetchSlackChannels(connectionId).then((result) => result.channels),
+    enabled: slackConnected && Boolean(connectionId),
+    staleTime: 60_000,
+  });
   const snippet = `<script src="https://api.noxspot.dev/widget/${site.id}.js" defer></script>`;
   const copy = async () => {
     await navigator.clipboard.writeText(snippet);
@@ -192,6 +119,19 @@ function SiteCard({
           </div>
           <p className="mt-1 text-xs text-stone-400">{site.openIssueCount} open · {site.issueCount} total</p>
         </div>
+        <button
+          type="button"
+          disabled={deleteSite.isPending}
+          onClick={() => {
+            if (window.confirm(`Delete ${site.name} and all of its stored screenshots? GitHub issues will remain.`)) {
+              deleteSite.mutate(site.id);
+            }
+          }}
+          className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          title="Delete capture site"
+        >
+          <Trash2 size={15} />
+        </button>
       </div>
       <div className="mt-4 flex items-center gap-2 rounded-lg bg-stone-950 px-3 py-2.5">
         <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-xs text-stone-200">{snippet}</code>
@@ -199,20 +139,67 @@ function SiteCard({
           {copied ? <Check size={15} /> : <Clipboard size={15} />}
         </button>
       </div>
+      <details className="mt-3 rounded-lg border border-stone-200 p-3">
+        <summary className="cursor-pointer text-xs font-medium text-stone-600">Widget behavior</summary>
+        <form
+          className="mt-3 grid gap-3 sm:grid-cols-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            update.mutate({
+              id: site.id,
+              buttonColor: String(data.get("buttonColor")),
+              buttonText: String(data.get("buttonText")),
+              widgetMode: data.get("widgetMode") === "release" ? "release" : "development",
+              autoErrorLogging: data.get("autoErrorLogging") === "on",
+            });
+          }}
+        >
+          <label className="text-xs font-medium text-stone-500">Button text
+            <input name="buttonText" defaultValue={site.buttonText} required maxLength={40} className="mt-1 w-full rounded-lg border border-stone-200 px-2 py-1.5 text-xs" />
+          </label>
+          <label className="text-xs font-medium text-stone-500">Button color
+            <input name="buttonColor" type="color" defaultValue={site.buttonColor} className="mt-1 h-8 w-full rounded-lg border border-stone-200 p-1" />
+          </label>
+          <label className="text-xs font-medium text-stone-500">Reporter experience
+            <select name="widgetMode" defaultValue={site.widgetMode} className="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs">
+              <option value="development">Development</option>
+              <option value="release">Release</option>
+            </select>
+          </label>
+          <label className="flex items-end gap-2 pb-1 text-xs font-medium text-stone-500">
+            <input name="autoErrorLogging" type="checkbox" defaultChecked={site.autoErrorLogging} /> Automatically report browser errors
+          </label>
+          <button type="submit" disabled={update.isPending} className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50 sm:col-span-2">
+            {update.isPending ? "Saving…" : "Save widget behavior"}
+          </button>
+        </form>
+      </details>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="text-xs font-medium text-stone-500" htmlFor={`spot-slack-${site.id}`}>Slack alerts</label>
         <SlackHealthBadge health={site.slackHealth} />
         {slackConnected ? (
-          <select
-            id={`spot-slack-${site.id}`}
-            value={site.slackChannelId ?? ""}
-            disabled={update.isPending}
-            onChange={(event) => update.mutate({ id: site.id, slackChannelId: event.target.value || null })}
-            className="min-w-48 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"
-          >
-            <option value="">{fallbackChannelId ? "Organization fallback" : "No channel"}</option>
-            {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
-          </select>
+          <>
+            <select
+              aria-label={`Slack workspace for ${site.name}`}
+              value={connectionId}
+              disabled={update.isPending}
+              onChange={(event) => update.mutate({ id: site.id, slackConnectionId: event.target.value || null, slackChannelId: null })}
+              className="min-w-40 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"
+            >
+              {connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.teamName}</option>)}
+            </select>
+            <select
+              id={`spot-slack-${site.id}`}
+              value={site.slackChannelId ?? ""}
+              disabled={update.isPending || slackChannels.isLoading}
+              onChange={(event) => update.mutate({ id: site.id, slackConnectionId: connectionId, slackChannelId: event.target.value || null })}
+              className="min-w-48 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"
+            >
+              <option value="">{fallbackChannelId ? "Organization fallback" : "No channel"}</option>
+              {(slackChannels.data ?? []).map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
+          </>
         ) : (
           <span className="text-xs text-stone-400">Connect Slack once in Integrations to enable alerts.</span>
         )}

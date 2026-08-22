@@ -118,6 +118,13 @@ export async function onRequest(context) {
     return context.next();
   }
 
+  // NoxReview runner API — called by the local noxreview runner on Jasper's
+  // Mac, not by a browser session. Handlers verify their own bearer token
+  // (REVIEW_RUNNER_TOKEN) with a constant-time compare.
+  if (url.pathname.startsWith("/api/review/")) {
+    return context.next();
+  }
+
   // Skip middleware for non-API routes
   if (!url.pathname.startsWith("/api/")) {
     return context.next();

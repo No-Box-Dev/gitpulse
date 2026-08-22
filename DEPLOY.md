@@ -78,7 +78,11 @@ npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name unticket
 npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name unticket
 ```
 
-Generate `ENCRYPTION_KEY` with `openssl rand -hex 32`.
+Generate `ENCRYPTION_KEY` with `openssl rand -hex 32`. `REVIEW_RUNNER_TOKEN` (generate the same way) authorizes the local noxreview runner against `/api/review/*` — keep it out of any client-visible config:
+
+```bash
+npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name unticket
+```
 
 The **cron Worker** needs its own copy of the secrets it uses:
 
@@ -113,8 +117,9 @@ complete Slack's checklist, and activate unlisted public distribution. Do not
 publish a second Slack app per product: admins start OAuth from Unticket's
 **Setup** tab, and the resulting encrypted workspace token is shared by
 NoxAlert, NoxFeed, NoxKey, NoxSpot, and NoxTicket for that Nox organization.
-The organization stores a fallback plus service-specific NoxAlert and Unticket
-channels, with separate NoxFeed Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
+The organization can connect multiple Slack workspaces and stores a workspace +
+channel for its fallback and each service-specific route. NoxFeed has separate
+Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
 channels must invite the same NoxConnect bot before they can be selected.
 
 Nox clients discover and manage these shared providers through the authenticated

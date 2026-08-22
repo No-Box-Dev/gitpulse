@@ -7,6 +7,7 @@ vi.mock("../delivery-outbox.js", () => ({
 vi.mock("../slack.js", () => ({
   resolveSlackChannels: vi.fn(async () => ({ fallbackChannelId: "C0", noxAlertChannelId: "CA" })),
   resolveSlackRoute: vi.fn((channels) => channels.noxAlertChannelId || channels.fallbackChannelId || ""),
+  resolveSlackConnectionId: vi.fn((channels) => channels.noxAlertConnectionId || channels.fallbackConnectionId || ""),
 }));
 
 import { isNoxAlertIssue, stageResolvedNoxAlert } from "../noxalert.js";

@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-
-// jsdom has no IntersectionObserver — the sticky section nav needs a stub.
-class IntersectionObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
 
 vi.mock("@/lib/auth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/hooks/useGitHub", () => ({
@@ -171,28 +163,38 @@ describe("AdminTab", () => {
         <AdminTab />
       </MemoryRouter>,
     );
-    // Section shells + overlay are visible…
+    // NoxConnect controls are gated by default.
     expect(screen.getAllByText("Only organization admins can change this setting. Ask an admin to configure it for you.").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Maintenance operations")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance" }));
     expect(screen.getByText("Maintenance operations")).toBeInTheDocument();
-    // …but the live admin controls are not mounted.
+    // The live maintenance controls are not mounted behind the gate.
     expect(screen.queryByText("Full Re-sync")).not.toBeInTheDocument();
     expect(screen.queryByText("Live Activity Backfill")).not.toBeInTheDocument();
     expect(screen.queryByText("Posts Backfill")).not.toBeInTheDocument();
     expect(screen.queryByText("Background failures")).not.toBeInTheDocument();
     expect(screen.queryByText("Manual sync")).not.toBeInTheDocument();
-    expect(screen.getByText("Sign out")).toBeInTheDocument();
+    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
   });
 
-  it("renders all tool and maintenance sections for admins", () => {
+  it("mounts only the selected service tab for admins", () => {
     mIsAdmin.mockReturnValue(true);
     render(
       <MemoryRouter>
         <AdminTab />
       </MemoryRouter>,
     );
+    expect(screen.queryByText("Posts Backfill")).not.toBeInTheDocument();
+    expect(screen.queryByText("Full Re-sync")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "NoxFeed" }));
+    expect(screen.getByText("Posts Backfill")).toBeInTheDocument();
+    expect(screen.queryByText("Full Re-sync")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance" }));
     expect(screen.getAllByText("Full Re-sync").length).toBeGreaterThan(0);
     expect(screen.getByText("Live Activity Backfill")).toBeInTheDocument();
-    expect(screen.getByText("Posts Backfill")).toBeInTheDocument();
     expect(screen.getByText("Background failures")).toBeInTheDocument();
     expect(screen.getByText("Manual sync")).toBeInTheDocument();
     expect(screen.getByText("Sync features")).toBeInTheDocument();
@@ -207,8 +209,43 @@ describe("AdminTab", () => {
         <AdminTab />
       </MemoryRouter>,
     );
+    fireEvent.click(screen.getByRole("tab", { name: "NoxFeed" }));
     expect(screen.getAllByText("NoxFeed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Posts").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Release Notes").length).toBeGreaterThan(0);
+  });
+
+  it("persists app toggles while preserving other organization settings", () => {
+    mIsAdmin.mockReturnValue(true);
+    const mutate = vi.fn();
+    mSettings.mockReturnValue({ data: { excludedMembers: ["bot"], apps: { noxfeed: false } } });
+    mSaveSettings.mockReturnValue({ mutate, mutateAsync: vi.fn(), isPending: false });
+    render(<MemoryRouter><AdminTab /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable NoxFeed" }));
+    expect(mutate).toHaveBeenCalledWith({
+      excludedMembers: ["bot"],
+      apps: { noxfeed: true },
+    });
+  });
+
+  it("does not mount setup for a disabled app", () => {
+    mIsAdmin.mockReturnValue(true);
+    mSettings.mockReturnValue({ data: { apps: { noxfeed: false } } });
+    render(<MemoryRouter><AdminTab /></MemoryRouter>);
+    expect(screen.queryByRole("tab", { name: "NoxFeed" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Enable NoxFeed" })).not.toBeChecked();
+  });
+
+  it("restores the selected Admin tab from the URL", () => {
+    mIsAdmin.mockReturnValue(true);
+    render(
+      <MemoryRouter initialEntries={["/?tab=admin&section=admin-noxfeed"]}>
+        <AdminTab />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("tab", { name: "NoxFeed" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Posts Backfill")).toBeInTheDocument();
+    expect(screen.queryByText("Account")).not.toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ import {
   queueOutboxDelivery,
   stageSlackDelivery,
 } from "./delivery-outbox.js";
-import { resolveSlackChannels, resolveSlackRoute } from "./slack.js";
+import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } from "./slack.js";
 
 const API = "https://api.github.com";
 const LABELS = {
@@ -49,12 +49,18 @@ export async function createNoxSpotGitHubIssue(env, capture) {
     isAlert ? "noxalert" : "noxspot",
     resolvedCapture.slackChannelId,
   );
+  const slackConnectionId = resolveSlackConnectionId(
+    slackChannels,
+    isAlert ? "noxalert" : "noxspot",
+    resolvedCapture.slackChannelId ? resolvedCapture.slackConnectionId : "",
+  );
   if (slackChannelId) {
     const delivery = await stageSlackDelivery(env.DB, {
       orgId: resolvedCapture.orgId,
       source: isAlert ? "noxalert" : "noxspot",
       sourceId: resolvedCapture.captureId,
       siteId: resolvedCapture.siteId,
+      connectionId: slackConnectionId,
       channelId: slackChannelId,
       payload: { message: buildSlackPayload(resolvedCapture, issue) },
     });
@@ -134,6 +140,7 @@ function buildBody(capture, marker) {
   else if (capture.reporter) lines.push(`- **Reporter:** ${capture.reporter}`);
   if (capture.reporterEmail) lines.push(`- **Contact:** ${capture.reporterEmail}`);
   if (capture.rating) lines.push(`- **Rating:** ${capture.rating}/5`);
+  addJson(lines, "Custom fields", capture.blockValues);
   addJson(lines, "Browser context", capture.metadata);
   addJson(lines, "Selected elements", capture.elements);
   addJson(lines, "Application context", capture.context);

@@ -14,6 +14,15 @@ const SLACK_CHANNEL_KEYS = [
   "postsChannelId",
   "releaseNotesChannelId",
 ];
+const SLACK_ROUTES = [
+  ["fallbackChannelId", "fallbackConnectionId"],
+  ["noxAlertChannelId", "noxAlertConnectionId"],
+  ["unticketChannelId", "unticketConnectionId"],
+  ["postsChannelId", "postsConnectionId"],
+  ["releaseNotesChannelId", "releaseNotesConnectionId"],
+  ["noxFeedChannelId", null],
+];
+const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxalert"];
 
 const DEFAULTS = {
   features: [],
@@ -74,6 +83,17 @@ export async function onRequestPut(context) {
     && typeof body === "object"
     && Object.prototype.hasOwnProperty.call(body, "slack");
 
+  if (key === "settings" && body && typeof body === "object" && body.apps !== undefined) {
+    if (!body.apps || typeof body.apps !== "object" || Array.isArray(body.apps)) {
+      return errorResponse("apps must be an object", 422);
+    }
+    for (const [appId, enabled] of Object.entries(body.apps)) {
+      if (!OPTIONAL_APP_KEYS.includes(appId) || typeof enabled !== "boolean") {
+        return errorResponse(`Invalid app setting: ${appId}`, 422);
+      }
+    }
+  }
+
   // Board-stages validation runs before the row write so a malformed config
   // can't get persisted and break the kanban for everyone in the org.
   if (key === "settings" && body && typeof body === "object" && body.boardStages !== undefined) {
@@ -109,15 +129,17 @@ export async function onRequestPut(context) {
   }
 
   if (slackWasSupplied && body?.slack && typeof body.slack === "object") {
-    const channelIds = [...new Set(SLACK_CHANNEL_KEYS
-      .map((field) => body.slack[field])
-      .filter((value) => typeof value === "string" && value.trim())
-      .map((value) => value.trim()))];
-    if (channelIds.length > 0) {
-      const install = await resolveSlackInstall(context.env, orgId);
-      if (!install) return errorResponse("Connect Slack before selecting a channel", 409);
+    const routes = SLACK_ROUTES.flatMap(([channelKey, connectionKey]) => {
+      const channelId = typeof body.slack[channelKey] === "string" ? body.slack[channelKey].trim() : "";
+      const connectionId = connectionKey && typeof body.slack[connectionKey] === "string"
+        ? body.slack[connectionKey].trim() : null;
+      return channelId ? [{ channelId, connectionId }] : [];
+    });
+    if (routes.length > 0) {
       try {
-        for (const channelId of channelIds) {
+        for (const { channelId, connectionId } of routes) {
+          const install = await resolveSlackInstall(context.env, orgId, connectionId);
+          if (!install) return errorResponse("Connect the selected Slack workspace before choosing a channel", 409);
           const channel = await getSlackChannel(install.botToken, channelId);
           if (!channel || channel.is_archived) return errorResponse("Slack channel is archived or unavailable", 409);
           if (channel.is_private && !channel.is_member) return errorResponse("Invite the Nox bot to this private channel first", 409);
@@ -162,6 +184,7 @@ export async function onRequestPut(context) {
     const slack = body?.slack && typeof body.slack === "object" ? body.slack : {};
     const clean = (value) => typeof value === "string" ? value.trim() : "";
     const fallbackChannelId = clean(slack.fallbackChannelId);
+    const fallbackConnectionId = clean(slack.fallbackConnectionId) || null;
     // A CAS miss must not mutate the outbox. Every dependent statement is
     // guarded by the desired config value, and D1 batch executes the config
     // write + repairs in one transaction.
@@ -170,21 +193,21 @@ export async function onRequestPut(context) {
       : "";
     const configGuardBinds = compareAndSwap ? [orgId, key, serialized] : [];
     const routes = [
-      { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
-      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
-      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId },
-      { sources: ["unticket"], channelId: clean(slack.unticketChannelId) || fallbackChannelId },
+      { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.postsConnectionId) || fallbackConnectionId },
+      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || fallbackConnectionId },
+      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId, connectionId: clean(slack.noxAlertConnectionId) || fallbackConnectionId },
+      { sources: ["unticket"], channelId: clean(slack.unticketChannelId) || fallbackChannelId, connectionId: clean(slack.unticketConnectionId) || fallbackConnectionId },
     ];
-    for (const { sources, channelId } of routes) {
+    for (const { sources, channelId, connectionId } of routes) {
       const placeholders = sources.map(() => "?").join(",");
       if (channelId) {
         dependentStatements.push(context.env.DB.prepare(
-          `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+          `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
              last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
            WHERE org_id = ? AND source IN (${placeholders})
              AND destination = 'slack' AND status != 'delivered'${configGuard}`,
-        ).bind(channelId, orgId, ...sources, ...configGuardBinds));
+        ).bind(channelId, connectionId, orgId, ...sources, ...configGuardBinds));
       } else {
         dependentStatements.push(context.env.DB.prepare(
           `UPDATE delivery_outbox SET status = 'blocked_configuration',
@@ -200,14 +223,14 @@ export async function onRequestPut(context) {
     // one follow the organization fallback.
     if (fallbackChannelId) {
       dependentStatements.push(context.env.DB.prepare(
-        `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+        `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
            last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
          WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
            AND status != 'delivered' AND site_id IN (
              SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
            )${configGuard}`,
-      ).bind(fallbackChannelId, orgId, orgId, ...configGuardBinds));
+      ).bind(fallbackChannelId, fallbackConnectionId, orgId, orgId, ...configGuardBinds));
     } else {
       dependentStatements.push(context.env.DB.prepare(
         `UPDATE delivery_outbox SET status = 'blocked_configuration',

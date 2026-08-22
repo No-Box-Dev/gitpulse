@@ -1,13 +1,11 @@
 import { BellRing } from "lucide-react";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
-import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { SlackRouteField } from "@/components/admin/slack/SlackRouteField";
 import { ReadinessBadge } from "@/components/admin/ReadinessBadge";
 
 // NoxAlert-specific setup: the alert Slack route. NoxAlert requires both
 // GitHub and Slack, so it stays blocked until both connections are live.
 export function NoxAlertSection({ noxConnect }: { noxConnect: IntegrationsStatus }) {
-  const { channels, channelOptions } = useSlackChannels();
   const slackConnected = noxConnect.slack.connected;
 
   return (
@@ -31,14 +29,11 @@ export function NoxAlertSection({ noxConnect }: { noxConnect: IntegrationsStatus
             helpText="Errors and resolved alerts. Empty uses the organization fallback."
             kind="noxalert"
             routeKey="noxAlertChannelId"
-            options={channelOptions}
-            channelsLoading={channels.isLoading}
-            channelsError={channels.isError}
           />
         </div>
       ) : (
         <p className="text-xs text-stone-400 border-t border-stone-100 pt-4">
-          Connect Slack in General to enable alerts and choose a channel.
+          Connect Slack in NoxConnect to enable alerts and choose a channel.
         </p>
       )}
     </div>

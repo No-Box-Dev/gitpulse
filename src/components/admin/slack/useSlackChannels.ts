@@ -5,7 +5,7 @@ import { fetchSlackChannels, fetchSlackStatus } from "@/lib/slack-api";
 // Shared Slack queries used by the connection card and every per-tool route
 // field. React Query dedupes the ["slack-status"] / ["slack-channels"] keys,
 // so multiple consumers mount one network request per key.
-export function useSlackChannels() {
+export function useSlackChannels(connectionId?: string) {
   const status = useQuery({
     queryKey: ["slack-status"],
     queryFn: () => fetchSlackStatus(),
@@ -13,8 +13,8 @@ export function useSlackChannels() {
     refetchOnMount: "always",
   });
   const channels = useQuery({
-    queryKey: ["slack-channels"],
-    queryFn: () => fetchSlackChannels().then((r) => r.channels),
+    queryKey: ["slack-channels", connectionId ?? "default"],
+    queryFn: () => fetchSlackChannels(connectionId).then((r) => r.channels),
     enabled: !!status.data?.connected && !!status.data?.canConfigure,
     staleTime: 60_000,
   });

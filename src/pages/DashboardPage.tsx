@@ -5,6 +5,7 @@ import { useRepos } from "@/hooks/useGitHub";
 import { useSettings } from "@/hooks/useConfigRepo";
 import { useNoxConnect } from "@/hooks/useNoxConnect";
 import { setUnticketRepoName } from "@/lib/unticket-repo-name";
+import { getDefaultEnabledTab, getEnabledNoxApps, isTabEnabled } from "@/lib/apps";
 import { TopNav } from "@/components/TopNav";
 import { Spinner } from "@/components/Spinner";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -18,18 +19,19 @@ const SpecsTab = lazy(() => import("@/components/tabs/SpecsTab").then(m => ({ de
 const CurrentTab = lazy(() => import("@/components/tabs/CurrentTab").then(m => ({ default: m.CurrentTab })));
 const IssuesTab = lazy(() => import("@/components/tabs/IssuesTab").then(m => ({ default: m.IssuesTab })));
 const NoxAlertTab = lazy(() => import("@/components/tabs/NoxAlertTab").then(m => ({ default: m.NoxAlertTab })));
-const NoxSpotTab = lazy(() => import("@/components/tabs/NoxSpotTab").then(m => ({ default: m.NoxSpotTab })));
 const AdminTab = lazy(() => import("@/components/tabs/AdminTab").then(m => ({ default: m.AdminTab })));
 const PostsTab = lazy(() => import("@/components/tabs/PostsTab").then(m => ({ default: m.PostsTab })));
 const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then(m => ({ default: m.ReposTab })));
 
-const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxalert", "noxspot", "admin", "posts", "repos", "engineers"]);
+const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxalert", "admin", "posts", "repos", "engineers"]);
 
 export function DashboardPage() {
   const { selectedOrg } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: repos } = useRepos();
-  const { data: settings } = useSettings();
+  const settingsQuery = useSettings();
+  const settings = settingsQuery.data;
+  const enabledApps = useMemo(() => getEnabledNoxApps(settings), [settings]);
   const noxConnect = useNoxConnect();
   useEffect(() => {
     setUnticketRepoName(settings?.unticketRepo);
@@ -41,14 +43,21 @@ export function DashboardPage() {
 
   const tabParam = searchParams.get("tab");
   const shouldStartOnSetup = !tabParam && noxConnect.data?.setup.needsOnboarding === true;
-  const activeTab: TabId = tabParam && VALID_TABS.has(tabParam)
-    ? tabParam as TabId
-    : shouldStartOnSetup ? "admin" : "issues";
+  const requestedTab = tabParam && VALID_TABS.has(tabParam) ? tabParam as TabId : null;
+  const fallbackTab = getDefaultEnabledTab(enabledApps);
+  const activeTab: TabId = requestedTab && isTabEnabled(requestedTab, enabledApps)
+    ? requestedTab
+    : shouldStartOnSetup ? "admin" : fallbackTab;
 
   useEffect(() => {
-    if (!shouldStartOnSetup) return;
-    setSearchParams({ tab: "admin" }, { replace: true });
-  }, [setSearchParams, shouldStartOnSetup]);
+    if (shouldStartOnSetup && !requestedTab) {
+      setSearchParams({ tab: "admin" }, { replace: true });
+      return;
+    }
+    if (tabParam && activeTab !== tabParam) {
+      setSearchParams(activeTab === "issues" ? {} : { tab: activeTab }, { replace: true });
+    }
+  }, [activeTab, requestedTab, setSearchParams, shouldStartOnSetup, tabParam]);
   const rawF = searchParams.get("f");
   const featureId = rawF ? (Number.isFinite(Number(rawF)) ? Number(rawF) : undefined) : undefined;
   const personParam = searchParams.get("person") ?? undefined;
@@ -69,8 +78,8 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col min-h-screen bg-stone-50">
       <BootstrapOverlay />
-      <CommandPalette onNavigate={handleTabChange} />
-      <TopNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <CommandPalette onNavigate={handleTabChange} enabledApps={enabledApps} />
+      <TopNav activeTab={activeTab} onTabChange={handleTabChange} enabledApps={enabledApps} />
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
         <NewRepoBanner
@@ -93,7 +102,6 @@ export function DashboardPage() {
             )}
             {activeTab === "issues" && <IssuesTab repoNames={repoNames} navFilter={navFilter} />}
             {activeTab === "noxalert" && <NoxAlertTab />}
-            {activeTab === "noxspot" && <NoxSpotTab />}
             {activeTab === "posts" && <PostsTab />}
             {activeTab === "repos" && <ReposTab repoNames={repoNames} />}
           </ErrorBoundary>

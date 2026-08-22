@@ -4,6 +4,9 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useSettings, useSaveSettings } from "@/hooks/useConfigRepo";
 import { apiPost } from "@/lib/api";
 import type { OrgSettings } from "@/lib/types";
+import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
+import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelStatusBadge";
+import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 
 // Slack test-message kinds understood by /api/slack/test. Kept in sync with
 // the server's kind validation.
@@ -23,6 +26,14 @@ export type SlackRouteKey =
   | "postsChannelId"
   | "releaseNotesChannelId";
 
+const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack"]>> = {
+  fallbackChannelId: "fallbackConnectionId",
+  noxAlertChannelId: "noxAlertConnectionId",
+  unticketChannelId: "unticketConnectionId",
+  postsChannelId: "postsConnectionId",
+  releaseNotesChannelId: "releaseNotesConnectionId",
+};
+
 // The briefly-used combined feed selection. Both NoxFeed routes adopt it as
 // their persisted value until an admin saves dedicated choices.
 function legacyNoxFeedAdopted(key: SlackRouteKey, settings: OrgSettings | null | undefined): string {
@@ -39,25 +50,33 @@ export function SlackRouteField({
   helpText,
   kind,
   routeKey,
-  options,
-  channelsLoading,
-  channelsError,
 }: {
   label: string;
   helpText: string;
   kind: SlackKind;
   routeKey: SlackRouteKey;
-  options: { value: string; label: string }[];
-  channelsLoading: boolean;
-  channelsError: boolean;
 }) {
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
+  const connectionKey = CONNECTION_KEY[routeKey];
+  const baseSlack = settings?.slack;
+  const statusQuery = useSlackChannels();
+  const defaultConnectionId = statusQuery.status.data?.defaultConnectionId ?? "";
+  const persistedConnectionId = String(baseSlack?.[connectionKey] ?? defaultConnectionId);
+  const [connectionOverride, setConnectionOverride] = useState<string | null>(null);
+  const connectionId = connectionOverride ?? persistedConnectionId;
+  const selectedWorkspace = useSlackChannels(connectionId || undefined);
+  const workspaceOptions = (statusQuery.status.data?.connections ?? []).map((connection) => ({
+    value: connection.id,
+    label: `${connection.teamName}${connection.isDefault ? " · default" : ""}`,
+  }));
+  const options = selectedWorkspace.channelOptions;
 
   const persisted = settings?.slack?.[routeKey] ?? legacyNoxFeedAdopted(routeKey, settings);
   const [draftOverride, setDraftOverride] = useState<string | null>(null);
   const value = draftOverride ?? persisted;
-  const isDirty = draftOverride !== null && value.trim() !== persisted.trim();
+  const isDirty = (draftOverride !== null && value.trim() !== persisted.trim())
+    || (connectionOverride !== null && connectionId !== persistedConnectionId);
 
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,12 +105,18 @@ export function SlackRouteField({
       }
       delete slack.noxFeedChannelId;
       const trimmed = value.trim();
-      if (trimmed) slack[routeKey] = trimmed;
-      else delete slack[routeKey];
+      if (trimmed) {
+        slack[routeKey] = trimmed;
+        slack[connectionKey] = connectionId;
+      } else {
+        delete slack[routeKey];
+        delete slack[connectionKey];
+      }
       const next: OrgSettings = { ...settings, slack };
       if (Object.keys(slack).length === 0) delete next.slack;
       await saveSettings.mutateAsync(next);
       setDraftOverride(null);
+      setConnectionOverride(null);
       setSavedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -109,9 +134,11 @@ export function SlackRouteField({
     setTesting(true);
     setTestStatus(null);
     try {
-      await apiPost("/api/slack/test", { channelId, kind });
+      await apiPost("/api/slack/test", { connectionId, channelId, kind });
+      await statusQuery.status.refetch();
       setTestStatus({ ok: true, msg: "Test message posted." });
     } catch (err) {
+      await statusQuery.status.refetch();
       setTestStatus({ ok: false, msg: err instanceof Error ? err.message : String(err) });
     } finally {
       setTesting(false);
@@ -125,19 +152,33 @@ export function SlackRouteField({
         <span className="text-xs text-stone-400">{helpText}</span>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
+        <div className="min-w-[190px] flex-1">
+          <SearchableSelect
+            value={connectionId}
+            onChange={(next) => { setConnectionOverride(next); setDraftOverride(""); }}
+            options={workspaceOptions}
+            placeholder="Select workspace"
+            className="w-full"
+          />
+        </div>
         <div className="flex-1 min-w-[240px]">
           <SearchableSelect
             value={value}
             onChange={(next) => setDraftOverride(next)}
             options={options}
             placeholder={
-              channelsLoading ? "Loading channels…" :
-              channelsError ? "Failed to load channels" :
+              selectedWorkspace.channels.isLoading ? "Loading channels…" :
+              selectedWorkspace.channels.isError ? "Failed to load channels" :
               "— No channel —"
             }
             className="w-full"
           />
         </div>
+        {value.trim() ? (
+          <SlackChannelStatusBadge
+            status={findSlackChannelStatus(statusQuery.status.data?.channelStatuses, connectionId, value.trim())}
+          />
+        ) : null}
         <button
           type="button"
           onClick={handleSave}

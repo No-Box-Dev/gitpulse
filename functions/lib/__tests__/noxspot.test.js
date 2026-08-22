@@ -79,6 +79,11 @@ describe("createNoxSpotGitHubIssue", () => {
     });
   });
 
+  it("rejects unknown explicit capture contract versions", async () => {
+    await expect(createNoxSpotGitHubIssue({ DB: db() }, { ...capture, version: 2 }))
+      .rejects.toThrow("Unsupported NoxSpot capture version: 2");
+  });
+
   it("creates one labeled GitHub issue, mirrors it, and emits the feed event", async () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => [] })

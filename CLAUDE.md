@@ -93,6 +93,25 @@ New backend code (Pages Functions + cron) is written in **TypeScript**, not JS. 
 - `functions/_middleware.js`, `functions/api/_middleware.js` — auth middleware (webhook route bypasses auth)
 - `functions/lib/github-sync.js`, `functions/lib/db.js`, `functions/lib/crypto.js` — server-side helpers
 
+### NoxSpot public capture Worker
+
+`workers/noxspot-capture/` is a separate Unticket-owned Cloudflare Worker for
+the anonymous cross-origin NoxSpot capture surface. It is intentionally not a
+Pages Function and never uses Unticket browser bearer tokens. Versioned routes
+live under `/api/spots/public/v1`; legacy `/sites/:id/config`, `/report`,
+`/errors`, `/r2/*`, `/v1/widget.js`, and `/widget/:id.js` remain compatibility
+aliases during cutover. The Worker reads `spot_sites`, enforces enabled origin
+allowlists, streams bounded JSON, stores temporary screenshots in R2, applies
+IP and per-site limits through a sharded SQLite Durable Object, and sends a
+versioned `spot_create_github_issue` task through `unticket-tasks`. The cron
+queue consumer remains the only GitHub/Slack delivery owner. A daily scheduled
+handler deletes screenshots older than 90 days.
+
+The Worker has its own `package.json`, generated `worker-configuration.d.ts`,
+Wrangler JSONC config, Workers-runtime tests, CI job, and deploy step. Run it
+with `npm --prefix workers/noxspot-capture test` and validate deployment with
+`npm --prefix workers/noxspot-capture run build`.
+
 ### Sync System
 Batched cursor-based sync: `triggerSync()` (in `src/lib/github.ts`) calls `POST /api/sync` in a loop — first call runs `syncInit` (config migration, repos, members), subsequent calls sync one repo at a time via cursor until `done: true`. This prevents Cloudflare Function timeouts with many repos. `triggerSyncWithProgress()` wraps this with a callback for UI progress updates (used by Issues and PRs tab sync buttons). Staleness checked via `useSyncStatus()`, triggered via `useTriggerSync()` (both in `src/hooks/useGitHub.ts`).
 
@@ -186,9 +205,18 @@ The organization onboarding surface shows the required GitHub connection, option
 
 The same setup is API-first for AI agents. `/api/integrations/setup` reports dependencies, completion state, executable actions, and human-only OAuth handoffs. Channel discovery, partial routing, route tests, provider disconnects, NoxSpot sites, and NoxAlert project/key setup are all documented in the public OpenAPI contract. Agents can discover it through `/llms.txt`; provider secrets never enter the contract.
 
-Slack OAuth pins the authorize page to a workspace: start defaults to the org's currently connected team so reconnects can't silently hop workspaces, `POST /api/integrations/connections/slack/start` with `{ "team": "T..." }` pins a specific workspace, and `{ "team": "" }` (the UI's **Switch workspace** button) leaves the choice to Slack's own picker.
-
-NoxSpot site configuration is organization-scoped in `spot_sites` (migration `0050_noxspot_sites.sql`). It stores project/widget/channel references only; GitHub and Slack credentials continue to come from the shared NoxConnect installation records.
+NoxSpot site configuration is organization-scoped in `spot_sites` (migration
+`0050_noxspot_sites.sql`). It stores project/widget/channel references only;
+GitHub and Slack credentials continue to come from the shared NoxConnect
+installation records. NoxSpot has no product tab: its complete management
+surface lives in Admin -> NoxSpot. Admins manage sites, installation snippets,
+appearance, reporter mode, automatic errors, enabled origin environments,
+environment overrides, ordered report-form blocks, and per-site Slack routing.
+Environment and block edits are saved atomically so renamed environments cannot
+leave stale block scopes. Supported block types are validated against the
+widget renderer. Site changes write actor-scoped audit rows through migration
+`0056_noxspot_config_audit.sql`; site deletion removes its screenshot prefix
+before deleting configuration while leaving canonical GitHub issues intact.
 
 ### Posts feed (`posts` tab — Opened / Merged / Release notes + Social / Technical toggles)
 The feed tab renders one of three views via a top toggle (`FeedModeToggle` in `PostsTab.tsx`): **Opened** (first-person "opened a PR" posts, `FeedMode = "opened"`), **Merged** (first-person merge posts) or **Release notes** (structured release notes). Opened and Merged also expose a local **Social / Technical** toggle: Social renders `events.summary`; Technical renders the stored three-line `events.technical_summary`. Switching presentation does not change the query or refetch the feed. Release notes keep their existing structured view and hide the secondary toggle. All three share the same People + Repo filters and the same `PostCard` renderer. The `mode` arg on `useInfinitePosts` swaps the `events.type` filter — `pr_narrative` / `narrative` / `release_notes` — and swaps the trigger-type allowlist between `PR_FEED_TRIGGER_TYPES = ['github:pr:opened']` (Opened mode) and `POST_TRIGGER_TYPES = ['github:pr:merged']` (Merged + Release notes). See "Narration (three voices, one PR lifecycle)" above for how a single PR's text moves through all three feeds as it opens → merges.

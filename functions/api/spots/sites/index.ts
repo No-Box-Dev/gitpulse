@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCtx, jsonResponse, errorResponse } from "../../../lib/db";
 import { validate } from "../../../lib/validate";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../lib/nox-db";
+import { noxSpotAuditStatement } from "../../../lib/noxspot-audit";
 
 interface Ctx {
   env: NoxDatabaseEnv;
@@ -119,7 +120,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 export async function onRequestPost(context: Ctx): Promise<Response> {
-  const { orgId, orgLogin, isAdmin } = getCtx(context) as Ctx["data"];
+  const { orgId, orgLogin, userLogin, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
   const db = getNoxDb(context.env);
@@ -137,7 +138,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   if (!project?.repo) return errorResponse("Active project not found in this organization", 400);
 
   const id = crypto.randomUUID();
-  await db.prepare(
+  const insertSite = db.prepare(
     `INSERT INTO spot_sites
        (id, org_id, project_id, repo, name, widget_config, slack_channel_id)
      VALUES (?, ?, ?, ?, ?, ?, NULL)`,
@@ -151,7 +152,17 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       environments: [],
       blocks: [],
     }),
-  ).run();
+  );
+  await db.batch([
+    insertSite,
+    noxSpotAuditStatement(db, {
+      orgId,
+      siteId: id,
+      actorLogin: userLogin,
+      action: "site.created",
+      changes: { name: input.name, projectId: input.projectId },
+    }),
+  ]);
 
   const row = await db.prepare(
     `SELECT ${SITE_SELECT},

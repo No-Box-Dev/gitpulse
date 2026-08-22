@@ -107,10 +107,10 @@ export interface NoxSpotEnvironment {
 
 export interface NoxSpotBlock {
   id: string;
-  type: string;
+  type: "title" | "description" | "reporter" | "contact_email" | "custom_text" | "custom_textarea" | "custom_select" | "element_picker" | "metadata" | "console_logs";
   label?: string | null;
   required?: boolean;
-  options?: unknown;
+  options?: string[];
   environments?: string[];
 }
 

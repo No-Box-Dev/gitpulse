@@ -108,6 +108,15 @@ async function resolveCaptureFromSetup(db, capture) {
 }
 
 function requireCapture(capture) {
+  // Version-less tasks are accepted temporarily so messages produced by the
+  // legacy NoxSpot Worker can drain during cutover. Every Unticket-owned
+  // producer emits version 1; unknown explicit versions fail into Queue retry
+  // and the DLQ instead of being interpreted with the wrong contract.
+  if (capture?.version !== undefined && capture.version !== 1) {
+    throw new Error(`Unsupported NoxSpot capture version: ${capture.version}`);
+  }
+  // Repository and routing identity are deliberately resolved again from the
+  // organization-scoped site row instead of trusting Queue input.
   for (const field of ["captureId", "orgId", "siteId", "title"]) {
     if (!capture?.[field]) throw new Error(`Invalid NoxSpot capture: missing ${field}`);
   }

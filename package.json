@@ -14,8 +14,13 @@
     "slack:validate": "node scripts/slack-manifest.mjs validate",
     "slack:create": "node scripts/slack-manifest.mjs create",
     "slack:push": "node scripts/slack-manifest.mjs push",
+    "migrate:noxspot": "node scripts/migrate-noxspot.mjs",
+    "publish:noxspot-widget": "node scripts/publish-noxspot-widget.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:noxspot-capture": "npm --prefix workers/noxspot-capture test",
+    "typecheck:noxspot-capture": "npm --prefix workers/noxspot-capture exec tsc -- --noEmit",
+    "build:noxspot-capture": "npm --prefix workers/noxspot-capture run build"
   },
   "dependencies": {
     "@octokit/plugin-paginate-rest": "^14.0.0",

@@ -15,6 +15,7 @@ import {
 import { fetchSlackChannels, fetchSlackStatus, type SlackConnection } from "@/lib/slack-api";
 import { fetchIntegrationsStatus } from "@/lib/integrations-api";
 import type { NoxSpotSite } from "@/lib/types";
+import { NoxSpotWidgetConfiguration } from "@/components/admin/tools/NoxSpotWidgetConfiguration";
 
 function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>; loading: boolean }) {
   const { data: projects = [] } = useFeedProjects();
@@ -175,6 +176,7 @@ function SiteCard({
           </button>
         </form>
       </details>
+      <NoxSpotWidgetConfiguration site={site} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="text-xs font-medium text-stone-500" htmlFor={`spot-slack-${site.id}`}>Slack alerts</label>
         <SlackHealthBadge health={site.slackHealth} />

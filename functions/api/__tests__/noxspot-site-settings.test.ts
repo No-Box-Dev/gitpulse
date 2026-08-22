@@ -15,6 +15,9 @@ function database() {
   const runs: Array<{ sql: string; binds: unknown[] }> = [];
   return {
     runs,
+    async batch(statements: Array<{ run: () => Promise<unknown> }>) {
+      return Promise.all(statements.map((statement) => statement.run()));
+    },
     prepare(sql: string) {
       const statement = {
         binds: [] as unknown[],
@@ -33,7 +36,7 @@ function database() {
 function context(db: ReturnType<typeof database>, body: unknown) {
   return {
     env: { DB: db, ENCRYPTION_KEY: "key", TASK_QUEUE: { send: vi.fn() } },
-    data: { orgId: 7, isAdmin: true },
+    data: { orgId: 7, userLogin: "admin", isAdmin: true },
     params: { id: "site-1" },
     request: new Request("https://app.unticket.ai/api/spots/sites/site-1", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -78,5 +81,46 @@ describe("NoxSpot Slack site settings", () => {
     expect(response.status).toBe(200);
     expect(db.runs.some((run) => run.binds[0] === "C-FALLBACK" && run.sql.includes("source = 'noxspot'"))).toBe(true);
     expect(requeueBlockedForSite).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), 7, "site-1");
+  });
+});
+
+describe("NoxSpot widget configuration", () => {
+  it("rejects duplicate environment names", async () => {
+    const response = await onRequestPatch(context(database(), {
+      environments: [
+        { name: "Production", url: "app.example.com" },
+        { name: "production", url: "staging.example.com" },
+      ],
+    }) as never);
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects blocks that reference an unknown environment", async () => {
+    const response = await onRequestPatch(context(database(), {
+      environments: [{ name: "Production", url: "app.example.com" }],
+      blocks: [
+        { id: "title", type: "title", required: true },
+        { id: "impact", type: "custom_text", environments: ["Staging"] },
+      ],
+    }) as never);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("unknown environment") });
+  });
+
+  it("stores a validated environment and form configuration together", async () => {
+    const db = database();
+    const response = await onRequestPatch(context(db, {
+      environments: [{ name: "Production", url: "app.example.com", enabled: true }],
+      blocks: [
+        { id: "title", type: "title", required: true },
+        { id: "impact", type: "custom_select", label: "Impact", options: ["Low", "High"], environments: ["Production"] },
+      ],
+    }) as never);
+    expect(response.status).toBe(200);
+    const update = db.runs.find((run) => run.sql.includes("UPDATE spot_sites SET"));
+    expect(JSON.parse(String(update?.binds[2]))).toMatchObject({
+      environments: [{ name: "Production" }],
+      blocks: [{ id: "title" }, { id: "impact", options: ["Low", "High"] }],
+    });
   });
 });

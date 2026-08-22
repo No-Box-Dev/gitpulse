@@ -1,6 +1,8 @@
 # Self-hosting Unticket
 
-Unticket runs on Cloudflare: a Pages project (frontend + API Functions), a D1 database, a sibling cron Worker, a Queue, and an R2 bucket. This guide walks a fresh deploy end to end.
+Unticket runs on Cloudflare: a Pages project (frontend + authenticated API
+Functions), a public NoxSpot capture Worker, a D1 database, a sibling cron
+Worker, a Queue, and R2 buckets. This guide walks a fresh deploy end to end.
 
 > Unticket is source-available under the [PolyForm Noncommercial License](./LICENSE). Self-hosting for non-commercial use is fine; commercial use is not.
 
@@ -34,6 +36,9 @@ npx wrangler queues create unticket-tasks-dlq
 
 # R2 bucket for event-table archival
 npx wrangler r2 bucket create unticket-events-archive
+
+# R2 bucket for immutable NoxSpot widget assets and temporary screenshots
+npx wrangler r2 bucket create noxspot-assets
 ```
 
 Apply migrations to the remote DB:
@@ -133,9 +138,22 @@ returns provider credentials or encrypted tokens.
 npm run build
 npx wrangler pages deploy dist --project-name unticket --branch main
 cd cron && npx wrangler deploy && cd ..
+cd workers/noxspot-capture && npm ci && npm run types && npm test && npx wrangler deploy && cd ../..
 ```
 
-Or wire up CI: `.github/workflows/ci.yml` runs lint/typecheck/tests, and `deploy-pages.yml` deploys Pages + applies D1 migrations + deploys the cron Worker on a green `main`. It needs repo secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+Or wire up CI: `.github/workflows/ci.yml` runs lint/typecheck/tests for Pages and
+the capture Worker, and `deploy-pages.yml` deploys Pages, applies D1 migrations,
+and deploys both Workers on a green `main`. It needs repo secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+The NoxSpot capture Worker has no application secrets. It uses direct bindings
+to the shared D1 database, `unticket-tasks` Queue, `noxspot-assets` R2 bucket,
+and its sharded rate-limit Durable Object. After its first deploy, attach the
+`api.noxspot.dev` custom route only during the documented NoxSpot cutover. Keep
+the existing hostname until cached widget installations have migrated.
+The staged migration and rollback gates are documented in
+`docs/NOXSPOT_CUTOVER.md`; migration and widget publication commands default to
+read-only validation and require an explicit `--apply` to write remote state.
 
 > **Migrations run before code** — the deploy workflow applies D1 migrations before `pages deploy` for this reason. If you deploy manually, run `d1 migrations apply` first.
 
@@ -148,6 +166,9 @@ Or wire up CI: `.github/workflows/ci.yml` runs lint/typecheck/tests, and `deploy
 ## Operations
 
 - **Cron:** reconciles every 30 min (catches missed webhooks, deletes, label changes) and archives `events` older than 90 days to R2 at the 03:00 UTC tick.
+- **NoxSpot capture:** `workers/noxspot-capture` owns the anonymous config,
+  report, error, widget-asset, screenshot, abuse-control, and 90-day screenshot
+  retention surface. It deliberately does not share Pages bearer middleware.
 - **Background failures:** terminal queue failures land in the `op_failures` table; view them in Settings → Background failures (admin-only).
 - **Manual event backfill:** Settings → Live Activity Backfill (admin-only) re-derives missing events over a 30-day window. Rate-limited to once per org per day.
 - **Suspending an org:** set `suspended_at` on its `orgs` row to block all API access (`UPDATE orgs SET suspended_at = datetime('now') WHERE github_login = '<org>'`); set it back to `NULL` to restore.

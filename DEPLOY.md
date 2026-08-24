@@ -68,25 +68,26 @@ Frontend build var (public) — set in `.env.local` for local builds and as a Pa
 VITE_GITHUB_APP_CLIENT_ID=<your app client id>
 ```
 
-Server-side secrets on the **Pages** project:
+Server-side secrets on the **Pages** project. The hosted instance deliberately
+keeps the legacy `unticket` project name because it owns `app.unticket.ai`:
 
 ```bash
-npx wrangler pages secret put GITHUB_APP_ID         --project-name noxconnect
-npx wrangler pages secret put GITHUB_APP_CLIENT_ID  --project-name noxconnect
-npx wrangler pages secret put GITHUB_APP_CLIENT_SECRET --project-name noxconnect
-npx wrangler pages secret put GITHUB_APP_PRIVATE_KEY --project-name noxconnect
-npx wrangler pages secret put GITHUB_WEBHOOK_SECRET --project-name noxconnect
-npx wrangler pages secret put ENCRYPTION_KEY        --project-name noxconnect   # 64-char hex
-npx wrangler pages secret put ZHIPU_API_KEY         --project-name noxconnect
-npx wrangler pages secret put SLACK_CLIENT_ID       --project-name noxconnect
-npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name noxconnect
-npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name noxconnect
+npx wrangler pages secret put GITHUB_APP_ID         --project-name unticket
+npx wrangler pages secret put GITHUB_APP_CLIENT_ID  --project-name unticket
+npx wrangler pages secret put GITHUB_APP_CLIENT_SECRET --project-name unticket
+npx wrangler pages secret put GITHUB_APP_PRIVATE_KEY --project-name unticket
+npx wrangler pages secret put GITHUB_WEBHOOK_SECRET --project-name unticket
+npx wrangler pages secret put ENCRYPTION_KEY        --project-name unticket   # 64-char hex
+npx wrangler pages secret put ZHIPU_API_KEY         --project-name unticket
+npx wrangler pages secret put SLACK_CLIENT_ID       --project-name unticket
+npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name unticket
+npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name unticket
 ```
 
 Generate `ENCRYPTION_KEY` with `openssl rand -hex 32`. `REVIEW_RUNNER_TOKEN` (generate the same way) authorizes the local noxreview runner against `/api/review/*` — keep it out of any client-visible config:
 
 ```bash
-npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name noxconnect
+npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name unticket
 ```
 
 The **cron Worker** needs its own copy of the secrets it uses:
@@ -136,7 +137,7 @@ returns provider credentials or encrypted tokens.
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name noxconnect --branch main
+npx wrangler pages deploy dist --project-name unticket --branch main
 cd cron && npx wrangler deploy && cd ..
 cd workers/noxspot-capture && npm ci && npm run types && npm test && npx wrangler deploy && cd ../..
 ```

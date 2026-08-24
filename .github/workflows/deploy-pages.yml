@@ -45,7 +45,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=noxconnect --branch=main
+          # Keep the legacy Pages project name: it owns app.unticket.ai.
+          command: pages deploy dist --project-name=unticket --branch=main
 
       # Deploy the sibling cron Worker. It imports from functions/lib/, so
       # without this step Pages and cron drift out of sync — every change

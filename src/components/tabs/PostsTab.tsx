@@ -9,6 +9,7 @@ import {
   type FeedMode,
 } from "@/hooks/useNoxlink";
 import { Spinner } from "@/components/Spinner";
+import { ViewSkeleton } from "@/components/ui/ViewSkeleton";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
 import { useAuth } from "@/lib/auth";
@@ -72,14 +73,6 @@ export function PostsTab() {
     return [{ value: "", label: "All repos" }, ...opts];
   }, [projects.data]);
 
-  if (posts.isLoading || actors.isLoading || projects.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Spinner className="w-6 h-6 text-accent" />
-      </div>
-    );
-  }
-
   if (posts.isError) {
     return (
       <div className="text-center py-20 text-stone-400">
@@ -127,7 +120,9 @@ export function PostsTab() {
         </div>
       </div>
 
-      {events.length === 0 ? (
+      {posts.isLoading ? (
+        <ViewSkeleton rows={3} />
+      ) : events.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-xl p-10 text-center text-stone-400">
           {hasFilters
             ? `No ${mode === "post" ? "merged updates" : mode === "release_notes" ? "release notes" : "opened PRs"} match the current filters.`
@@ -271,7 +266,7 @@ function PostCard({ event, actor, project, summaryStyle }: PostCardProps) {
   return (
     <article
       onClick={expandable ? () => setExpanded((v) => !v) : undefined}
-      className={`bg-white border border-stone-200 rounded-xl px-6 py-5 ${expandable ? "cursor-pointer hover:border-stone-300 transition-colors" : ""}`}
+      className={`render-lazy bg-white border border-stone-200 rounded-xl px-6 py-5 ${expandable ? "cursor-pointer hover:border-stone-300 transition-colors" : ""}`}
     >
       <header className="flex items-center gap-3">
         <Avatar actor={actor} label={actorLabel} />

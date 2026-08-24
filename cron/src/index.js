@@ -1,4 +1,4 @@
-// Unticket reconciliation cron.
+// NoxConnect reconciliation cron.
 //
 // Fires every 30 min. Walks every org with an active GitHub App
 // installation and reconciles D1 against GitHub. Webhooks handle the
@@ -39,7 +39,7 @@ export default {
     if (new Date(event.scheduledTime).getUTCHours() === 3) {
       ctx.waitUntil(
         archiveOldEvents(env, event.scheduledTime).catch((err) =>
-          console.error("[unticket-cron] event archival failed:", err?.message ?? err),
+          console.error("[noxconnect-cron] event archival failed:", err?.message ?? err),
         ),
       );
     }
@@ -53,7 +53,7 @@ export default {
         await handleTask(env, msg.body);
         msg.ack();
       } catch (err) {
-        console.error(`[unticket-cron] task ${msg.body?.type} failed (attempt ${msg.attempts}):`, err?.message ?? err);
+        console.error(`[noxconnect-cron] task ${msg.body?.type} failed (attempt ${msg.attempts}):`, err?.message ?? err);
         if (msg.attempts >= MAX_DELIVERIES) {
           // Out of retries — record to the admin-visible op_failures table and
           // ack so it doesn't loop forever (the DLQ is the backstop in config).
@@ -130,13 +130,13 @@ async function runTick(env) {
   try {
     await runNextStatsAudit(env);
   } catch (err) {
-    console.error("[unticket-cron] stats audit failed:", err?.message ?? err);
+    console.error("[noxconnect-cron] stats audit failed:", err?.message ?? err);
   }
 
   try {
     await runDatabaseRecoveryStep(env);
   } catch (err) {
-    console.error("[unticket-cron] database recovery step failed:", err?.message ?? err);
+    console.error("[noxconnect-cron] database recovery step failed:", err?.message ?? err);
   }
 
   const orgs = await db
@@ -155,7 +155,7 @@ async function runTick(env) {
       await reconcileOrg(env, db, org.id, org.github_login, org.installation_id);
     } catch (err) {
       console.error(
-        `[unticket-cron] org=${org.github_login} reconcile failed:`,
+        `[noxconnect-cron] org=${org.github_login} reconcile failed:`,
         err?.message ?? err,
       );
     }
@@ -201,6 +201,6 @@ async function healOrgInstallationLinks(db) {
     .run();
   const changed = res?.meta?.changes ?? 0;
   if (changed > 0) {
-    console.log(`[unticket-cron] healed ${changed} org→installation link(s)`);
+    console.log(`[noxconnect-cron] healed ${changed} org→installation link(s)`);
   }
 }

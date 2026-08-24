@@ -28,7 +28,7 @@ const TAB_ITEMS: { id: TabId; label: string; keywords: string }[] = [
   { id: "issues", label: "Issues", keywords: "issues bugs" },
   { id: "noxalert", label: "NoxAlert", keywords: "alerts opentelemetry otel errors ingest" },
   { id: "admin", label: "Admin", keywords: "admin settings setup integrations github slack connect oauth config webhook" },
-  { id: "repos", label: "Repos", keywords: "repos projects backfill narrator" },
+  { id: "repos", label: "Repositories", keywords: "repos repositories projects activity" },
 ];
 
 export function CommandPalette({ onNavigate, enabledApps = NOX_APPS.map((app) => app.id) }: CommandPaletteProps) {
@@ -46,9 +46,9 @@ export function CommandPalette({ onNavigate, enabledApps = NOX_APPS.map((app) =>
     }),
     [enabledApps],
   );
-  const { data: features } = useFeatures(noxTicketEnabled);
-  const { data: people } = usePeople();
-  const { data: orgMembers } = useActiveMembers();
+  const { data: features } = useFeatures(noxTicketEnabled && open);
+  const { data: people } = usePeople(open);
+  const { data: orgMembers } = useActiveMembers(open);
   const [, setSearchParams] = useSearchParams();
 
   // Build people lookup (org members + configured people)

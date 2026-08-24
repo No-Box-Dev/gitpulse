@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const RELEASE_NOTES_SYSTEM = "NOXFEED_RELEASE_NOTES_SYSTEM ".repeat(3);
+const PR_OPENED_SYSTEM = "NOXFEED_PR_OPENED_SYSTEM ".repeat(3);
+
 vi.mock("../llm.js", () => ({
   completeNarrative: vi.fn(),
   NARRATOR_MODEL: "glm-5",
@@ -15,8 +18,13 @@ vi.mock("../slack.js", () => ({
   resolveSlackConnectionId: vi.fn((channels, service) => (
     service === "noxfeed_release_notes" ? channels.releaseNotesConnectionId : channels.postsConnectionId
   ) || channels.fallbackConnectionId || ""),
-  buildPostsBlocks: vi.fn((args) => ({ blocks: ["post", args] })),
-  buildReleaseNotesBlocks: vi.fn((args) => ({ blocks: ["release", args] })),
+}));
+vi.mock("../noxfeed-response.js", () => ({
+  getNoxFeedPrompt: vi.fn(async (_env, kind, input, override) => ({
+    system: override || (kind === "release_notes" ? RELEASE_NOTES_SYSTEM : kind === "pr_opened" ? PR_OPENED_SYSTEM : "NOXFEED_ACTOR_SYSTEM ".repeat(4)),
+    user: `${input.actorName ? `You are ${input.actorName}.\n` : ""}Project: ${input.projectName}\n${JSON.stringify(input.event)}`,
+  })),
+  getNoxFeedSlackResponse: vi.fn(async (env, kind, input) => ({ message: { text: input.summary, blocks: [kind, input] } })),
 }));
 vi.mock("../delivery-outbox.js", () => ({
   stageSlackDelivery: vi.fn(async () => ({ id: "delivery-1", status: "pending" })),
@@ -33,7 +41,6 @@ import {
 } from "../narrator.js";
 import { completeNarrative } from "../llm.js";
 import { recordFailure } from "../op-failures.js";
-import { RELEASE_NOTES_SYSTEM, PR_OPENED_SYSTEM } from "../prompt.js";
 import { resolveSlackChannels } from "../slack.js";
 import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 
@@ -90,14 +97,14 @@ const EVENT_ROW = {
   actor_id: "actor-1",
   project_id: "proj-1",
   org: "no-box-dev",
-  repo: "unticket",
+  repo: "noxconnect",
   owner_id: "owner-1",
   summary: "PR #42: do thing",
   payload_json: JSON.stringify({ pr: { number: 42, title: "do thing" } }),
   created_at: "2026-05-17T10:00:00Z",
 };
 
-const PROJECT_ROW = { name: "unticket", narrator_enabled: 1 };
+const PROJECT_ROW = { name: "noxconnect", narrator_enabled: 1 };
 const ACTOR_ROW = { id: "actor-1", name: "Jane", tone: "Dry but warm" };
 
 beforeEach(() => {
@@ -198,7 +205,7 @@ describe("narrateEvent — happy path", () => {
     expect(typeof systemPrompt).toBe("string");
     expect(systemPrompt.length).toBeGreaterThan(50);
     expect(userMessage).toContain("You are Jane.");
-    expect(userMessage).toContain("Project: unticket");
+    expect(userMessage).toContain("Project: noxconnect");
   });
 
   it("inserts a narrative event with the LLM-generated summary and NARRATOR_MODEL", async () => {
@@ -214,12 +221,12 @@ describe("narrateEvent — happy path", () => {
     expect(actorId).toBe("actor-1");
     expect(projId).toBe("proj-1");
     expect(org).toBe("no-box-dev");
-    expect(repo).toBe("unticket");
+    expect(repo).toBe("noxconnect");
     expect(summary).toBe("I merged the login button.");
     expect(technicalSummary).toBe([
       "What it does: do thing",
       "How it works: Updates the implementation described by the pull request",
-      "What it touches: unticket",
+      "What it touches: noxconnect",
     ].join("\n"));
     expect(ownerId).toBe("owner-1");
     expect(createdAt).toBe("2026-05-17T10:00:00Z");
@@ -322,7 +329,7 @@ describe("narrateEvent — idempotency", () => {
       (f) => f.sql.includes("type = 'narrative'") && f.sql.includes("pr_number"),
     );
     expect(dedupSelect).toBeDefined();
-    expect(dedupSelect.binds).toEqual(["owner-1", "unticket", 42]);
+    expect(dedupSelect.binds).toEqual(["owner-1", "noxconnect", 42]);
   });
 
   it("uses INSERT ... ON CONFLICT DO NOTHING so concurrent writers can't double-insert", async () => {
@@ -360,7 +367,7 @@ describe("narrateEvent — idempotency", () => {
 describe("narrateReleaseNotes", () => {
   it("inserts a release_notes row when the LLM produces text", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("🐛 unticket #42 Merged - Bugfix\nDetails: fixed the thing.");
+    completeNarrative.mockResolvedValue("🐛 noxconnect #42 Merged - Bugfix\nDetails: fixed the thing.");
     await narrateReleaseNotes(ENV(db), 1);
     const inserts = db._calls.runs.filter((r) => r.sql.includes("INSERT INTO events"));
     expect(inserts).toHaveLength(1);
@@ -538,7 +545,7 @@ describe("narrateEvent — Slack mirror", () => {
 describe("narrateReleaseNotes — Slack mirror", () => {
   it("posts to the Release-notes channel after inserting a release_notes row", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("🐛 unticket #42 ...");
+    completeNarrative.mockResolvedValue("🐛 noxconnect #42 ...");
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "", releaseNotesChannelId: "C2" });
     await narrateReleaseNotes(ENV(db), 1);
     expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({

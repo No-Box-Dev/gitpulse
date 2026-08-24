@@ -94,3 +94,26 @@
   from { transform: translateY(0.5rem); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+@keyframes navigation-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}
+
+.animate-navigation-progress {
+  animation: navigation-progress 0.8s ease-in-out infinite;
+}
+
+.render-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

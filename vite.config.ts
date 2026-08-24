@@ -89,7 +89,7 @@ export default defineConfig(({ mode }) => {
       env.VITE_GITHUB_APP_CLIENT_ID || PRODUCTION_GITHUB_APP_CLIENT_ID,
     ),
   } : undefined,
-  base: process.env.GITHUB_PAGES === "true" ? "/unticket/" : "/",
+  base: process.env.GITHUB_PAGES === "true" ? "/noxconnect/" : "/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

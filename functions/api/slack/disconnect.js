@@ -2,9 +2,9 @@ import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { deleteSlackInstall } from "../../lib/slack";
 
 // POST /api/slack/disconnect — admin-only. Deletes one workspace connection
-// (effectively uninstalling the bot from unticket's side). The Slack
+// (effectively uninstalling the bot from noxconnect's side). The Slack
 // workspace admin can also remove the app from Slack independently; this
-// just stops unticket from posting.
+// just stops noxconnect from posting.
 export async function onRequestPost(context) {
   const { orgId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);

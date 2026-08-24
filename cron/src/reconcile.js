@@ -42,7 +42,7 @@ const SILENT_THRESHOLD_HOURS = 24;
 export async function reconcileOrg(env, db, orgId, orgLogin, installationId) {
   const lock = await acquireLock(db, orgId);
   if (!lock) {
-    console.log(`[unticket-cron] org=${orgLogin} skipped: prior run still in flight`);
+    console.log(`[noxconnect-cron] org=${orgLogin} skipped: prior run still in flight`);
     return;
   }
 
@@ -68,12 +68,12 @@ export async function reconcileOrg(env, db, orgId, orgLogin, installationId) {
       try {
         await syncPRs(db, token, orgId, orgLogin, repo, await sinceCursor(db, orgId, `prs:${repo}`), env);
       } catch (err) {
-        console.error(`[unticket-cron] org=${orgLogin} repo=${repo} PRs failed:`, err?.message ?? err);
+        console.error(`[noxconnect-cron] org=${orgLogin} repo=${repo} PRs failed:`, err?.message ?? err);
       }
       try {
         await syncIssues(db, token, orgId, orgLogin, repo, await sinceCursor(db, orgId, `issues:${repo}`));
       } catch (err) {
-        console.error(`[unticket-cron] org=${orgLogin} repo=${repo} issues failed:`, err?.message ?? err);
+        console.error(`[noxconnect-cron] org=${orgLogin} repo=${repo} issues failed:`, err?.message ?? err);
       }
       try {
         await reconcileRepoEvents(env, db, {
@@ -84,7 +84,7 @@ export async function reconcileOrg(env, db, orgId, orgLogin, installationId) {
           lookbackHours: EVENT_RECONCILE_LOOKBACK_HOURS,
         });
       } catch (err) {
-        console.error(`[unticket-cron] org=${orgLogin} repo=${repo} event reconcile failed:`, err?.message ?? err);
+        console.error(`[noxconnect-cron] org=${orgLogin} repo=${repo} event reconcile failed:`, err?.message ?? err);
       }
     }
 
@@ -152,7 +152,7 @@ async function reconcileDeletedMembers(db, orgId, apiMemberLogins) {
   // return []), but a legitimate empty org is rare enough that bailing here
   // is cheaper than risking another cascade-delete bug down the line.
   if (!Array.isArray(apiMemberLogins) || apiMemberLogins.length === 0) {
-    console.log(`[unticket-cron] org=${orgId} skipping member-delete reconcile: empty API result`);
+    console.log(`[noxconnect-cron] org=${orgId} skipping member-delete reconcile: empty API result`);
     return;
   }
   const apiSet = new Set(apiMemberLogins);
@@ -173,7 +173,7 @@ async function reconcileDeletedRepos(db, orgId, apiRepoNames) {
   // less than the cost of mass-deleting issues + PRs + feature links from a
   // bad upstream response.
   if (!Array.isArray(apiRepoNames) || apiRepoNames.length === 0) {
-    console.log(`[unticket-cron] org=${orgId} skipping repo-delete reconcile: empty API result`);
+    console.log(`[noxconnect-cron] org=${orgId} skipping repo-delete reconcile: empty API result`);
     return;
   }
   const apiSet = new Set(apiRepoNames);

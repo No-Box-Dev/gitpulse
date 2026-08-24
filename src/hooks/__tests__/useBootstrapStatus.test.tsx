@@ -53,12 +53,15 @@ describe("useBootstrapStatus", () => {
   });
 
   it("invalidates all queries once bootstrapping flips to false", async () => {
-    mockGet.mockResolvedValue({ bootstrapping: false });
+    mockGet
+      .mockResolvedValueOnce({ bootstrapping: true })
+      .mockResolvedValueOnce({ bootstrapping: false });
     const { wrapper, queryClient } = createQueryWrapper();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useBootstrapStatus(), { wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    // The effect runs synchronously after the data lands.
+    await waitFor(() => expect(result.current.data).toEqual({ bootstrapping: true }));
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.data).toEqual({ bootstrapping: false }));
     await waitFor(() => expect(invalidate).toHaveBeenCalled());
   });
 });

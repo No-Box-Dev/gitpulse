@@ -6,7 +6,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import { fetchUser, resetOctokit } from "@/lib/github";
+import { fetchUser } from "@/lib/github";
 import { getOAuthLoginUrl } from "@/lib/oauth-proxy";
 import { broadcastError } from "@/lib/api";
 
@@ -79,7 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Listen for force-logout events (fired by api.ts on 401)
   useEffect(() => {
     const handler = () => {
-      resetOctokit();
       localStorage.removeItem("ut_org");
       setUser(null);
       setSelectedOrg(null);
@@ -88,20 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("ut:force-logout", handler);
   }, []);
 
-  // Keep the cached GitHub client aligned with token rotation in this tab.
-  useEffect(() => {
-    const handler = () => resetOctokit();
-    window.addEventListener("ut:token-refreshed", handler);
-    return () => window.removeEventListener("ut:token-refreshed", handler);
-  }, []);
-
   // Cross-tab auth sync: a replacement means another tab refreshed the
   // session, while removal is a real logout. Storage events do not fire in
   // the tab that performed the write, hence the companion custom event above.
   useEffect(() => {
     const handler = (e: StorageEvent) => {
       if (e.key !== "ut_token") return;
-      resetOctokit();
       if (e.newValue === null && user) {
         setUser(null);
         setSelectedOrg(null);
@@ -121,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       exchangeAuthCode(authCode)
         .then((token) => {
           localStorage.setItem("ut_token", token);
-          resetOctokit();
           // Resume the pre-login destination (set by loginWithOAuth) with a
           // full navigation — the router already mounted on `/?auth_code=…`,
           // so an in-page history rewrite wouldn't reach useSearchParams.
@@ -148,7 +138,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             broadcastError(msg);
             if (isUnauthorizedError(err)) {
               localStorage.removeItem("ut_token");
-              resetOctokit();
             }
           }
         })
@@ -161,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const devToken = import.meta.env.VITE_DEV_TOKEN;
       if (devToken) {
         localStorage.setItem("ut_token", devToken);
-        resetOctokit();
       }
       const devOrg = import.meta.env.VITE_DEV_ORG;
       if (devOrg) {
@@ -174,7 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const token = localStorage.getItem("ut_token");
     if (token) {
-      resetOctokit();
       fetchUserWithTimeout()
         .then(setUser)
         .catch((err) => {
@@ -186,7 +173,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             broadcastError(msg);
             if (isUnauthorizedError(err)) {
               localStorage.removeItem("ut_token");
-              resetOctokit();
             }
           }
         })
@@ -201,16 +187,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the GitHub round-trip lands back on `/?auth_code=…`, losing the query.
     const returnTo = window.location.pathname + window.location.search;
     if (returnTo !== "/") sessionStorage.setItem("ut_return_to", returnTo);
-    // Clear stale token/instance before redirecting so we start fresh
+    // Clear the stale token before redirecting so we start fresh.
     localStorage.removeItem("ut_token");
-    resetOctokit();
     window.location.href = getOAuthLoginUrl();
   };
 
   const logout = () => {
     localStorage.removeItem("ut_token");
     localStorage.removeItem("ut_org");
-    resetOctokit();
     setUser(null);
     setSelectedOrg(null);
   };

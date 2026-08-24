@@ -13,7 +13,7 @@ function parseArgs(argv) {
     overwriteExisting: false,
     remote: true,
     source: "blindspot-db",
-    target: "unticket",
+    target: "noxconnect",
     expectedSlackApp: DEFAULT_SLACK_APP_ID,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,12 +33,12 @@ function parseArgs(argv) {
 
 Runs a read-only census by default. Configuration is written only with --apply.
 
-  --apply                     Apply the preflighted migration to Unticket
+  --apply                     Apply the preflighted migration to NoxConnect
   --overwrite-existing        Replace existing widget config (requires --apply)
   --local                     Use local D1 databases instead of remote databases
   --source <database>         Legacy database name (default: blindspot-db)
-  --target <database>         Unticket database name (default: unticket)
-  --expected-slack-app <id>   Required Unticket Slack app (default: ${DEFAULT_SLACK_APP_ID})
+  --target <database>         NoxConnect database name (default: noxconnect)
+  --expected-slack-app <id>   Required NoxConnect Slack app (default: ${DEFAULT_SLACK_APP_ID})
 `);
       process.exit(0);
     } else {
@@ -97,7 +97,7 @@ function selectConnection(connections, site) {
     warning: teamName ? null : "legacy workspace name missing; selected the org's only NoxConnect installation",
   };
   if (teamMatches.length > 1) return { connection: null, blocker: `multiple ${site.expectedSlackApp} connections match workspace ${site.slack_team_name}` };
-  if (expected.length === 0) return { connection: null, blocker: `connect Slack app ${site.expectedSlackApp} in Unticket first` };
+  if (expected.length === 0) return { connection: null, blocker: `connect Slack app ${site.expectedSlackApp} in NoxConnect first` };
   return { connection: null, blocker: `no ${site.expectedSlackApp} connection matches legacy workspace ${site.slack_team_name}` };
 }
 
@@ -118,8 +118,8 @@ function buildPlan(options, data) {
     const project = existing
       ? (existing.project_id ? { id: existing.project_id } : null)
       : projectByRepo.get(`${normalized(site.repo_owner)}/${normalized(site.repo_name)}`);
-    if (!existing && !org) blockers.push(`Unticket organization not found for ${site.repo_owner}`);
-    if (!existing && !project) blockers.push(`active Unticket project not found for ${site.repo_owner}/${site.repo_name}`);
+    if (!existing && !org) blockers.push(`NoxConnect organization not found for ${site.repo_owner}`);
+    if (!existing && !project) blockers.push(`active NoxConnect project not found for ${site.repo_owner}/${site.repo_name}`);
 
     let slackConnection = null;
     if (existing) {
@@ -179,8 +179,8 @@ function buildPlan(options, data) {
     const operation = existing ? (options.overwriteExisting ? "update" : "preserve") : "insert";
     if (existing && JSON.stringify(targetWidgetConfig) !== JSON.stringify(sourceWidgetConfig)) {
       warnings.push(options.overwriteExisting
-        ? "existing Unticket widget configuration will be replaced"
-        : "target differs from the legacy source; preserving newer Unticket state");
+        ? "existing NoxConnect widget configuration will be replaced"
+        : "target differs from the legacy source; preserving newer NoxConnect state");
     }
 
     return {
@@ -233,7 +233,7 @@ function main() {
   `);
   const presentTables = new Set(targetTables.map((row) => row.name));
   const missingTables = ["spot_sites", "noxspot_config_audit", "slack_connections", "projects", "orgs"].filter((name) => !presentTables.has(name));
-  if (missingTables.length) throw new Error(`Apply Unticket migrations first; missing: ${missingTables.join(", ")}`);
+  if (missingTables.length) throw new Error(`Apply NoxConnect migrations first; missing: ${missingTables.join(", ")}`);
 
   const data = {
     sites: query(options, options.source, `
@@ -300,7 +300,7 @@ function main() {
   if (options.apply) {
     const writeCount = plan.filter((site) => site.operation !== "preserve").length;
     if (writeCount > 0) {
-      const directory = mkdtempSync(join(tmpdir(), "unticket-noxspot-migration-"));
+      const directory = mkdtempSync(join(tmpdir(), "noxconnect-noxspot-migration-"));
       const file = join(directory, "migration.sql");
       try {
         writeFileSync(file, migrationSql(plan, options.source, options.expectedSlackApp), { mode: 0o600 });
@@ -309,7 +309,7 @@ function main() {
         rmSync(directory, { recursive: true, force: true });
       }
     }
-    console.log(`Migrated ${writeCount} NoxSpot site configuration(s); preserved ${plan.length - writeCount} existing Unticket site(s).`);
+    console.log(`Migrated ${writeCount} NoxSpot site configuration(s); preserved ${plan.length - writeCount} existing NoxConnect site(s).`);
   }
 }
 

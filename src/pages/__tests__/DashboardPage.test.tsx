@@ -11,7 +11,7 @@ vi.mock("@/hooks/useGitHub", () => ({
 }));
 vi.mock("@/hooks/useConfigRepo", () => ({ useSettings: vi.fn() }));
 vi.mock("@/hooks/useNoxConnect", () => ({ useNoxConnect: vi.fn() }));
-vi.mock("@/lib/unticket-repo-name", () => ({ setUnticketRepoName: vi.fn() }));
+vi.mock("@/lib/noxticket-repo-name", () => ({ setNoxTicketRepoName: vi.fn() }));
 
 // Stub out heavy children so we only test the routing skeleton.
 vi.mock("@/components/TopNav", () => ({
@@ -63,7 +63,7 @@ const mNoxConnect = useNoxConnect as unknown as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   mAuth.mockReset();
   mRepos.mockReturnValue({ data: [{ name: "api" }] });
-  mSettings.mockReturnValue({ data: { unticketRepo: "unticket" } });
+  mSettings.mockReturnValue({ data: { noxTicketRepo: "noxconnect" } });
   mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: false } } });
 });
 
@@ -99,6 +99,13 @@ describe("DashboardPage", () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     renderAt("/?tab=admin");
     await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
+  });
+
+  it("redirects the former repos view into NoxConnect Admin", async () => {
+    mAuth.mockReturnValue({ selectedOrg: "acme" });
+    renderAt("/?tab=repos");
+    await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
+    expect(screen.getByTestId("topnav").textContent).toContain("active:admin");
   });
 
   it("starts organization onboarding in Admin when GitHub is not ready", async () => {

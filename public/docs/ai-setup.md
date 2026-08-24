@@ -43,7 +43,7 @@ Content-Type: application/json
   "routes": {
     "fallback": "C0123456789",
     "noxalert": "C0123456789",
-    "unticket": "C0234567890",
+    "noxticket": "C0234567890",
     "noxfeed_posts": "C0345678901",
     "noxfeed_release_notes": "C0456789012"
   }
@@ -70,6 +70,6 @@ After connections and organization routes are ready, feature-specific resources 
 - NoxSpot sites: `GET`/`POST /api/spots/sites` and `PATCH /api/spots/sites/{siteId}`.
 - NoxAlert projects: `GET /api/alerts/projects`, `PUT /api/alerts/projects/{projectId}`, and `POST /api/alerts/projects/{projectId}/keys`. A newly created ingest key is returned only once; transfer it securely and never log it.
 - NoxFeed uses the separate `noxfeed_posts` and `noxfeed_release_notes` routes.
-- Unticket uses the `unticket` route.
+- NoxTicket uses the `noxticket` route.
 
 Read the live endpoint response before acting; action links and state in `/api/integrations/setup` take precedence over this narrative guide.

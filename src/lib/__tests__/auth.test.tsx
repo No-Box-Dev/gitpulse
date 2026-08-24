@@ -5,17 +5,15 @@ import { AuthProvider, useAuth } from "../auth";
 // Mock dependencies
 vi.mock("@/lib/github", () => ({
   fetchUser: vi.fn(),
-  resetOctokit: vi.fn(),
 }));
 
 vi.mock("@/lib/oauth-proxy", () => ({
   getOAuthLoginUrl: vi.fn().mockReturnValue("https://github.com/login/oauth"),
 }));
 
-import { fetchUser, resetOctokit } from "@/lib/github";
+import { fetchUser } from "@/lib/github";
 
 const mockFetchUser = vi.mocked(fetchUser);
-const mockResetOctokit = vi.mocked(resetOctokit);
 
 let storage: Record<string, string> = {};
 
@@ -114,12 +112,11 @@ describe("useAuth", () => {
     });
   });
 
-  it("keeps the user signed in and resets Octokit when another tab rotates the token", async () => {
+  it("keeps the user signed in when another tab rotates the token", async () => {
     storage.ut_token = "old";
     mockFetchUser.mockResolvedValue({ login: "alice", avatar_url: "", name: "Alice" } as any);
     render(<AuthProvider><TestConsumer /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId("user").textContent).toBe("alice"));
-    mockResetOctokit.mockClear();
 
     act(() => {
       window.dispatchEvent(new StorageEvent("storage", {
@@ -129,7 +126,6 @@ describe("useAuth", () => {
       }));
     });
 
-    expect(mockResetOctokit).toHaveBeenCalledOnce();
     expect(screen.getByTestId("user").textContent).toBe("alice");
   });
 

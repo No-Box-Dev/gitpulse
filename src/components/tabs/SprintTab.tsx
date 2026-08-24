@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useDeferredValue, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 import {
@@ -22,6 +22,7 @@ import { useBoardStages } from "@/lib/board-stages";
 import type { BoardStage, Feature, FeatureStatus, Spec } from "@/lib/types";
 import { ArrowRight, ArrowUpDown, Archive, CircleCheck, ExternalLink, LayoutGrid, Rocket, Search, Sparkles } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
+import { ViewSkeleton } from "@/components/ui/ViewSkeleton";
 import { PersonSelect } from "@/components/ui/PersonSelect";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
 import { cn } from "@/lib/cn";
@@ -89,6 +90,7 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
   const [sortBy, setSortBy] = useState<SortKey>("title");
   const [selectedPersons, setSelectedPersons] = useState<string[]>(navFilter?.person ? [navFilter.person] : []);
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Board vs Backlog vs Completed view is URL-synced so a bookmarked view
   // stays put.
@@ -174,13 +176,13 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
 
   const searchAndOwnerMatch = useCallback(
     (f: Feature) => {
-      const q = searchQuery.toLowerCase().trim();
+      const q = deferredSearchQuery.toLowerCase().trim();
       if (meOnly && userLogin && !f.owners.some((o) => o.toLowerCase() === userLogin)) return false;
       if (selectedPersons.length > 0 && !f.owners.some((o) => selectedPersons.some((p) => o.toLowerCase() === p.toLowerCase()))) return false;
       if (q && !f.title.toLowerCase().includes(q) && !f.owners.some((o) => o.toLowerCase().includes(q))) return false;
       return true;
     },
-    [selectedPersons, searchQuery, meOnly, userLogin],
+    [selectedPersons, deferredSearchQuery, meOnly, userLogin],
   );
 
   // Board view drops backlogged features; backlog view shows only them.
@@ -291,11 +293,7 @@ export function SprintTab({ navFilter, urlFeatureId, onUrlChange }: SprintTabPro
   };
 
   if (featuresLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <ViewSkeleton />;
   }
 
   if (!features) {

@@ -35,6 +35,10 @@ export interface CaptureSite {
   slack_channel_id: string | null;
   slack_connection_id: string | null;
   github_login: string;
+  // Optional keeps older fixtures and local callers compatible. Only an
+  // explicit zero disables a service; missing settings remain on.
+  noxspot_enabled?: number;
+  noxalert_enabled?: number;
 }
 
 export function parseWidgetConfig(value: string | null | undefined): WidgetConfig {
@@ -50,8 +54,20 @@ export async function getCaptureSite(db: D1Database, siteId: string): Promise<Ca
   return db.prepare(
     `SELECT site.id, site.org_id, site.project_id, site.repo, site.name AS site_name,
             site.widget_config, site.slack_channel_id, site.slack_connection_id,
-            org.github_login
-       FROM spot_sites site JOIN orgs org ON org.id = site.org_id
+            org.github_login,
+            CASE
+              WHEN settings.data IS NULL OR json_valid(settings.data) = 0 THEN 1
+              WHEN json_extract(settings.data, '$.apps.noxspot') = 0 THEN 0
+              ELSE 1
+            END AS noxspot_enabled,
+            CASE
+              WHEN settings.data IS NULL OR json_valid(settings.data) = 0 THEN 1
+              WHEN json_extract(settings.data, '$.apps.noxalert') = 0 THEN 0
+              ELSE 1
+            END AS noxalert_enabled
+       FROM spot_sites site
+       JOIN orgs org ON org.id = site.org_id
+       LEFT JOIN config settings ON settings.org_id = site.org_id AND settings.key = 'settings'
       WHERE site.id = ?`,
   ).bind(siteId).first<CaptureSite>();
 }

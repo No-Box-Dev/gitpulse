@@ -20,13 +20,22 @@ export const OPTIONAL_NOX_APP_IDS: readonly OptionalNoxAppId[] = [
   "noxalert",
 ];
 
+export const ADMIN_INTRO = "Use one tab for each Nox app. Turn an app off to pause it. Your saved data and setup stay here.";
+
+export const SERVICE_OFF_TEXT: Record<OptionalNoxAppId, string> = {
+  noxticket: "Feature and spec tools are paused. API calls and Slack posts are blocked.",
+  noxfeed: "Feed views, new posts, notes, history backfills, and Slack posts are paused.",
+  noxspot: "Widgets, site setup, reports, screenshots, and Slack posts are blocked.",
+  noxalert: "Alert setup, error intake, rules, keys, and Slack posts are blocked.",
+};
+
 export const NOX_APPS: readonly NoxAppDefinition[] = [
   {
     id: "noxconnect",
     name: "NoxConnect",
     shortName: "Connect",
-    description: "The always-on foundation for your organization.",
-    includes: "GitHub, Slack, people, and shared organization settings",
+    description: "The base for all Nox apps.",
+    includes: "GitHub and Slack links, people, and shared setup",
     tabs: [{ id: "admin", label: "Admin" }],
     defaultTab: "admin",
   },
@@ -34,7 +43,7 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     id: "noxticket",
     name: "NoxTicket",
     shortName: "Ticket",
-    description: "Plan and shape work without losing the GitHub source of truth.",
+    description: "Plan work and keep GitHub as the source of truth.",
     includes: "Features, backlog, board stages, and specs",
     tabs: [
       { id: "sprint", label: "Features" },
@@ -46,13 +55,12 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     id: "noxfeed",
     name: "NoxFeed",
     shortName: "Feed",
-    description: "A complete set of views over your GitHub activity.",
-    includes: "Current work, team feed, issues, and repositories",
+    description: "See your GitHub work in one place.",
+    includes: "Current work, team feed, and issues",
     tabs: [
       { id: "current", label: "Current" },
       { id: "posts", label: "Feed" },
       { id: "issues", label: "Issues" },
-      { id: "repos", label: "Repos" },
     ],
     defaultTab: "issues",
   },
@@ -60,8 +68,8 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     id: "noxspot",
     name: "NoxSpot",
     shortName: "Spot",
-    description: "Capture website feedback with its debugging context.",
-    includes: "Captured issues, widget setup, and site delivery settings",
+    description: "Get site feedback with the facts you need to fix it.",
+    includes: "Issues, widgets, and site delivery rules",
     tabs: [],
     defaultTab: "admin",
   },
@@ -69,8 +77,8 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     id: "noxalert",
     name: "NoxAlert",
     shortName: "Alert",
-    description: "Turn OpenTelemetry browser errors into focused alerts.",
-    includes: "OTel ingest, filters, alert rules, keys, and Slack delivery",
+    description: "Turn site errors into clear alerts.",
+    includes: "OpenTelemetry intake, rules, keys, and Slack posts",
     tabs: [{ id: "noxalert", label: "NoxAlert" }],
     defaultTab: "noxalert",
   },
@@ -86,6 +94,9 @@ export function getNoxApp(id: NoxAppId): NoxAppDefinition {
 }
 
 export function getAppForTab(tab: TabId): NoxAppId | null {
+  // `repos` is retained as a navigation alias for old links and command
+  // palette shortcuts; the view now lives under NoxConnect's Admin area.
+  if (tab === "repos") return "noxconnect";
   if (tab === "prs" || tab === "engineers") return "noxfeed";
   return APP_BY_TAB.get(tab) ?? null;
 }

@@ -252,7 +252,7 @@
             "properties": {
               "fallback": { "type": ["string", "null"] },
               "noxalert": { "type": ["string", "null"] },
-              "unticket": { "type": ["string", "null"] },
+              "noxticket": { "type": ["string", "null"] },
               "noxfeed_posts": { "type": ["string", "null"] },
               "noxfeed_release_notes": { "type": ["string", "null"] }
             }
@@ -263,7 +263,7 @@
         "type": "object",
         "required": ["route"],
         "properties": {
-          "route": { "type": "string", "enum": ["fallback", "noxalert", "unticket", "noxfeed_posts", "noxfeed_release_notes"] },
+          "route": { "type": "string", "enum": ["fallback", "noxalert", "noxticket", "noxfeed_posts", "noxfeed_release_notes"] },
           "channelId": { "type": "string", "maxLength": 80, "description": "Optional candidate channel; otherwise uses saved routing and fallback." }
         }
       },

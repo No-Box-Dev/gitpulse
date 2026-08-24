@@ -23,13 +23,13 @@ export async function onRequestGet(context) {
           Authorization: `Bearer ${jwt}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "Unticket",
+          "User-Agent": "NoxConnect",
         },
       }
     );
 
     if (!res.ok) {
-      console.error("[unticket install] failed to fetch installation", installationId, res.status);
+      console.error("[noxconnect install] failed to fetch installation", installationId, res.status);
       return Response.redirect(`${url.origin}/?install_error=lookup_failed`, 302);
     }
 
@@ -57,7 +57,7 @@ export async function onRequestGet(context) {
       302
     );
   } catch (e) {
-    console.error("[unticket install] error", e instanceof Error ? e.stack : e);
+    console.error("[noxconnect install] error", e instanceof Error ? e.stack : e);
     return Response.redirect(`${url.origin}/?install_error=server_error`, 302);
   }
 }

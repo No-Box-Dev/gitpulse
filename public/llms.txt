@@ -2,9 +2,9 @@
 
 NoxConnect provides one organization-level API for connecting GitHub and Slack and configuring Nox service delivery.
 
-Machine-readable API description: /openapi.json
-Agent setup guide: /docs/ai-setup.md
-Resumable setup state: /api/integrations/setup
+- [Machine-readable API description](/openapi.json)
+- [Agent setup guide](/docs/ai-setup.md)
+- [Resumable setup state](/api/integrations/setup)
 
 Authentication uses a GitHub OAuth access token as `Authorization: Bearer <token>` plus the GitHub organization login in `X-Org`. Setup mutations require an organization admin.
 

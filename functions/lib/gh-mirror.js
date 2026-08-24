@@ -79,7 +79,7 @@ export async function getInstallationRepos(db, installationId) {
     // add/remove payload on the next install_repositories event, so we
     // can't realistically throw here without breaking install resilience.
     console.error(
-      `[unticket gh-mirror] Corrupt repos_json for installation ${installationId}:`,
+      `[noxconnect gh-mirror] Corrupt repos_json for installation ${installationId}:`,
       err?.message ?? err,
     );
     return [];

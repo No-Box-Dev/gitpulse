@@ -16,7 +16,7 @@ We will acknowledge your report within **3 business days** and keep you updated 
 
 In scope:
 
-- The unticket web app (`src/`)
+- The noxconnect web app (`src/`)
 - The Cloudflare Pages Functions API (`functions/`)
 - The sibling cron Worker (`cron/`)
 

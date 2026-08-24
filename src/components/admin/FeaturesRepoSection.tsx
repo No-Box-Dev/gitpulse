@@ -7,7 +7,7 @@ export function FeaturesRepoSection() {
   const { selectedOrg } = useAuth();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
-  const persisted = settings?.unticketRepo ?? "";
+  const persisted = settings?.noxTicketRepo ?? "";
   const [draftOverride, setDraftOverride] = useState<string | null>(null);
   const draft = draftOverride ?? persisted;
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -30,7 +30,7 @@ export function FeaturesRepoSection() {
     }
     setError(null);
     try {
-      const next = { ...settings, unticketRepo: trimmed ? trimmed : undefined };
+      const next = { ...settings, noxTicketRepo: trimmed ? trimmed : undefined };
       await saveSettings.mutateAsync(next);
       setDraftOverride(null);
       setSavedAt(Date.now());
@@ -54,10 +54,8 @@ export function FeaturesRepoSection() {
         )}
       </div>
       <p className="text-xs text-stone-400">
-        Which repo in <span className="font-medium text-stone-600">{selectedOrg}</span> holds
-        the feature-tracking issues (label <code className="font-mono text-stone-600">unticket</code> +{" "}
-        <code className="font-mono text-stone-600">feature</code>) and where Agent Rules get pushed.
-        Leave empty to use the default — <code className="font-mono text-stone-600">unticket</code>.
+        Stores NoxTicket features and agent rules in <span className="font-medium text-stone-600">{selectedOrg}</span>.
+        Leave empty to use <code className="font-mono text-stone-600">noxconnect</code>.
       </p>
       <div className="flex items-center gap-2 flex-wrap">
         <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 overflow-hidden">
@@ -69,7 +67,7 @@ export function FeaturesRepoSection() {
             value={draft}
             onChange={(e) => setDraftOverride(e.target.value)}
             disabled={saveSettings.isPending}
-            placeholder="unticket"
+            placeholder="noxconnect"
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"

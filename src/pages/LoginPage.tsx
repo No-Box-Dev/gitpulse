@@ -5,10 +5,10 @@ export function LoginPage() {
   const { loginWithOAuth } = useAuth();
 
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-display mb-3 text-stone-800"><span className="font-bold">un</span><span className="font-normal">ticket</span></h1>
+          <h1 className="text-3xl font-display mb-3 text-stone-800"><span className="font-bold">Nox</span><span className="font-normal">Connect</span></h1>
           <p className="text-stone-500">
             AI-powered project management for GitHub
           </p>
@@ -24,10 +24,10 @@ export function LoginPage() {
           </button>
         </div>
 
-        <p className="text-center text-xs text-stone-400 mt-4">
+        <p className="text-center text-xs text-stone-600 mt-4">
           Sign in installs NoxConnect on the orgs you choose. No personal access tokens — ever.
         </p>
       </div>
-    </div>
+    </main>
   );
 }

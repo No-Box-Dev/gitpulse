@@ -14,7 +14,7 @@ interface Ctx {
 const ROUTES: Record<string, string> = {
   fallback: "fallbackChannelId",
   noxalert: "noxAlertChannelId",
-  unticket: "unticketChannelId",
+  noxticket: "noxTicketChannelId",
   noxfeed_posts: "postsChannelId",
   noxfeed_release_notes: "releaseNotesChannelId",
 };
@@ -32,7 +32,7 @@ function routingResponse(settings: Record<string, unknown>) {
     routes,
     resolution: {
       noxalert: ["noxalert", "fallback"],
-      unticket: ["unticket", "fallback"],
+      noxticket: ["noxticket", "fallback"],
       noxfeed_posts: ["noxfeed_posts", "fallback"],
       noxfeed_release_notes: ["noxfeed_release_notes", "fallback"],
       noxspot: ["site channel", "fallback"],

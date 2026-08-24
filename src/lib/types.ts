@@ -23,7 +23,7 @@ export interface RepoInfo {
   retiredAt?: string | null;
   retirementReason?: string | null;
   transferredTo?: string | null;
-  // True for drafts (platform-archived), GH-archived, or the unticket repo.
+  // True for drafts (platform-archived), GH-archived, or the noxconnect repo.
   // Only present when the endpoint is called with `?include=all`.
   inactive?: boolean;
 }
@@ -132,7 +132,7 @@ export interface ReviewPR {
   created_at: string;
 }
 
-/** Cross-repo issue assigned to the user (sourced from D1, not unticket repo) */
+/** Cross-repo issue assigned to the user (sourced from D1, not noxconnect repo) */
 export interface AssignedIssue {
   repo: string;
   number: number;
@@ -143,7 +143,7 @@ export interface AssignedIssue {
   created_at: string;
 }
 
-// unticket config repo types
+// noxconnect config repo types
 
 // Status IDs are now admin-configurable per org (see BoardStage + useBoardStages).
 // The default ids match the historical scheme so existing features keep working
@@ -245,7 +245,7 @@ export interface OrgSettings {
     noxalert?: boolean;
   };
   excludedMembers?: string[];
-  unticketRepo?: string;
+  noxTicketRepo?: string;
   boardStages?: BoardStage[];
   // Admin-editable system prompt for the Release-notes feed. Empty/missing
   // falls back to the bundled default (RELEASE_NOTES_SYSTEM in
@@ -259,8 +259,8 @@ export interface OrgSettings {
     fallbackConnectionId?: string;
     noxAlertChannelId?: string;
     noxAlertConnectionId?: string;
-    unticketChannelId?: string;
-    unticketConnectionId?: string;
+    noxTicketChannelId?: string;
+    noxTicketConnectionId?: string;
     postsChannelId?: string;
     postsConnectionId?: string;
     releaseNotesChannelId?: string;

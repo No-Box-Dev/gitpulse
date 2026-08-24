@@ -14,7 +14,7 @@ export type SlackKind =
   | "fallback"
   | "noxalert"
   | "noxspot"
-  | "unticket"
+  | "noxticket"
   | "noxfeed_posts"
   | "noxfeed_release_notes";
 
@@ -22,14 +22,14 @@ export type SlackKind =
 export type SlackRouteKey =
   | "fallbackChannelId"
   | "noxAlertChannelId"
-  | "unticketChannelId"
+  | "noxTicketChannelId"
   | "postsChannelId"
   | "releaseNotesChannelId";
 
 const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack"]>> = {
   fallbackChannelId: "fallbackConnectionId",
   noxAlertChannelId: "noxAlertConnectionId",
-  unticketChannelId: "unticketConnectionId",
+  noxTicketChannelId: "noxTicketConnectionId",
   postsChannelId: "postsConnectionId",
   releaseNotesChannelId: "releaseNotesConnectionId",
 };

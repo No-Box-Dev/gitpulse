@@ -27,10 +27,10 @@ export class ApiError extends Error {
 /** Returns true if an error should NOT be retried by TanStack Query. */
 export function shouldNotRetry(error: unknown): boolean {
   if (error instanceof ApiError) {
-    // 401 = stale token, 429 = rate limit from our API, 403 = rate limit from GitHub (via Octokit)
+    // 401 = stale token, 429/403 = rate limiting surfaced by NoxConnect.
     return error.status === 401 || error.status === 429 || error.status === 403;
   }
-  // Octokit/fetch errors that indicate auth or rate limit problems
+  // Network/client errors that indicate auth or rate limit problems.
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     return (
@@ -98,7 +98,7 @@ async function refreshAcrossTabs(expiredToken: string): Promise<string | null> {
   };
 
   if (typeof navigator !== "undefined" && navigator.locks) {
-    return navigator.locks.request("unticket-auth-refresh", refresh);
+    return navigator.locks.request("noxconnect-auth-refresh", refresh);
   }
   return refresh();
 }

@@ -1,3 +1,5 @@
+import { normalizeNoxSettings } from "./naming-compat.js";
+
 export interface StoredSlackSettings {
   settings: Record<string, unknown>;
   slack: Record<string, unknown>;
@@ -13,7 +15,7 @@ export async function readSlackSettings(db: D1Database, orgId: number): Promise<
   ).bind(orgId).first<{ data: string }>();
   if (!row) return { settings: {}, slack: {}, raw: null };
   try {
-    const settings = JSON.parse(String(row.data)) as Record<string, unknown>;
+    const settings = normalizeNoxSettings(JSON.parse(String(row.data))) as Record<string, unknown>;
     const slack = settings.slack && typeof settings.slack === "object" && !Array.isArray(settings.slack)
       ? settings.slack as Record<string, unknown>
       : {};

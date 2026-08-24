@@ -14,21 +14,20 @@ export function NoxAlertSection({ noxConnect }: { noxConnect: IntegrationsStatus
     <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <BellRing size={16} className="text-stone-700" />
-        <h2 className="text-sm font-semibold text-stone-900">NoxAlert</h2>
+        <h2 className="text-sm font-semibold text-stone-900">Alert delivery</h2>
         <ReadinessBadge
           readiness={noxConnect.features.noxAlert}
           blockedLabel={noxConnect.github.connected ? "Needs Slack" : "Needs GitHub"}
         />
       </div>
       <p className="text-xs leading-5 text-stone-500">
-        Sends selected GitHub and NoxSpot activity to your team in Slack.
-        Requires both the GitHub connection and Slack.
+        Turn browser errors into alerts. Send new and fixed alerts to Slack.
       </p>
       {slackConnected ? (
         <div className="border-t border-stone-100 pt-4">
           <SlackRouteField
             label="NoxAlert"
-            helpText="Errors and resolved alerts. Empty uses the organization fallback."
+            helpText="New and fixed alerts. A blank route uses the fallback channel."
             kind="noxalert"
             routeKey="noxAlertChannelId"
           />

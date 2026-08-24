@@ -2,13 +2,13 @@
 
 _Last updated: 2026-06-03_
 
-This describes how the **hosted** unticket service at [app.unticket.ai](https://app.unticket.ai), operated by No-Box-Dev, handles data. Self-hosted instances store everything in your own Cloudflare account and are not covered here.
+This describes how the **hosted** NoxConnect service at [app.unticket.ai](https://app.unticket.ai), operated by No-Box-Dev, handles data. Self-hosted instances store everything in your own Cloudflare account and are not covered here.
 
 > This document is provided for transparency and is **not legal advice**. Have a lawyer review it before relying on it.
 
 ## What we store
 
-When you connect a GitHub organisation, unticket syncs and stores GitHub data in a Cloudflare D1 database, scoped per organisation:
+When you connect a GitHub organisation, NoxConnect syncs and stores GitHub data in a Cloudflare D1 database, scoped per organisation:
 
 - **Pull requests, issues, and their metadata** (titles, authors, reviewers, labels, timestamps, assignees)
 - **Organisation members and teams**
@@ -24,7 +24,7 @@ We do not store your source code.
 
 ## AI narration
 
-Unticket can narrate certain activity (currently pull-request merges) using a large language model. For those events, **event metadata** (such as PR title, author, and repository) is sent to the configured LLM provider — by default Zhipu's GLM endpoint, or your organisation's own provider if you configure Bring-Your-Own-Key in Settings. Narration is optional and can be disabled per project. We do not send your source code to the LLM provider.
+NoxConnect can narrate certain activity (currently pull-request merges) using a large language model. For those events, **event metadata** (such as PR title, author, and repository) is sent to the configured LLM provider — by default Zhipu's GLM endpoint, or your organisation's own provider if you configure Bring-Your-Own-Key in Settings. Narration is optional and can be disabled per project. We do not send your source code to the LLM provider.
 
 ## Data retention
 

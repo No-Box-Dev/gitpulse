@@ -4,6 +4,12 @@ vi.mock("../delivery-outbox.js", () => ({
   stageSlackDelivery: vi.fn(async () => ({ id: "delivery-1", status: "pending" })),
   queueOutboxDelivery: vi.fn(async () => true),
 }));
+vi.mock("../apps.js", () => ({
+  isAppEnabled: vi.fn(async () => true),
+}));
+vi.mock("../noxalert-response.js", () => ({
+  getNoxAlertResolvedResponse: vi.fn(async (_env, input) => ({ message: { text: `resolved ${input.title}`, blocks: [{ type: "section" }] } })),
+}));
 vi.mock("../slack.js", () => ({
   resolveSlackChannels: vi.fn(async () => ({ fallbackChannelId: "C0", noxAlertChannelId: "CA" })),
   resolveSlackRoute: vi.fn((channels) => channels.noxAlertChannelId || channels.fallbackChannelId || ""),
@@ -13,6 +19,7 @@ vi.mock("../slack.js", () => ({
 import { isNoxAlertIssue, stageResolvedNoxAlert } from "../noxalert.js";
 import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { resolveSlackChannels } from "../slack.js";
+import { isAppEnabled } from "../apps.js";
 
 const issue = {
   number: 42,
@@ -48,5 +55,15 @@ describe("NoxAlert resolved routing", () => {
       { orgId: 7, ownerId: "acme", repo: "web", issue },
     );
     expect(stageSlackDelivery).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ channelId: "C0" }));
+  });
+
+  it("does nothing while NoxAlert is off", async () => {
+    vi.mocked(isAppEnabled).mockResolvedValueOnce(false);
+    const result = await stageResolvedNoxAlert(
+      { DB: {}, TASK_QUEUE: { send: vi.fn() } },
+      { orgId: 7, ownerId: "acme", repo: "web", issue },
+    );
+    expect(result).toEqual({ skipped: "service_disabled" });
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 });

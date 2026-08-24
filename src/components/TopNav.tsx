@@ -15,17 +15,17 @@ const NAV_ITEMS: readonly { id: TabId; label: string; appId: NoxAppId }[] = [
   { id: "posts", label: "Feed", appId: "noxfeed" },
   { id: "issues", label: "Issues", appId: "noxfeed" },
   { id: "noxalert", label: "Alerts", appId: "noxalert" },
-  { id: "admin", label: "Admin", appId: "noxconnect" },
-  { id: "repos", label: "Repos", appId: "noxfeed" },
 ];
 
 interface TopNavProps {
   activeTab: TabId;
+  pendingTab?: TabId | null;
   onTabChange: (tab: TabId) => void;
+  onTabIntent?: (tab: TabId) => void;
   enabledApps?: readonly NoxAppId[];
 }
 
-export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: TopNavProps) {
+export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enabledApps = ALL_APP_IDS }: TopNavProps) {
   const { user, setSelectedOrg, logout } = useAuth();
   const { data: rateLimit } = useRateLimit();
   const isRateLimited = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2;
@@ -34,6 +34,7 @@ export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: To
   const newRepoCount = isAdmin ? unacked.length : 0;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
   const navItems = NAV_ITEMS.filter(
     (item) => enabledApps.includes(item.appId) && (isAdmin || item.id !== "noxalert"),
   );
@@ -46,6 +47,13 @@ export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: To
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    mobileNavRef.current?.querySelector<HTMLElement>("[aria-current='page']")?.scrollIntoView?.({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [activeTab]);
+
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-stone-200 bg-white">
       <div className="relative flex h-14 items-center justify-between gap-4 px-4 sm:px-6">
@@ -53,17 +61,21 @@ export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: To
           type="button"
           onClick={() => onTabChange(getDefaultEnabledTab(enabledApps))}
           className="shrink-0 cursor-pointer font-display text-base tracking-tight text-stone-800"
-          aria-label="Unticket home"
+          aria-label="NoxConnect home"
         >
-          <span className="font-bold">un</span><span className="font-normal">ticket</span>
+          <span className="font-bold">Nox</span><span className="font-normal">Connect</span>
         </button>
 
-        <nav aria-label="Main views" className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 md:flex">
+        <nav aria-label="Main views" aria-busy={pendingTab ? true : undefined} className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 md:flex">
           {navItems.map(({ id, label }) => (
             <button
               key={id}
               type="button"
+              onPointerEnter={() => onTabIntent?.(id)}
+              onPointerDown={() => onTabIntent?.(id)}
+              onFocus={() => onTabIntent?.(id)}
               onClick={() => onTabChange(id)}
+              aria-current={activeTab === id ? "page" : undefined}
               className={cn(
                 "relative cursor-pointer px-3 py-2 text-sm font-medium transition-colors",
                 activeTab === id ? "text-stone-900" : "text-stone-500 hover:text-stone-800",
@@ -71,6 +83,7 @@ export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: To
             >
               {label}
               {activeTab === id ? <span className="absolute -bottom-[1px] left-3 right-3 h-[2px] rounded-full bg-accent" /> : null}
+              {pendingTab === id ? <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> : null}
             </button>
           ))}
         </nav>
@@ -92,6 +105,9 @@ export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: To
 
           <button
             type="button"
+            onPointerEnter={() => onTabIntent?.("admin")}
+            onPointerDown={() => onTabIntent?.("admin")}
+            onFocus={() => onTabIntent?.("admin")}
             onClick={() => onTabChange("admin")}
             className={cn(
               "relative cursor-pointer rounded-lg p-1.5 transition-colors",
@@ -128,12 +144,17 @@ export function TopNav({ activeTab, onTabChange, enabledApps = ALL_APP_IDS }: To
         </div>
       </div>
 
-      <nav aria-label="Mobile views" className="flex items-center gap-1 overflow-x-auto px-2 pb-1.5 md:hidden">
+      {pendingTab ? <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-accent/10"><div className="h-full w-1/3 animate-navigation-progress bg-accent" /></div> : null}
+
+      <nav ref={mobileNavRef} aria-label="Mobile views" aria-busy={pendingTab ? true : undefined} className="flex items-center gap-1 overflow-x-auto px-2 pb-1.5 md:hidden">
         {navItems.map(({ id, label }) => (
           <button
             key={id}
             type="button"
+            onPointerDown={() => onTabIntent?.(id)}
+            onFocus={() => onTabIntent?.(id)}
             onClick={() => onTabChange(id)}
+            aria-current={activeTab === id ? "page" : undefined}
             className={cn(
               "cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",
               activeTab === id ? "bg-accent/10 text-accent" : "text-stone-500 hover:bg-stone-50",

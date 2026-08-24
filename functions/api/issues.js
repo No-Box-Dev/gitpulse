@@ -37,7 +37,7 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
 
   // Active repos only — drafts, archived (platform + GitHub), and the
-  // unticket-config repo are hidden from every issue surface in the app.
+  // noxconnect-config repo are hidden from every issue surface in the app.
   // Settings' repo-management UI uses /api/repos?include=all instead.
   const activeRepos = await getActiveRepoNames(context.env.DB, orgId, orgLogin);
   const activeSql = ` AND repo IN (${activeRepos.map(() => "?").join(",")})`;

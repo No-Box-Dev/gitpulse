@@ -43,7 +43,7 @@ describe("PostsTab", () => {
     mProjects.mockReturnValue({ data: undefined, isLoading: true });
     mPosts.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     const { container } = renderTab();
-    expect(container.querySelector(".animate-spin")).not.toBeNull();
+    expect(container.querySelector("[role='status']")).not.toBeNull();
   });
 
   it("renders the empty state when there are no merged updates", () => {

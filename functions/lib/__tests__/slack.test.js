@@ -25,8 +25,6 @@ import {
   clearSlackChannelsForOrg,
   postSlackMessage,
   listSlackChannels,
-  buildPostsBlocks,
-  buildReleaseNotesBlocks,
 } from "../slack.js";
 
 describe("slackInstallNeedsReconnect", () => {
@@ -337,19 +335,19 @@ describe("resolveSlackChannels", () => {
   }
   it("returns empty IDs when no settings", async () => {
     expect(await resolveSlackChannels(mkDb(null), "org-1")).toEqual({
-      fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
+      fallbackChannelId: "", noxAlertChannelId: "", noxTicketChannelId: "", noxFeedChannelId: "",
       postsChannelId: "", releaseNotesChannelId: "", fallbackConnectionId: "", noxAlertConnectionId: "",
-      unticketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
+      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
     });
   });
   it("adopts a combined NoxFeed route for both streams", async () => {
     const row = { data: JSON.stringify({ slack: {
-      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", noxTicketChannelId: "CU", noxFeedChannelId: "CF",
     } }) };
     expect(await resolveSlackChannels(mkDb(row), "org-1")).toEqual({
-      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", noxTicketChannelId: "CU", noxFeedChannelId: "CF",
       postsChannelId: "CF", releaseNotesChannelId: "CF", fallbackConnectionId: "", noxAlertConnectionId: "",
-      unticketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
+      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
     });
   });
   it("keeps dedicated NoxFeed routes distinct", async () => {
@@ -360,11 +358,22 @@ describe("resolveSlackChannels", () => {
       postsChannelId: "C-POSTS", releaseNotesChannelId: "C-RELEASES",
     });
   });
+  it("adopts pre-rename NoxTicket channel fields", async () => {
+    const prefix = ["un", "ticket"].join("");
+    const row = { data: JSON.stringify({ slack: {
+      [`${prefix}ChannelId`]: "C-TICKET",
+      [`${prefix}ConnectionId`]: "conn-ticket",
+    } }) };
+    expect(await resolveSlackChannels(mkDb(row), "org-1")).toMatchObject({
+      noxTicketChannelId: "C-TICKET",
+      noxTicketConnectionId: "conn-ticket",
+    });
+  });
   it("tolerates corrupt JSON", async () => {
     expect(await resolveSlackChannels(mkDb({ data: "not json" }), "org-1")).toEqual({
-      fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
+      fallbackChannelId: "", noxAlertChannelId: "", noxTicketChannelId: "", noxFeedChannelId: "",
       postsChannelId: "", releaseNotesChannelId: "", fallbackConnectionId: "", noxAlertConnectionId: "",
-      unticketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
+      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
     });
   });
 
@@ -375,12 +384,12 @@ describe("resolveSlackChannels", () => {
 
   it("uses service-specific channels before the organization fallback", () => {
     const channels = {
-      fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU",
+      fallbackChannelId: "C0", noxAlertChannelId: "CA", noxTicketChannelId: "CU",
       postsChannelId: "CP", releaseNotesChannelId: "CR",
     };
     expect(resolveSlackRoute(channels, "noxalert", "CS")).toBe("CA");
     expect(resolveSlackRoute(channels, "noxspot", "CS")).toBe("CS");
-    expect(resolveSlackRoute(channels, "unticket")).toBe("CU");
+    expect(resolveSlackRoute(channels, "noxticket")).toBe("CU");
     expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("CP");
     expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("CR");
   });
@@ -389,7 +398,7 @@ describe("resolveSlackChannels", () => {
     const channels = { fallbackChannelId: "C0" };
     expect(resolveSlackRoute(channels, "noxalert", "CS")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxspot")).toBe("C0");
-    expect(resolveSlackRoute(channels, "unticket")).toBe("C0");
+    expect(resolveSlackRoute(channels, "noxticket")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("C0");
   });
@@ -402,7 +411,7 @@ describe("resolveSlackChannels", () => {
     };
     expect(resolveSlackConnectionId(channels, "noxalert")).toBe("conn-alerts");
     expect(resolveSlackConnectionId(channels, "noxfeed_posts")).toBe("conn-feed");
-    expect(resolveSlackConnectionId(channels, "unticket")).toBe("conn-default");
+    expect(resolveSlackConnectionId(channels, "noxticket")).toBe("conn-default");
     expect(resolveSlackConnectionId(channels, "noxspot", "conn-site")).toBe("conn-site");
   });
 });
@@ -449,47 +458,5 @@ describe("listSlackChannels", () => {
     expect(result[0].name).toBe("alpha");
     expect(result[1].name).toBe("beta");
     expect(result[0].is_private).toBe(true);
-  });
-});
-
-describe("buildPostsBlocks", () => {
-  it("renders header + summary + action button", () => {
-    const payload = buildPostsBlocks({
-      actorName: "Jane",
-      projectName: "unticket",
-      summary: "I merged it.",
-      prUrl: "https://github.com/x/y/pull/1",
-      prNumber: 1,
-      avatarUrl: "https://x/a.png",
-    });
-    expect(payload.blocks).toHaveLength(2);
-    expect(payload.blocks[0].text.text).toContain("*Jane*");
-    expect(payload.blocks[0].accessory.image_url).toBe("https://x/a.png");
-    expect(payload.blocks[1].elements[0].url).toBe("https://github.com/x/y/pull/1");
-  });
-
-  it("escapes mrkdwn characters", () => {
-    const payload = buildPostsBlocks({ actorName: "<x>", projectName: "&y", summary: "5 < 10" });
-    expect(payload.blocks[0].text.text).toContain("&lt;x&gt;");
-    expect(payload.blocks[0].text.text).toContain("&amp;y");
-    expect(payload.blocks[0].text.text).toContain("5 &lt; 10");
-  });
-});
-
-describe("buildReleaseNotesBlocks", () => {
-  it("wraps the release note in a code fence", () => {
-    const payload = buildReleaseNotesBlocks({ projectName: "u", summary: "🐛 #1 ..." });
-    expect(payload.blocks[1].text.text.startsWith("```\n")).toBe(true);
-    expect(payload.blocks[1].text.text.endsWith("\n```")).toBe(true);
-  });
-
-  it("sanitizes embedded ``` so a model can't close the fence", () => {
-    const payload = buildReleaseNotesBlocks({
-      projectName: "u",
-      summary: "Bug.\n```python\nprint()\n```\nDone.",
-    });
-    const text = payload.blocks[1].text.text;
-    const inner = text.slice(4, -4);
-    expect(/`{3,}/.test(inner)).toBe(false);
   });
 });

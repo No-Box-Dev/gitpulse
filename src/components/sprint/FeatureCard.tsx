@@ -82,7 +82,7 @@ export function FeatureCard({
       aria-label={`${feature.title}, status: ${feature.status}`}
       tabIndex={draggable && !feature.pending ? 0 : undefined}
       className={cn(
-        "group bg-white  rounded-lg border border-stone-200  p-3 shadow-sm hover:shadow-md transition-shadow",
+        "render-lazy group bg-white rounded-lg border border-stone-200 p-3 shadow-sm hover:shadow-md transition-shadow",
         draggable && !feature.pending && "cursor-grab active:cursor-grabbing",
         isLastStage && "opacity-60",
         // Green left stripe = "this feature has specs". Same idea as the

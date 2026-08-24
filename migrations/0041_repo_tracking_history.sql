@@ -1,5 +1,5 @@
 -- Preserve repository lifecycle and the exact periods during which a repo was
--- included in Unticket. Historical analytics must not be rewritten when a
+-- included in NoxConnect. Historical analytics must not be rewritten when a
 -- repo is archived, transferred, deleted, or later re-enabled.
 ALTER TABLE repos ADD COLUMN retired_at TEXT;
 ALTER TABLE repos ADD COLUMN retirement_reason TEXT;
@@ -59,9 +59,9 @@ LEFT JOIN projects project
 WHERE repo.name != COALESCE(
   json_extract(
     (SELECT data FROM config WHERE org_id = repo.org_id AND key = 'settings'),
-    '$.unticketRepo'
+    '$.noxTicketRepo'
   ),
-  'unticket'
+  'noxconnect'
 )
 AND NOT (
   project.archived = 1

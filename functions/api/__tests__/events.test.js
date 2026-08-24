@@ -93,7 +93,7 @@ describe("GET /api/events", () => {
 
   it("appends repo + pr_number filter matching pr.number OR pr_number", async () => {
     const db = makeDb();
-    await listEvents(makeCtx({ db, url: "http://x/api/events?repo=unticket&pr_number=42" }));
+    await listEvents(makeCtx({ db, url: "http://x/api/events?repo=noxconnect&pr_number=42" }));
     const { sql, binds } = db._calls.all[0];
     expect(sql).toMatch(/repo = \?/);
     // Raw github events store the number at $.pr.number
@@ -101,7 +101,7 @@ describe("GET /api/events", () => {
     // Narrator rows (pr_narrative, narrative, release_notes) store it
     // at $.pr_number
     expect(sql).toMatch(/\$\.pr_number/);
-    expect(binds).toContain("unticket");
+    expect(binds).toContain("noxconnect");
     // Bound twice — once per branch of the OR
     expect(binds.filter((b) => b === 42)).toHaveLength(2);
   });

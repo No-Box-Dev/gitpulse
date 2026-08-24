@@ -1,5 +1,5 @@
 {
-  "name": "unticket",
+  "name": "noxconnect",
   "private": true,
   "version": "0.0.0",
   "license": "SEE LICENSE IN LICENSE",
@@ -23,10 +23,6 @@
     "build:noxspot-capture": "npm --prefix workers/noxspot-capture run build"
   },
   "dependencies": {
-    "@octokit/plugin-paginate-rest": "^14.0.0",
-    "@octokit/plugin-retry": "^8.1.0",
-    "@octokit/plugin-throttling": "^11.0.3",
-    "@octokit/rest": "^22.0.1",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

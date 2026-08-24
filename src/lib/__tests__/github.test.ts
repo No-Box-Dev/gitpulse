@@ -16,8 +16,9 @@ vi.mock("@/lib/api", () => ({
 
 import { apiGet } from "@/lib/api";
 import {
-  getOctokit,
-  resetOctokit,
+  fetchUser,
+  fetchOrgs,
+  fetchRateLimit,
   fetchRepos,
   fetchOpenPRs,
   fetchMergedPRs,
@@ -28,6 +29,8 @@ import {
   fetchPaginatedPrs,
   fetchIssueDetail,
   fetchPrDetail,
+  fetchIssueBody,
+  fetchPrBody,
   fetchEngineerStats,
   fetchEngineerActivity,
 } from "../github";
@@ -38,7 +41,6 @@ let storage: Record<string, string> = {};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetOctokit();
   storage = {};
 
   vi.stubGlobal("localStorage", {
@@ -52,34 +54,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// ---------- Octokit ----------
-
-describe("getOctokit", () => {
-  it("throws when no token", () => {
-    expect(() => getOctokit()).toThrow("Not authenticated");
+describe("NoxConnect GitHub facade", () => {
+  it("loads identity and orgs through the core API", async () => {
+    mockApiGet.mockResolvedValue({ user: { login: "ada" }, orgs: [{ login: "acme" }] });
+    await expect(fetchUser()).resolves.toEqual({ login: "ada" });
+    await expect(fetchOrgs()).resolves.toEqual([{ login: "acme" }]);
+    expect(mockApiGet).toHaveBeenCalledWith("/api/auth/profile?scope=user");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/auth/profile?scope=orgs");
   });
 
-  it("creates and caches singleton Octokit", () => {
-    storage.ut_token = "tok";
-    const a = getOctokit();
-    const b = getOctokit();
-    expect(a).toBe(b);
-  });
-
-  it("resetOctokit causes new instance on next call", () => {
-    storage.ut_token = "tok";
-    const a = getOctokit();
-    resetOctokit();
-    const b = getOctokit();
-    expect(a).not.toBe(b);
-  });
-
-  it("rebuilds the singleton when another tab replaces the token", () => {
-    storage.ut_token = "old";
-    const oldClient = getOctokit();
-    storage.ut_token = "fresh";
-    const freshClient = getOctokit();
-    expect(freshClient).not.toBe(oldClient);
+  it("loads rate limits and live issue/PR details through core APIs", async () => {
+    mockApiGet.mockResolvedValue({ body: "Details" });
+    await fetchRateLimit();
+    expect(mockApiGet).toHaveBeenCalledWith("/api/github/rate-limit");
+    await fetchIssueBody("ignored-owner", "web", 3);
+    expect(mockApiGet).toHaveBeenCalledWith("/api/github/details?kind=issue&repo=web&number=3");
+    await fetchPrBody("ignored-owner", "web", 4);
+    expect(mockApiGet).toHaveBeenCalledWith("/api/github/details?kind=pr&repo=web&number=4");
   });
 });
 

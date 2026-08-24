@@ -9,7 +9,7 @@ function githubHeaders(token) {
     Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "Unticket",
+    "User-Agent": "NoxConnect",
   };
 }
 
@@ -40,7 +40,7 @@ async function listOrganizationRepos(token, sourceOrg) {
 // transferred repositories that the installation can no longer access.
 //
 // `sourceOrg` allows an admin to attach a dedicated archive organization as a
-// historical source. Its rows are stored under the selected Unticket org so
+// historical source. Its rows are stored under the selected NoxConnect org so
 // every member's People stats include the old activity, while the recovered
 // repositories remain retired from current-work views.
 export async function onRequestPost(context) {
@@ -200,7 +200,7 @@ export async function onRequestPost(context) {
 
   // GitHub follows old-repository redirects, so the original org/name path
   // can still recover a transferred repository while preserving its historic
-  // identity in Unticket.
+  // identity in NoxConnect.
   await syncRepo(context.env.DB, token, orgId, githubOwner, cursor, true, context.env);
 
   const activityBounds = await context.env.DB

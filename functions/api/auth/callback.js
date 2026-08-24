@@ -66,7 +66,7 @@ export async function onRequestGet(context) {
   });
 
   if (!tokenRes.ok) {
-    console.error("[unticket oauth] token exchange returned", tokenRes.status);
+    console.error("[noxconnect oauth] token exchange returned", tokenRes.status);
     return new Response(JSON.stringify({ error: "Authentication service temporarily unavailable" }), {
       status: 502,
       headers: { "Content-Type": "application/json" },
@@ -77,7 +77,7 @@ export async function onRequestGet(context) {
   try {
     data = await tokenRes.json();
   } catch (e) {
-    console.error("[unticket oauth] token exchange returned non-JSON:", e);
+    console.error("[noxconnect oauth] token exchange returned non-JSON:", e);
     return new Response(JSON.stringify({ error: "Authentication service returned invalid response" }), {
       status: 502,
       headers: { "Content-Type": "application/json" },
@@ -114,7 +114,7 @@ export async function onRequestGet(context) {
       "INSERT INTO pending_tokens (code, encrypted_token, csrf_state, created_at) VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
     ).bind(exchangeCode, encryptedToken, stateParam).run();
   } catch (e) {
-    console.error("[unticket] Failed to store exchange code in D1:", e);
+    console.error("[noxconnect] Failed to store exchange code in D1:", e);
     return new Response(JSON.stringify({ error: "Authentication service temporarily unavailable" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
@@ -130,7 +130,7 @@ export async function onRequestGet(context) {
       const userRes = await fetch("https://api.github.com/user", {
         headers: {
           Authorization: `Bearer ${data.access_token}`,
-          "User-Agent": "Unticket",
+          "User-Agent": "NoxConnect",
         },
       });
       if (userRes.ok) {
@@ -147,7 +147,7 @@ export async function onRequestGet(context) {
         }
       }
     } catch (e) {
-      console.error("[unticket oauth] failed to persist refresh token:", e);
+      console.error("[noxconnect oauth] failed to persist refresh token:", e);
     }
   }
 

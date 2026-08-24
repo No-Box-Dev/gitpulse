@@ -11,7 +11,7 @@ export interface SlackStatus {
   channelStatuses: SlackChannelStatus[];
   fallbackChannelId: string;
   noxAlertChannelId: string;
-  unticketChannelId: string;
+  noxTicketChannelId: string;
   /** @deprecated Combined route retained for clients from the first central-routing release. */
   noxFeedChannelId: string;
   postsChannelId: string;

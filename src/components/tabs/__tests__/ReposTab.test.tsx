@@ -5,8 +5,6 @@ import { MemoryRouter } from "react-router-dom";
 vi.mock("@/hooks/useNoxlink", () => ({
   useFeedProjects: vi.fn(),
   useFeedActors: vi.fn(),
-  useBackfillProjectPrs: vi.fn(),
-  useSetProjectArchived: vi.fn(),
   useFeedEvents: vi.fn(),
 }));
 vi.mock("@/hooks/useGitHub", () => ({
@@ -17,20 +15,11 @@ vi.mock("@/hooks/useGitHub", () => ({
 vi.mock("@/lib/auth", () => ({
   useAuth: vi.fn(),
 }));
-vi.mock("@/lib/noxlink-api", () => ({
-  backfillProjectPrs: vi.fn(),
-}));
-vi.mock("@tanstack/react-query", () => {
-  const qc = { invalidateQueries: vi.fn() };
-  return { useQueryClient: () => qc };
-});
 
 import { ReposTab } from "../ReposTab";
 import {
   useFeedProjects,
   useFeedActors,
-  useBackfillProjectPrs,
-  useSetProjectArchived,
   useFeedEvents,
 } from "@/hooks/useNoxlink";
 import { useAllPRs, useOpenIssues, useClosedIssues } from "@/hooks/useGitHub";
@@ -38,8 +27,6 @@ import { useAuth } from "@/lib/auth";
 
 const mProjects = useFeedProjects as unknown as ReturnType<typeof vi.fn>;
 const mActors = useFeedActors as unknown as ReturnType<typeof vi.fn>;
-const mBackfill = useBackfillProjectPrs as unknown as ReturnType<typeof vi.fn>;
-const mSetArchived = useSetProjectArchived as unknown as ReturnType<typeof vi.fn>;
 const mEvents = useFeedEvents as unknown as ReturnType<typeof vi.fn>;
 const mPRs = useAllPRs as unknown as ReturnType<typeof vi.fn>;
 const mOpen = useOpenIssues as unknown as ReturnType<typeof vi.fn>;
@@ -49,8 +36,6 @@ const mAuth = useAuth as unknown as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   mProjects.mockReset();
   mActors.mockReturnValue({ data: [] });
-  mBackfill.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
-  mSetArchived.mockReturnValue({ mutate: vi.fn(), isPending: false });
   mEvents.mockReturnValue({ data: [], isLoading: false });
   mPRs.mockReturnValue({ data: [] });
   mOpen.mockReturnValue({ data: [] });

@@ -13,7 +13,6 @@ describe("Nox app configuration", () => {
   it("maps every product view to its owning app", () => {
     expect(getAppForTab("sprint")).toBe("noxticket");
     expect(getAppForTab("issues")).toBe("noxfeed");
-    expect(getAppForTab("noxalert")).toBe("noxalert");
     expect(getAppForTab("repos")).toBe("noxconnect");
   });
 

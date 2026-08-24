@@ -14,7 +14,6 @@ const NAV_ITEMS: readonly { id: TabId; label: string; appId: NoxAppId }[] = [
   { id: "specs", label: "Specs", appId: "noxticket" },
   { id: "posts", label: "Feed", appId: "noxfeed" },
   { id: "issues", label: "Issues", appId: "noxfeed" },
-  { id: "noxalert", label: "Alerts", appId: "noxalert" },
 ];
 
 interface TopNavProps {
@@ -35,9 +34,7 @@ export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enable
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const mobileNavRef = useRef<HTMLElement>(null);
-  const navItems = NAV_ITEMS.filter(
-    (item) => enabledApps.includes(item.appId) && (isAdmin || item.id !== "noxalert"),
-  );
+  const navItems = NAV_ITEMS.filter((item) => enabledApps.includes(item.appId));
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {

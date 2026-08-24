@@ -68,9 +68,15 @@ export function fetchSlackChannels(connectionId?: string): Promise<{ connectionI
 
 // Kicks off the OAuth dance — returns a Slack authorize URL the caller
 // should redirect to via `window.location.href = url`. The server sets
-// the CSRF cookie in the same response.
-export function startSlackOAuth(): Promise<{ provider: "slack"; mode: "redirect"; url: string }> {
-  return startIntegrationConnection("slack") as Promise<{ provider: "slack"; mode: "redirect"; url: string }>;
+// the CSRF cookie in the same response. Pass `{ team: null }` to let Slack's
+// workspace picker decide (switching workspaces); by default the server pins
+// the org's current workspace.
+export function startSlackOAuth(
+  options?: { team?: string | null },
+): Promise<{ provider: "slack"; mode: "redirect"; url: string }> {
+  return startIntegrationConnection("slack", options) as Promise<
+    { provider: "slack"; mode: "redirect"; url: string }
+  >;
 }
 
 export function disconnectSlack(connectionId: string): Promise<{ ok: true; provider: "slack"; status: "disconnected" }> {

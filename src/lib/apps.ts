@@ -79,8 +79,8 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     shortName: "Alert",
     description: "Turn site errors into clear alerts.",
     includes: "OpenTelemetry intake, rules, keys, and Slack posts",
-    tabs: [{ id: "noxalert", label: "NoxAlert" }],
-    defaultTab: "noxalert",
+    tabs: [],
+    defaultTab: "admin",
   },
 ] as const;
 
@@ -120,7 +120,7 @@ export function isTabEnabled(tab: TabId, enabledApps: readonly NoxAppId[]): bool
 
 export function getDefaultEnabledTab(enabledApps: readonly NoxAppId[]): TabId {
   // NoxFeed remains the familiar landing experience when it is enabled.
-  for (const appId of ["noxfeed", "noxticket", "noxalert"] as const) {
+  for (const appId of ["noxfeed", "noxticket"] as const) {
     if (enabledApps.includes(appId)) return getNoxApp(appId).defaultTab;
   }
   return "admin";

@@ -53,11 +53,11 @@ export function SlackConnectionCard() {
     window.history.replaceState({}, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [qc]);
 
-  async function handleConnect() {
+  async function handleConnect(options?: { team?: string | null }) {
     setError(null);
     setBusy("connect");
     try {
-      const { url } = await startSlackOAuth();
+      const { url } = await startSlackOAuth(options);
       window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -154,7 +154,7 @@ export function SlackConnectionCard() {
       {!data?.connected ? (
         <button
           type="button"
-          onClick={handleConnect}
+          onClick={() => handleConnect({ team: null })}
           disabled={busy === "connect" || !data?.canConfigure || !data?.appConfigured}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 disabled:opacity-50 cursor-pointer"
         >
@@ -175,7 +175,7 @@ export function SlackConnectionCard() {
           <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
             <button
               type="button"
-              onClick={handleConnect}
+              onClick={() => handleConnect({ team: null })}
               disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
               className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
             >

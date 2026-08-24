@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { apiGet } from "@/lib/api";
 
@@ -10,6 +10,7 @@ import { apiGet } from "@/lib/api";
 export function useBootstrapStatus() {
   const { selectedOrg } = useAuth();
   const qc = useQueryClient();
+  const wasBootstrapping = useRef(false);
   const query = useQuery({
     queryKey: ["bootstrap-status", selectedOrg],
     queryFn: () => apiGet<{ bootstrapping: boolean }>("/api/bootstrap-status"),
@@ -19,10 +20,14 @@ export function useBootstrapStatus() {
   });
 
   useEffect(() => {
-    if (query.data && !query.data.bootstrapping) {
-      qc.invalidateQueries();
+    const bootstrapping = query.data?.bootstrapping === true;
+    if (wasBootstrapping.current && !bootstrapping) {
+      qc.invalidateQueries({
+        predicate: (cached) => cached.queryKey[0] !== "bootstrap-status",
+      });
     }
-  }, [query.data?.bootstrapping, qc, query.data]);
+    wasBootstrapping.current = bootstrapping;
+  }, [query.data?.bootstrapping, qc]);
 
   return query;
 }

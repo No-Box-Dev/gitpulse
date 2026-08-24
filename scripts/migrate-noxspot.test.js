@@ -49,7 +49,7 @@ describe("NoxSpot migration planning", () => {
 
   it("blocks routed sites that are not connected with the required Slack app", () => {
     const [site] = buildPlan(options, data({ connections: [{ id: "legacy", org_id: 7, app_id: "OLD", team_name: "Acme Workspace" }] }));
-    expect(site.blockers).toContain("connect Slack app A0BQ8HATE4R in Unticket first");
+    expect(site.blockers).toContain("connect Slack app A0BQ8HATE4R in NoxConnect first");
   });
 
   it("requires an unambiguous workspace match", () => {
@@ -60,7 +60,7 @@ describe("NoxSpot migration planning", () => {
     expect(result.blocker).toContain("no A0BQ8HATE4R connection matches");
   });
 
-  it("preserves an existing Unticket site and its newer routing by default", () => {
+  it("preserves an existing NoxConnect site and its newer routing by default", () => {
     const [site] = buildPlan(options, data({
       projects: [],
       connections: [],
@@ -77,7 +77,7 @@ describe("NoxSpot migration planning", () => {
       slackConnectionId: "current-slack",
       blockers: [],
     });
-    expect(site.warnings[0]).toContain("preserving newer Unticket state");
+    expect(site.warnings[0]).toContain("preserving newer NoxConnect state");
     expect(migrationSql([site], "legacy-db", "A0BQ8HATE4R")).not.toContain("INSERT INTO spot_sites");
   });
 });

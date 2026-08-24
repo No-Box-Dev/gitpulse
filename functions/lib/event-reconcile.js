@@ -421,7 +421,7 @@ async function fetchRepoEvents(token, orgLogin, repo, cutoffMs) {
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          "User-Agent": "Unticket",
+          "User-Agent": "NoxConnect",
           Accept: "application/vnd.github+json",
         },
       },

@@ -19,9 +19,31 @@ function context(body) {
     }),
     data: { orgId: 7, orgLogin: "acme", isAdmin: true },
     env: {
+      NOXALERT_RESPONSE: {
+        buildResolvedResponse: vi.fn(),
+        buildTestResponse: vi.fn(async (org) => ({ contract: "noxalert.response", version: 1, message: { text: `NoxAlert delivery test for ${org}`, blocks: [{ type: "section" }] } })),
+      },
+      NOXSPOT_RESPONSE: {
+        buildIssueResponse: vi.fn(),
+        buildSlackResponse: vi.fn(),
+        buildTestResponse: vi.fn(async (org) => ({ contract: "noxspot.response", version: 1, message: { text: `NoxSpot delivery test for ${org}`, blocks: [{ type: "section" }] } })),
+      },
+      NOXFEED_RESPONSE: {
+        buildPrompt: vi.fn(),
+        buildSlackResponse: vi.fn(),
+        buildTestResponse: vi.fn(async (org, stream) => ({
+          contract: "noxfeed.response",
+          version: 1,
+          message: {
+            text: `NoxFeed ${stream === "posts" ? "posts" : stream === "release_notes" ? "release notes" : "delivery"} delivery test for ${org}`.replace("delivery delivery", "delivery"),
+            blocks: [{ type: "section" }],
+          },
+        })),
+      },
       DB: {
         prepare: (sql) => ({
           bind: (...binds) => ({
+            first: async () => null,
             run: async () => { calls.push({ sql, binds }); return { success: true }; },
           }),
         }),

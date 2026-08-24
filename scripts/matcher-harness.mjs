@@ -115,7 +115,7 @@ const PRS = [
   { number: 100, title: "Add login button", branch: "feat/login-button", author: "alice", body: "Closes #42. Adds a sign-in button to the hero.", expected: [42] },
   { number: 101, title: "Settings page redesign", branch: "feat/settings-refresh", author: "bob", body: "Fixes #43 — new sidebar and section layout.", expected: [43] },
   { number: 102, title: "CSV export from toolbar", branch: "feat/44-csv-export", author: "carol", body: "Implements feature #44.", expected: [44] },
-  { number: 103, title: "Dark mode toggle", branch: "feat/dark-mode", author: "dave", body: "Resolves unticket#45.", expected: [45] },
+  { number: 103, title: "Dark mode toggle", branch: "feat/dark-mode", author: "dave", body: "Resolves noxconnect#45.", expected: [45] },
   { number: 104, title: "2FA enrollment", branch: "feat/2fa", author: "alice", body: "Closes #49.", expected: [49] },
   { number: 105, title: "Hamburger nav under 640px", branch: "feat/mobile-nav", author: "bob", body: "Fixes #50.", expected: [50] },
   { number: 106, title: "CMD+K search palette", branch: "feat/cmdk-search", author: "dave", body: "Implements #51.", expected: [51] },

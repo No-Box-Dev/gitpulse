@@ -1,11 +1,17 @@
-import { useEffect, useMemo } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, PlugZap } from "lucide-react";
-import { useAuth } from "@/lib/auth";
 import { useIsAdmin, useOrgMembers } from "@/hooks/useGitHub";
 import { useSettings, useSaveSettings, usePeople, useSavePeople } from "@/hooks/useConfigRepo";
 import { useNoxConnect } from "@/hooks/useNoxConnect";
-import { getEnabledNoxApps, type OptionalNoxAppId } from "@/lib/apps";
+import {
+  ADMIN_INTRO,
+  getNoxApp,
+  isNoxAppEnabled,
+  OPTIONAL_NOX_APP_IDS,
+  SERVICE_OFF_TEXT,
+  type OptionalNoxAppId,
+} from "@/lib/apps";
 import { Spinner } from "@/components/Spinner";
 import { PeopleManagement } from "@/components/settings/PeopleManagement";
 import {
@@ -18,69 +24,116 @@ import {
   SlackConnectionCard,
   SlackConnectionSummaryCard,
 } from "@/components/admin/slack/SlackConnectionCard";
-import { LlmSettingsSection } from "@/components/admin/LlmSettingsSection";
-import { UnticketSection } from "@/components/admin/tools/UnticketSection";
+import { NoxTicketSection } from "@/components/admin/tools/NoxTicketSection";
 import { NoxFeedSection } from "@/components/admin/tools/NoxFeedSection";
 import { NoxSpotSection } from "@/components/admin/tools/NoxSpotSection";
 import { NoxAlertSection } from "@/components/admin/tools/NoxAlertSection";
-import { MaintenanceSection } from "@/components/admin/MaintenanceSection";
-import { NoxAppsSection } from "@/components/admin/NoxAppsSection";
+import { ServiceActivationCard, ServiceToggle } from "@/components/admin/ServiceActivationCard";
+import { NewReposSection } from "@/components/admin/NewReposSection";
+import { TrackedReposSection } from "@/components/admin/TrackedReposSection";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+
+const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then((module) => ({ default: module.ReposTab })));
+const MaintenanceSection = lazy(() => import("@/components/admin/MaintenanceSection").then((module) => ({ default: module.MaintenanceSection })));
+
+const ADMIN_SECTIONS: AdminSectionDef[] = [
+  { id: "admin-noxconnect", label: "NoxConnect" },
+  { id: "admin-noxticket", label: "NoxTicket" },
+  { id: "admin-noxfeed", label: "NoxFeed" },
+  { id: "admin-noxspot", label: "NoxSpot" },
+  { id: "admin-noxalert", label: "NoxAlert" },
+];
+
+const NOXCONNECT_PANELS = [
+  { id: "overview", label: "Overview", description: "Tools and workspace health" },
+  { id: "connections", label: "Connections", description: "GitHub and Slack" },
+  { id: "people", label: "People", description: "Members and roles" },
+  { id: "repositories", label: "Repositories", description: "Tracked workspace data" },
+  { id: "maintenance", label: "Maintenance", description: "Sync and recovery tools" },
+] as const;
+
+type NoxConnectPanelId = typeof NOXCONNECT_PANELS[number]["id"];
+
+function isNoxConnectPanel(value: string | null): value is NoxConnectPanelId {
+  return NOXCONNECT_PANELS.some((panel) => panel.id === value);
+}
 
 // Each service has a real Admin tab. Only the active tab is mounted, keeping
 // setup independent and avoiding background queries for unrelated services.
-export function AdminTab() {
-  const { user, selectedOrg, logout } = useAuth();
+export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
   const isAdmin = useIsAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   const noxConnect = useNoxConnect();
-  const { data: settings } = useSettings();
+  const settingsQuery = useSettings();
+  const settings = settingsQuery.data;
   const saveSettings = useSaveSettings();
-  const { data: people } = usePeople();
-  const savePeople = useSavePeople();
-  const { data: orgMembers } = useOrgMembers();
+  const [pendingDisable, setPendingDisable] = useState<OptionalNoxAppId | null>(null);
   const focus = searchParams.get("focus");
-  const enabledApps = useMemo(() => getEnabledNoxApps(settings), [settings]);
-  const sections = useMemo<AdminSectionDef[]>(() => [
-    { id: "admin-noxconnect", label: "NoxConnect" },
-    ...(enabledApps.includes("noxticket") ? [{ id: "admin-noxticket", label: "NoxTicket" }] : []),
-    ...(enabledApps.includes("noxfeed") ? [{ id: "admin-noxfeed", label: "NoxFeed" }] : []),
-    ...(enabledApps.includes("noxspot") ? [{ id: "admin-noxspot", label: "NoxSpot" }] : []),
-    ...(enabledApps.includes("noxalert") ? [{ id: "admin-noxalert", label: "NoxAlert" }] : []),
-    { id: "admin-maintenance", label: "Maintenance" },
-  ], [enabledApps]);
-  const requestedSection = searchParams.get("section");
-  const focusedSection = focus === "newRepos" && enabledApps.includes("noxticket")
-    ? "admin-noxticket"
-    : "admin-noxconnect";
-  const activeSection = sections.some((section) => section.id === requestedSection)
+  const rawRequestedSection = searchParams.get("section");
+  const requestedNoxConnectPanel = searchParams.get("panel");
+  const isLegacyReposLink = rawRequestedSection === "admin-repos" || searchParams.get("tab") === "repos";
+  const isLegacyAiLink = rawRequestedSection === "admin-noxconnect" && requestedNoxConnectPanel === "ai";
+  const requestedSection = isLegacyReposLink ? "admin-noxconnect" : isLegacyAiLink ? "admin-noxfeed" : rawRequestedSection;
+  const focusedSection = focus === "aiProvider"
+    ? "admin-noxfeed"
+    : focus === "newRepos" && isNoxAppEnabled(settings, "noxticket")
+      ? "admin-noxticket"
+      : "admin-noxconnect";
+  const activeSection = ADMIN_SECTIONS.some((section) => section.id === requestedSection)
     ? requestedSection!
     : focus ? focusedSection : "admin-noxconnect";
+  const activeNoxConnectPanel: NoxConnectPanelId = isLegacyReposLink
+    ? "repositories"
+    : isNoxConnectPanel(requestedNoxConnectPanel)
+      ? requestedNoxConnectPanel
+      : "overview";
 
   function toggleApp(appId: OptionalNoxAppId, enabled: boolean) {
+    if (!enabled) {
+      setPendingDisable(appId);
+      return;
+    }
+    saveAppState(appId, true);
+  }
+
+  function saveAppState(appId: OptionalNoxAppId, enabled: boolean) {
     saveSettings.mutate({
       ...(settings ?? {}),
       apps: { ...(settings?.apps ?? {}), [appId]: enabled },
     });
   }
 
-  // Deep links select their owning tab, then focus the relevant control.
-  useEffect(() => {
-    if (!isAdmin || focus !== "aiProvider") return;
-    const frame = window.requestAnimationFrame(() => {
-      document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [isAdmin, focus]);
+  function confirmDisable() {
+    if (!pendingDisable) return;
+    saveAppState(pendingDisable, false);
+    setPendingDisable(null);
+  }
 
   function selectSection(section: string) {
     const params = new URLSearchParams(searchParams);
     params.set("tab", "admin");
     params.set("section", section);
     params.delete("focus");
+    params.delete("panel");
+    setSearchParams(params, { replace: true });
+  }
+
+  function selectNoxConnectPanel(panel: NoxConnectPanelId) {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "admin");
+    params.set("section", "admin-noxconnect");
+    if (panel === "overview") params.delete("panel");
+    else params.set("panel", panel);
+    params.delete("focus");
     setSearchParams(params, { replace: true });
   }
 
   const status = noxConnect.data;
+  const settingsReady = settings !== undefined && !settingsQuery.isLoading;
+  const noxTicketEnabled = isNoxAppEnabled(settings, "noxticket");
+  const noxFeedEnabled = isNoxAppEnabled(settings, "noxfeed");
+  const noxSpotEnabled = isNoxAppEnabled(settings, "noxspot");
+  const noxAlertEnabled = isNoxAppEnabled(settings, "noxalert");
   const connectionsLoading = (
     <div className="bg-white rounded-xl border border-stone-200 p-5 flex justify-center">
       <Spinner className="h-5 w-5 text-accent" />
@@ -107,29 +160,11 @@ export function AdminTab() {
       <div>
         <h1 className="text-xl font-semibold text-stone-900">Admin</h1>
         <p className="mt-1 text-sm text-stone-500">
-          Configure NoxConnect and each enabled app independently.
+          {ADMIN_INTRO}
         </p>
       </div>
 
-      {noxConnect.isError ? connectionsError : status && (
-        <section className={`rounded-xl border p-5 ${status.setup.ready ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
-          <div className="flex items-start gap-3">
-            {status.setup.ready
-              ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-700" />
-              : <PlugZap className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />}
-            <div>
-              <h2 className={`text-sm font-semibold ${status.setup.ready ? "text-green-900" : "text-amber-900"}`}>
-                {status.setup.ready ? "Your Nox foundation is ready" : setupHeading}
-              </h2>
-              <p className={`mt-1 text-xs leading-5 ${status.setup.ready ? "text-green-800" : "text-amber-800"}`}>
-                GitHub is the required organization connection. Slack is optional today and can be added once for feed delivery, NoxSpot notifications, and NoxAlert.
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <AdminSectionTabs sections={sections} activeId={activeSection} onChange={selectSection} />
+      <AdminSectionTabs sections={ADMIN_SECTIONS} activeId={activeSection} onChange={selectSection} />
 
       <div
         id={`${activeSection}-panel`}
@@ -139,148 +174,297 @@ export function AdminTab() {
       >
           {/* NoxConnect — visible to everyone; controls gated per card */}
           {activeSection === "admin-noxconnect" ? <section className="space-y-6">
-            <SectionHeading title="NoxConnect" description="The always-on foundation: account, apps, people, GitHub, Slack, and shared AI." />
-            <div className="max-w-xl">
-              <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-3">
-                <h2 className="text-sm font-semibold text-stone-900">Account</h2>
-                <div className="flex items-center gap-3">
-                  {user && (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.login}
-                      className="w-10 h-10 rounded-full"
-                    />
+            <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
+              <NoxConnectNavigation activeId={activeNoxConnectPanel} onChange={selectNoxConnectPanel} />
+
+              <div
+                id={`noxconnect-${activeNoxConnectPanel}-panel`}
+                role="tabpanel"
+                aria-labelledby={`noxconnect-${activeNoxConnectPanel}-tab`}
+                className="min-w-0 space-y-6"
+              >
+                {activeNoxConnectPanel === "overview" ? <>
+                  <SectionHeading title="Overview" description="See what is active and what NoxConnect is tracking." />
+
+                  {noxConnect.isError ? connectionsError : status && (
+                    <section className={`rounded-xl border p-5 ${status.setup.ready ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
+                      <div className="flex items-start gap-3">
+                        {status.setup.ready
+                          ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-700" />
+                          : <PlugZap className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />}
+                        <div>
+                          <h2 className={`text-sm font-semibold ${status.setup.ready ? "text-green-900" : "text-amber-900"}`}>
+                            {status.setup.ready ? "Everything is connected" : setupHeading}
+                          </h2>
+                          <p className={`mt-1 text-xs leading-5 ${status.setup.ready ? "text-green-800" : "text-amber-800"}`}>
+                            GitHub is required. Slack is optional and can serve every enabled Nox app.
+                          </p>
+                        </div>
+                      </div>
+                    </section>
                   )}
-                  <div>
-                    <div className="text-sm font-medium text-stone-800">
-                      {user?.name ?? user?.login}
+
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-stone-900">Tools</h2>
+                        <p className="mt-1 text-xs text-stone-500">Enabled products using this NoxConnect workspace.</p>
+                      </div>
+                      <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
+                        {OPTIONAL_NOX_APP_IDS.filter((appId) => isNoxAppEnabled(settings, appId)).length} active
+                      </span>
                     </div>
-                    <div className="text-xs text-stone-400">@{user?.login}</div>
-                  </div>
-                </div>
-                <div className="text-xs text-stone-400">
-                  Organisation: <span className="font-medium text-stone-600">{selectedOrg}</span>
-                </div>
-                <button
-                  onClick={logout}
-                  className="text-xs text-red-500 hover:text-red-700 cursor-pointer"
-                >
-                  Sign out
-                </button>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {OPTIONAL_NOX_APP_IDS.map((appId) => {
+                        const app = getNoxApp(appId);
+                        const enabled = isNoxAppEnabled(settings, appId);
+                        return (
+                          <div
+                            key={app.id}
+                            className={`rounded-lg border p-3 transition-colors ${enabled ? "border-stone-200" : "border-stone-200 bg-stone-50"}`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => selectSection(`admin-${app.id}`)}
+                                  className="text-left text-sm font-medium text-stone-800 hover:text-accent hover:underline"
+                                >
+                                  {app.name}
+                                </button>
+                                <p className="mt-1 text-xs leading-5 text-stone-500">
+                                  {enabled ? app.includes : `${SERVICE_OFF_TEXT[appId]} Saved data and setup are retained.`}
+                                </p>
+                              </div>
+                              <ServiceToggle
+                                app={app}
+                                enabled={enabled}
+                                disabled={!isAdmin || !settingsReady || saveSettings.isPending}
+                                onToggle={toggleApp}
+                              />
+                            </div>
+                            {!isAdmin ? <p className="mt-2 text-[11px] text-stone-400">Only an organization admin can change this switch.</p> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-stone-200 bg-white p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-stone-900">Tracked repositories</h2>
+                        <p className="mt-1 text-xs text-stone-500">Repositories supplying shared issues, pull requests, and activity.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => selectNoxConnectPanel("repositories")}
+                        className="text-xs font-medium text-accent hover:underline"
+                      >
+                        Manage repositories
+                      </button>
+                    </div>
+                    <div className="mt-4 flex items-end gap-3">
+                      <span className="text-3xl font-semibold tracking-tight text-stone-900">{repoNames.length}</span>
+                      <span className="pb-1 text-xs text-stone-500">tracked</span>
+                    </div>
+                    {repoNames.length > 0 ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {repoNames.slice(0, 8).map((repo) => <span key={repo} className="rounded-md bg-stone-100 px-2 py-1 font-mono text-[11px] text-stone-600">{repo}</span>)}
+                        {repoNames.length > 8 ? <span className="px-1 py-1 text-[11px] text-stone-400">+{repoNames.length - 8} more</span> : null}
+                      </div>
+                    ) : <p className="mt-4 text-xs text-stone-400">No repositories are tracked yet.</p>}
+                  </section>
+                </> : null}
+
+                {activeNoxConnectPanel === "connections" ? <>
+                  <SectionHeading title="Connections" description="Connect the providers shared by every enabled Nox app." />
+                  {noxConnect.isLoading
+                    ? connectionsLoading
+                    : noxConnect.isError
+                      ? connectionsError
+                      : status && <>
+                          <GithubConnectionCard github={status.github} canConfigure={status.canConfigure} setupReady={status.setup.ready} />
+                          {status.canConfigure
+                            ? <SlackConnectionCard />
+                            : <SlackConnectionSummaryCard connected={status.slack.connected} teamName={status.slack.teamName} />}
+                        </>}
+                </> : null}
+
+                {activeNoxConnectPanel === "people" ? <>
+                  <SectionHeading title="People" description="Choose tracked organization members and manage their roles." />
+                  <NoxConnectPeoplePanel />
+                </> : null}
+
+                {activeNoxConnectPanel === "repositories" ? <>
+                  <SectionHeading title="Repositories" description="Choose what NoxConnect tracks, then inspect repository activity." />
+                  <NewReposSection />
+                  <TrackedReposSection />
+                  <SectionHeading title="Repository activity" description="Inspect pull requests, issues, and contribution history for tracked repositories." />
+                  <Suspense fallback={connectionsLoading}><ReposTab repoNames={repoNames} /></Suspense>
+                </> : null}
+
+                {activeNoxConnectPanel === "maintenance" ? <>
+                  <SectionHeading title="Maintenance" description="Use recovery tools only when automatic sync needs help." />
+                  <AdminGate title="Maintenance operations" description="Manual syncs, backfills, history recovery, and background failure logs.">
+                    <Suspense fallback={connectionsLoading}><MaintenanceSection /></Suspense>
+                  </AdminGate>
+                </> : null}
               </div>
             </div>
-
-            <NoxAppsSection
-              settings={settings}
-              isAdmin={isAdmin}
-              isSaving={saveSettings.isPending}
-              onToggle={toggleApp}
-            />
-
-            {/* People management mutates org settings — render the live
-                component only for admins; non-admins get the gated shell. */}
-            <AdminGate
-              title="People"
-              description="Manage which organization members are tracked and their roles."
-            >
-              {settings ? (
-                <PeopleManagement
-                  people={people ?? []}
-                  savePeople={savePeople}
-                  orgMembers={orgMembers ?? []}
-                  settings={settings}
-                  saveSettings={saveSettings}
-                />
-              ) : (
-                <div className="bg-white rounded-xl border border-stone-200 p-5">
-                  <Spinner className="h-5 w-5 text-accent" />
-                </div>
-              )}
-            </AdminGate>
-
-            {noxConnect.isLoading
-              ? connectionsLoading
-              : noxConnect.isError
-                ? connectionsError
-                : status && (
-                    <>
-                      <GithubConnectionCard
-                        github={status.github}
-                        canConfigure={status.canConfigure}
-                        setupReady={status.setup.ready}
-                      />
-                      {status.canConfigure
-                        ? <SlackConnectionCard />
-                        : <SlackConnectionSummaryCard
-                            connected={status.slack.connected}
-                            teamName={status.slack.teamName}
-                          />}
-                    </>
-                  )}
-
-            <AdminGate
-              title="AI Provider"
-              description="Bring your own LLM endpoint for narration and PR↔feature matching."
-            >
-              <div id="ai-provider" className="scroll-mt-24">
-                <LlmSettingsSection />
-              </div>
-            </AdminGate>
           </section> : null}
 
           {activeSection === "admin-noxticket" ? <section className="space-y-6">
-            <SectionHeading title="NoxTicket" description="Features, backlog, specs, board stages, repo policy, and Slack delivery." />
-            <AdminGate
+            <ServiceActivationCard
+              app={getNoxApp("noxticket")}
+              enabled={noxTicketEnabled}
+              isAdmin={isAdmin}
+              isSaving={!settingsReady || saveSettings.isPending}
+              hasError={saveSettings.isError}
+              offText={SERVICE_OFF_TEXT.noxticket}
+              onToggle={toggleApp}
+            />
+            {settingsReady && noxTicketEnabled ? <AdminGate
               title="NoxTicket settings"
-              description="Features repo, board stages, new-repo policy, tracked repos, and Slack routing."
+              description="Set the feature repo, board stages, repo rules, and Slack route."
             >
-              {status ? <UnticketSection noxConnect={status} /> : connectionsLoading}
-            </AdminGate>
+              {status ? <NoxTicketSection noxConnect={status} /> : connectionsLoading}
+            </AdminGate> : null}
           </section> : null}
 
           {activeSection === "admin-noxfeed" ? <section className="space-y-6">
-            <SectionHeading title="NoxFeed" description="GitHub activity views, narrated posts, release notes, Slack routes, and backfills." />
-            <AdminGate
+            <ServiceActivationCard
+              app={getNoxApp("noxfeed")}
+              enabled={noxFeedEnabled}
+              isAdmin={isAdmin}
+              isSaving={!settingsReady || saveSettings.isPending}
+              hasError={saveSettings.isError}
+              offText={SERVICE_OFF_TEXT.noxfeed}
+              onToggle={toggleApp}
+            />
+            {settingsReady && noxFeedEnabled ? <AdminGate
               title="NoxFeed settings"
-              description="Slack routes for Posts and Release notes, the release notes prompt, and Posts backfill."
+              description="Set Slack routes, narration, models, and feed backfills."
             >
               {status ? <NoxFeedSection noxConnect={status} /> : connectionsLoading}
-            </AdminGate>
+            </AdminGate> : null}
           </section> : null}
 
           {activeSection === "admin-noxspot" ? <section className="space-y-6">
-            <SectionHeading title="NoxSpot" description="Website feedback capture, widgets, sites, and delivery into GitHub." />
-            <AdminGate
+            <ServiceActivationCard
+              app={getNoxApp("noxspot")}
+              enabled={noxSpotEnabled}
+              isAdmin={isAdmin}
+              isSaving={!settingsReady || saveSettings.isPending}
+              hasError={saveSettings.isError}
+              offText={SERVICE_OFF_TEXT.noxspot}
+              onToggle={toggleApp}
+            />
+            {settingsReady && noxSpotEnabled ? <AdminGate
               title="NoxSpot settings"
-              description="Manage sites, widget installation, capture behavior, and per-site Slack delivery here."
+              description="Set up sites, widgets, reports, and Slack routes."
             >
               {status
                 ? <NoxSpotSection noxConnect={status} />
                 : connectionsLoading}
-            </AdminGate>
+            </AdminGate> : null}
           </section> : null}
 
           {activeSection === "admin-noxalert" ? <section className="space-y-6">
-            <SectionHeading title="NoxAlert" description="OpenTelemetry ingest, project filters, alert rules, keys, and Slack delivery." />
-            <AdminGate
+            <ServiceActivationCard
+              app={getNoxApp("noxalert")}
+              enabled={noxAlertEnabled}
+              isAdmin={isAdmin}
+              isSaving={!settingsReady || saveSettings.isPending}
+              hasError={saveSettings.isError}
+              offText={SERVICE_OFF_TEXT.noxalert}
+              onToggle={toggleApp}
+            />
+            {settingsReady && noxAlertEnabled ? <AdminGate
               title="NoxAlert settings"
-              description="Alert channel routing. Requires GitHub and Slack."
+              description="Set up OpenTelemetry intake, alert rules, keys, and Slack."
             >
               {status ? <NoxAlertSection noxConnect={status} /> : connectionsLoading}
-            </AdminGate>
+            </AdminGate> : null}
           </section> : null}
 
-          {activeSection === "admin-maintenance" ? <section className="space-y-6">
-            <SectionHeading title="Maintenance" description="Manual syncs, backfills, history recovery, and background failures." />
-            <AdminGate
-              title="Maintenance operations"
-              description="Manual syncs, backfills, history recovery, and background failure logs."
-            >
-              <MaintenanceSection />
-            </AdminGate>
-          </section> : null}
       </div>
+      <ConfirmDialog
+        open={pendingDisable !== null}
+        title={pendingDisable ? `Turn off ${getNoxApp(pendingDisable).name}?` : "Turn off service?"}
+        message={pendingDisable ? `${SERVICE_OFF_TEXT[pendingDisable]} Saved data and setup are retained for reactivation.` : undefined}
+        confirmLabel={pendingDisable ? `Turn off ${getNoxApp(pendingDisable).name}` : "Turn off"}
+        variant="danger"
+        onConfirm={confirmDisable}
+        onCancel={() => setPendingDisable(null)}
+      />
     </div>
+  );
+}
+
+function NoxConnectPeoplePanel() {
+  const isAdmin = useIsAdmin();
+
+  return (
+    <AdminGate title="People" description="Manage which organization members are tracked and their roles.">
+      {isAdmin ? <NoxConnectPeopleSettings /> : null}
+    </AdminGate>
+  );
+}
+
+function NoxConnectPeopleSettings() {
+  const settingsQuery = useSettings();
+  const saveSettings = useSaveSettings();
+  const { data: people } = usePeople();
+  const savePeople = useSavePeople();
+  const { data: orgMembers } = useOrgMembers();
+
+  return settingsQuery.data ? <PeopleManagement
+    people={people ?? []}
+    savePeople={savePeople}
+    orgMembers={orgMembers ?? []}
+    settings={settingsQuery.data}
+    saveSettings={saveSettings}
+  /> : <div className="rounded-xl border border-stone-200 bg-white p-5"><Spinner className="h-5 w-5 text-accent" /></div>;
+}
+
+function NoxConnectNavigation({
+  activeId,
+  onChange,
+}: {
+  activeId: NoxConnectPanelId;
+  onChange: (panel: NoxConnectPanelId) => void;
+}) {
+  return (
+    <nav
+      role="tablist"
+      aria-label="NoxConnect settings"
+      className="flex gap-1 overflow-x-auto border-b border-stone-200 pb-2 lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0"
+    >
+      {NOXCONNECT_PANELS.map((panel) => {
+        const active = panel.id === activeId;
+        return (
+          <button
+            key={panel.id}
+            id={`noxconnect-${panel.id}-tab`}
+            type="button"
+            role="tab"
+            aria-label={panel.label}
+            aria-selected={active}
+            aria-controls={`noxconnect-${panel.id}-panel`}
+            onClick={() => onChange(panel.id)}
+            className={`shrink-0 rounded-lg px-3 py-2 text-left transition-colors ${
+              active ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+            }`}
+          >
+            <span className="block text-sm font-medium">{panel.label}</span>
+            <span className={`mt-0.5 hidden text-[11px] lg:block ${active ? "text-stone-300" : "text-stone-400"}`}>
+              {panel.description}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 

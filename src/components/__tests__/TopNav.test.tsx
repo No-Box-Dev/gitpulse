@@ -44,7 +44,8 @@ describe("TopNav", () => {
     expect(screen.getAllByText("Feed").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Issues").length).toBeGreaterThan(0);
     expect(screen.queryByText("NoxSpot")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+    expect(screen.queryByText("Repos")).not.toBeInTheDocument();
     expect(screen.queryByText("NoxTicket")).not.toBeInTheDocument();
     expect(screen.queryByText("NoxFeed")).not.toBeInTheDocument();
   });
@@ -54,6 +55,13 @@ describe("TopNav", () => {
     render(<TopNav activeTab="sprint" onTabChange={onTabChange} />);
     fireEvent.click(screen.getAllByText("Current")[0]);
     expect(onTabChange).toHaveBeenCalledWith("current");
+  });
+
+  it("preloads a view when navigation intent is shown", () => {
+    const onTabIntent = vi.fn();
+    render(<TopNav activeTab="sprint" onTabChange={vi.fn()} onTabIntent={onTabIntent} />);
+    fireEvent.pointerEnter(screen.getAllByText("Current")[0]);
+    expect(onTabIntent).toHaveBeenCalledWith("current");
   });
 
   it("clicking the gear icon switches to admin", () => {

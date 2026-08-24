@@ -29,7 +29,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Public client ID for the Unticket GitHub App. Required at build
+          # Public client ID for the NoxConnect GitHub App. Required at build
           # time for the OAuth sign-in flow — without it, getOAuthLoginUrl()
           # throws and the login button stays unusable. Stored as a repo
           # variable (public, not a secret); the name mismatch with the Vite
@@ -40,12 +40,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: d1 migrations apply unticket --remote
+          command: d1 migrations apply noxconnect --remote
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=unticket --branch=main
+          command: pages deploy dist --project-name=noxconnect --branch=main
 
       # Deploy the sibling cron Worker. It imports from functions/lib/, so
       # without this step Pages and cron drift out of sync — every change

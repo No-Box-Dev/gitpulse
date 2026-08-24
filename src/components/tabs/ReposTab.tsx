@@ -13,6 +13,7 @@ import { useAllPRs, useOpenIssues, useClosedIssues } from "@/hooks/useGitHub";
 import { backfillProjectPrs } from "@/lib/noxlink-api";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/Spinner";
+import { ViewSkeleton } from "@/components/ui/ViewSkeleton";
 import { cn } from "@/lib/cn";
 import { AllMeToggle } from "@/components/ui/AllMeToggle";
 import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
@@ -199,7 +200,7 @@ function RepoCard({ repo, onSelect, statsLoading }: { repo: RepoSummary; onSelec
     <div
       onClick={onSelect}
       className={cn(
-        "bg-white border border-stone-200 rounded-xl p-4 text-left hover:border-stone-300 hover:bg-stone-50/50 transition-colors cursor-pointer flex flex-col gap-3",
+        "render-lazy bg-white border border-stone-200 rounded-xl p-4 text-left hover:border-stone-300 hover:bg-stone-50/50 transition-colors cursor-pointer flex flex-col gap-3",
         isArchived && "opacity-70",
       )}
     >
@@ -817,41 +818,67 @@ export function ReposTab({ repoNames }: { repoNames: string[] }) {
   const [showArchived, setShowArchived] = useState(false);
   const [days, setDays] = useState(3);
 
+  const repoActivity = useMemo(() => {
+    const activity = new Map<string, { openPRs: number; openIssues: number }>();
+    const get = (repo: string) => {
+      const existing = activity.get(repo);
+      if (existing) return existing;
+      const next = { openPRs: 0, openIssues: 0 };
+      activity.set(repo, next);
+      return next;
+    };
+    for (const pr of scopedPRs) {
+      if (!pr.repo) continue;
+      const stats = get(pr.repo);
+      if (pr.state === "open") stats.openPRs += 1;
+    }
+    for (const issue of scopedOpenIssues) {
+      if (issue.repo) get(issue.repo).openIssues += 1;
+    }
+    for (const issue of scopedClosedIssues) {
+      if (issue.repo) get(issue.repo);
+    }
+    return activity;
+  }, [scopedPRs, scopedOpenIssues, scopedClosedIssues]);
+
   const repos = useMemo<RepoSummary[]>(() => {
     const list = projects.data ?? [];
-    return list.map((p) => ({
-      id: p.id,
-      name: p.name,
-      org: p.org,
-      repo: p.repo,
-      description: p.description,
-      narrator_enabled: p.narrator_enabled,
-      archived: p.archived,
-      openPRs: scopedPRs.filter((pr: any) => pr.repo === p.repo && pr.state === "open").length,
-      openIssues: scopedOpenIssues.filter((i: any) => i.repo === p.repo).length,
-    }));
-  }, [projects.data, scopedPRs, scopedOpenIssues]);
+    return list.map((p) => {
+      const stats = p.repo ? repoActivity.get(p.repo) : undefined;
+      return {
+        id: p.id,
+        name: p.name,
+        org: p.org,
+        repo: p.repo,
+        description: p.description,
+        narrator_enabled: p.narrator_enabled,
+        archived: p.archived,
+        openPRs: stats?.openPRs ?? 0,
+        openIssues: stats?.openIssues ?? 0,
+      };
+    });
+  }, [projects.data, repoActivity]);
 
   const active = useMemo(
     () =>
       repos
         .filter((r) => !r.archived)
-        .filter((r) => !meOnly || scopedPRs.some((pr: any) => pr.repo === r.repo) || scopedOpenIssues.some((i: any) => i.repo === r.repo) || scopedClosedIssues.some((i: any) => i.repo === r.repo))
+        .filter((r) => !meOnly || Boolean(r.repo && repoActivity.has(r.repo)))
         .sort((a, b) => {
           const ax = a.openPRs + a.openIssues;
           const bx = b.openPRs + b.openIssues;
           if (bx !== ax) return bx - ax;
           return (a.repo || a.name).localeCompare(b.repo || b.name);
         }),
-    [repos, meOnly, scopedPRs, scopedOpenIssues, scopedClosedIssues],
+    [repos, meOnly, repoActivity],
   );
 
   const archived = useMemo(
     () => repos
       .filter((r) => !!r.archived)
-      .filter((r) => !meOnly || scopedPRs.some((pr: any) => pr.repo === r.repo) || scopedOpenIssues.some((i: any) => i.repo === r.repo) || scopedClosedIssues.some((i: any) => i.repo === r.repo))
+      .filter((r) => !meOnly || Boolean(r.repo && repoActivity.has(r.repo)))
       .sort((a, b) => (a.repo || a.name).localeCompare(b.repo || b.name)),
-    [repos, meOnly, scopedPRs, scopedOpenIssues, scopedClosedIssues],
+    [repos, meOnly, repoActivity],
   );
 
   const selected = useMemo(
@@ -933,11 +960,7 @@ export function ReposTab({ repoNames }: { repoNames: string[] }) {
 
   // Loading / error / empty
   if (projects.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Spinner className="w-6 h-6 text-accent" />
-      </div>
-    );
+    return <ViewSkeleton />;
   }
 
   if (projects.isError) {

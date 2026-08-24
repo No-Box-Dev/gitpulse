@@ -13,7 +13,7 @@ const MAX_BATCHES_PER_RUN = 20; // 20k rows/run cap so one tick can't run away
 export async function archiveOldEvents(env, nowMs) {
   const bucket = env.EVENTS_ARCHIVE;
   if (!bucket) {
-    console.warn("[unticket-cron] EVENTS_ARCHIVE bucket not bound; skipping event archival");
+    console.warn("[noxconnect-cron] EVENTS_ARCHIVE bucket not bound; skipping event archival");
     return { archived: 0, skipped: true };
   }
 
@@ -51,9 +51,9 @@ export async function archiveOldEvents(env, nowMs) {
   }
 
   if (batches >= MAX_BATCHES_PER_RUN) {
-    console.warn(`[unticket-cron] event archival hit per-run cap (${total} rows); more remain for the next run`);
+    console.warn(`[noxconnect-cron] event archival hit per-run cap (${total} rows); more remain for the next run`);
   } else if (total > 0) {
-    console.log(`[unticket-cron] archived + pruned ${total} event(s) older than ${RETENTION_DAYS}d`);
+    console.log(`[noxconnect-cron] archived + pruned ${total} event(s) older than ${RETENTION_DAYS}d`);
   }
   return { archived: total };
 }

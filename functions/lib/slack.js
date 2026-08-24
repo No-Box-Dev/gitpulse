@@ -9,6 +9,7 @@
 // that token rather than the webhook URLs the v1 of this feature used.
 
 import { decryptToken, encryptToken } from "./crypto";
+import { normalizeNoxSettings } from "./naming-compat.js";
 
 const SLACK_API = "https://slack.com";
 const TIMEOUT_MS = 5000;
@@ -147,7 +148,7 @@ export async function resolveSlackChannels(db, orgId) {
     .catch(() => null);
   if (!row?.data) return emptySlackChannels();
   let settings;
-  try { settings = JSON.parse(row.data); } catch { return emptySlackChannels(); }
+  try { settings = normalizeNoxSettings(JSON.parse(row.data)); } catch { return emptySlackChannels(); }
   const slack = settings?.slack;
   if (!slack || typeof slack !== "object") return emptySlackChannels();
   // The first central-routing release briefly combined both NoxFeed streams.
@@ -162,8 +163,8 @@ export async function resolveSlackChannels(db, orgId) {
     fallbackConnectionId: channelId(slack.fallbackConnectionId),
     noxAlertChannelId: channelId(slack.noxAlertChannelId),
     noxAlertConnectionId: channelId(slack.noxAlertConnectionId),
-    unticketChannelId: channelId(slack.unticketChannelId),
-    unticketConnectionId: channelId(slack.unticketConnectionId),
+    noxTicketChannelId: channelId(slack.noxTicketChannelId),
+    noxTicketConnectionId: channelId(slack.noxTicketConnectionId),
     // Retained for clients released during the combined-route window.
     noxFeedChannelId: noxFeedChannelId || postsChannelId || releaseNotesChannelId,
     postsChannelId,
@@ -178,7 +179,7 @@ export function resolveSlackConnectionId(channels, service, siteConnectionId = "
   switch (service) {
     case "noxalert": return channelId(channels?.noxAlertConnectionId) || fallback;
     case "noxspot": return channelId(siteConnectionId) || fallback;
-    case "unticket": return channelId(channels?.unticketConnectionId) || fallback;
+    case "noxticket": return channelId(channels?.noxTicketConnectionId) || fallback;
     case "noxfeed_posts": return channelId(channels?.postsConnectionId) || fallback;
     case "noxfeed_release_notes": return channelId(channels?.releaseNotesConnectionId) || fallback;
     default: return fallback;
@@ -192,8 +193,8 @@ export function resolveSlackRoute(channels, service, siteChannelId = "") {
       return channelId(channels?.noxAlertChannelId) || fallback;
     case "noxspot":
       return channelId(siteChannelId) || fallback;
-    case "unticket":
-      return channelId(channels?.unticketChannelId) || fallback;
+    case "noxticket":
+      return channelId(channels?.noxTicketChannelId) || fallback;
     case "noxfeed_posts":
       return channelId(channels?.postsChannelId)
         || channelId(channels?.noxFeedChannelId)
@@ -218,8 +219,8 @@ function emptySlackChannels() {
     fallbackConnectionId: "",
     noxAlertChannelId: "",
     noxAlertConnectionId: "",
-    unticketChannelId: "",
-    unticketConnectionId: "",
+    noxTicketChannelId: "",
+    noxTicketConnectionId: "",
     noxFeedChannelId: "",
     postsChannelId: "",
     postsConnectionId: "",
@@ -355,7 +356,7 @@ async function writeSlackHealth(db, orgId, connectionId, status, error) {
 // Attach Block Kit unfurls to a Slack message. `unfurls` is a map keyed by
 // the original URL that was shared. Slack accepts an empty `unfurls: {}`
 // as a no-op which we use when nothing in the shared list matches an
-// unticket URL.
+// noxconnect URL.
 export function unfurlSlackLinks(token, { channel, ts, unfurls }) {
   return slackPost(token, "chat.unfurl", { channel, ts, unfurls });
 }
@@ -577,14 +578,14 @@ export async function clearSlackChannelsForOrg(db, orgId) {
     .catch(() => null);
   if (!row?.data) return;
   let settings;
-  try { settings = JSON.parse(row.data); } catch { return; }
+  try { settings = normalizeNoxSettings(JSON.parse(row.data)); } catch { return; }
   if (!settings?.slack) return;
   delete settings.slack.fallbackChannelId;
   delete settings.slack.fallbackConnectionId;
   delete settings.slack.noxAlertChannelId;
   delete settings.slack.noxAlertConnectionId;
-  delete settings.slack.unticketChannelId;
-  delete settings.slack.unticketConnectionId;
+  delete settings.slack.noxTicketChannelId;
+  delete settings.slack.noxTicketConnectionId;
   delete settings.slack.noxFeedChannelId;
   delete settings.slack.postsChannelId;
   delete settings.slack.postsConnectionId;
@@ -621,12 +622,12 @@ async function clearSlackChannelsForConnection(db, orgId, connectionId, wasDefau
     .bind(orgId).first().catch(() => null);
   if (!row?.data) return;
   let settings;
-  try { settings = JSON.parse(row.data); } catch { return; }
+  try { settings = normalizeNoxSettings(JSON.parse(row.data)); } catch { return; }
   if (!settings?.slack) return;
   const pairs = [
     ["fallbackConnectionId", "fallbackChannelId"],
     ["noxAlertConnectionId", "noxAlertChannelId"],
-    ["unticketConnectionId", "unticketChannelId"],
+    ["noxTicketConnectionId", "noxTicketChannelId"],
     ["postsConnectionId", "postsChannelId"],
     ["releaseNotesConnectionId", "releaseNotesChannelId"],
   ];
@@ -643,76 +644,4 @@ async function clearSlackChannelsForConnection(db, orgId, connectionId, wasDefau
      ON CONFLICT(org_id, key) DO UPDATE SET data = excluded.data,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
   ).bind(orgId, JSON.stringify(settings)).run();
-}
-
-// ---------- Block Kit builders (carried over from v1) ----------
-
-export function buildPostsBlocks({ actorName, projectName, summary, prUrl, prNumber, avatarUrl }) {
-  const header = [actorName ? `*${escapeMrkdwn(actorName)}*` : "*Unknown*"];
-  if (projectName) header.push(`\`${escapeMrkdwn(projectName)}\``);
-  const blocks = [
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: `${header.join("  •  ")}\n${escapeMrkdwn(summary || "(no summary)")}` },
-      ...(avatarUrl ? { accessory: { type: "image", image_url: avatarUrl, alt_text: actorName || "actor" } } : {}),
-    },
-  ];
-  if (prUrl) {
-    blocks.push({
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: prNumber ? `View PR #${prNumber}` : "View PR" },
-          url: prUrl,
-        },
-      ],
-    });
-  }
-  return { text: stripForFallback(summary), blocks };
-}
-
-export function buildReleaseNotesBlocks({ projectName, summary, prUrl, prNumber }) {
-  const header = projectName
-    ? `*Release note* — \`${escapeMrkdwn(projectName)}\``
-    : "*Release note*";
-  const blocks = [
-    { type: "section", text: { type: "mrkdwn", text: header } },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "```\n" + truncate(sanitizeForCodeFence(summary ?? "(no release note)"), 2800) + "\n```",
-      },
-    },
-  ];
-  if (prUrl) {
-    blocks.push({
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: prNumber ? `View PR #${prNumber}` : "View PR" },
-          url: prUrl,
-        },
-      ],
-    });
-  }
-  return { text: stripForFallback(summary), blocks };
-}
-
-function escapeMrkdwn(s) {
-  return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
-}
-
-function stripForFallback(s) {
-  return truncate(String(s ?? "").replace(/\s+/g, " ").trim(), 140);
-}
-
-function truncate(s, max) {
-  return s.length > max ? s.slice(0, max - 1) + "…" : s;
-}
-
-function sanitizeForCodeFence(s) {
-  return String(s ?? "").replace(/`{3,}/g, (m) => m.split("").join("​"));
 }

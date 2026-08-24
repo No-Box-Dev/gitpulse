@@ -109,7 +109,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       channels: {
         fallback: slackChannels.fallbackChannelId || null,
         noxAlert: slackChannels.noxAlertChannelId || null,
-        unticket: slackChannels.unticketChannelId || null,
+        noxticket: slackChannels.noxTicketChannelId || null,
         noxFeed: slackChannels.noxFeedChannelId || null,
         noxFeedPosts: slackChannels.postsChannelId || null,
         noxFeedReleaseNotes: slackChannels.releaseNotesChannelId || null,

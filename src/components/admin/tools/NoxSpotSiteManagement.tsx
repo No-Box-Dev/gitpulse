@@ -16,6 +16,7 @@ import { fetchSlackChannels, fetchSlackStatus, type SlackConnection } from "@/li
 import { fetchIntegrationsStatus } from "@/lib/integrations-api";
 import type { NoxSpotSite } from "@/lib/types";
 import { NoxSpotWidgetConfiguration } from "@/components/admin/tools/NoxSpotWidgetConfiguration";
+import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 
 function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>; loading: boolean }) {
   const { data: projects = [] } = useFeedProjects();
@@ -96,6 +97,7 @@ function SiteCard({
   const deleteSite = useDeleteNoxSpotSite();
   const testSlack = useTestNoxSpotSlack();
   const retryDeliveries = useRetryNoxSpotDeliveries();
+  const { confirm, dialogProps } = useConfirm();
   const connectionId = site.slackConnectionId || defaultConnectionId;
   const slackChannels = useQuery({
     queryKey: ["slack-channels", connectionId || "default"],
@@ -123,10 +125,14 @@ function SiteCard({
         <button
           type="button"
           disabled={deleteSite.isPending}
-          onClick={() => {
-            if (window.confirm(`Delete ${site.name} and all of its stored screenshots? GitHub issues will remain.`)) {
-              deleteSite.mutate(site.id);
-            }
+          onClick={async () => {
+            const accepted = await confirm({
+              title: `Delete ${site.name}?`,
+              message: "Stored screenshots will be removed. Existing GitHub issues will remain.",
+              confirmLabel: "Delete site",
+              variant: "danger",
+            });
+            if (accepted) deleteSite.mutate(site.id);
           }}
           className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
           title="Delete capture site"
@@ -134,6 +140,7 @@ function SiteCard({
           <Trash2 size={15} />
         </button>
       </div>
+      <ConfirmDialog {...dialogProps} />
       <div className="mt-4 flex items-center gap-2 rounded-lg bg-stone-950 px-3 py-2.5">
         <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-xs text-stone-200">{snippet}</code>
         <button onClick={copy} className="shrink-0 text-stone-400 hover:text-white" title="Copy install code">
@@ -177,9 +184,12 @@ function SiteCard({
         </form>
       </details>
       <NoxSpotWidgetConfiguration site={site} />
+      <details className="mt-3 rounded-lg border border-stone-200 p-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-stone-600">
+          Slack delivery <SlackHealthBadge health={site.slackHealth} />
+        </summary>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="text-xs font-medium text-stone-500" htmlFor={`spot-slack-${site.id}`}>Slack alerts</label>
-        <SlackHealthBadge health={site.slackHealth} />
         {slackConnected ? (
           <>
             <select
@@ -234,6 +244,7 @@ function SiteCard({
           {testSlack.isError ? <p className="text-red-600">{testSlack.error instanceof Error ? testSlack.error.message : "Slack test failed"}</p> : null}
         </div>
       ) : null}
+      </details>
     </div>
   );
 }

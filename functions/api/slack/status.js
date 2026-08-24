@@ -38,7 +38,7 @@ export async function onRequestGet(context) {
     channelStatuses,
     fallbackChannelId: channels.fallbackChannelId,
     noxAlertChannelId: channels.noxAlertChannelId,
-    unticketChannelId: channels.unticketChannelId,
+    noxTicketChannelId: channels.noxTicketChannelId,
     noxFeedChannelId: channels.noxFeedChannelId,
     postsChannelId: channels.postsChannelId,
     releaseNotesChannelId: channels.releaseNotesChannelId,

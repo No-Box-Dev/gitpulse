@@ -49,15 +49,15 @@ function row(overrides: Record<string, unknown> = {}) {
     id: 200,
     type: "narrative",
     created_at: "2025-01-15T10:00:00Z",
-    repo: "unticket",
+    repo: "noxconnect",
     summary: "shipped a thing",
-    technical_summary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: Unticket",
+    technical_summary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: NoxConnect",
     payload_json: JSON.stringify({
       trigger_type: "github:pr:merged",
       pr: {
         number: 42,
         title: "Feature X",
-        html_url: "https://github.com/acme/unticket/pull/42",
+        html_url: "https://github.com/acme/noxconnect/pull/42",
         author: { login: "alice", name: "Alice A", avatar_url: "https://gh/a.png" },
       },
     }),
@@ -86,13 +86,13 @@ describe("GET /api/v1/feed", () => {
       type: "merged",
       createdAt: "2025-01-15T10:00:00Z",
       actor: { login: "alice", name: "Alice A", avatarUrl: "https://gh/a.png" },
-      repo: "unticket",
+      repo: "noxconnect",
       summary: "shipped a thing",
-      technicalSummary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: Unticket",
+      technicalSummary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: NoxConnect",
       pr: {
         number: 42,
         title: "Feature X",
-        url: "https://github.com/acme/unticket/pull/42",
+        url: "https://github.com/acme/noxconnect/pull/42",
       },
     });
     expect(e).not.toHaveProperty("payload_json");
@@ -132,10 +132,10 @@ describe("GET /api/v1/feed", () => {
 
   it("adds repo filter to SQL + binds", async () => {
     const db = makeDb();
-    await feed(makeCtx({ db, url: "http://x/api/v1/feed?repo=unticket" }));
+    await feed(makeCtx({ db, url: "http://x/api/v1/feed?repo=noxconnect" }));
     const { sql, binds } = db._calls.all[0];
     expect(sql).toMatch(/repo = \?/);
-    expect(binds).toContain("unticket");
+    expect(binds).toContain("noxconnect");
   });
 
   it("adds case-insensitive actor filter to SQL + binds", async () => {
@@ -184,7 +184,7 @@ describe("GET /api/v1/feed", () => {
       actor: { login: "unknown", name: null, avatarUrl: null },
       repo: "somerepo",
       summary: "raw",
-      technicalSummary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: Unticket",
+      technicalSummary: "What it does: Ships a thing\nHow it works: Updates the flow\nWhat it touches: NoxConnect",
       pr: null,
     });
   });

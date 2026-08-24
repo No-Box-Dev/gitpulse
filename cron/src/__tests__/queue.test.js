@@ -52,7 +52,7 @@ describe("cron queue consumer", () => {
     expect(m.ack).toHaveBeenCalledOnce();
   });
 
-  it("routes NoxSpot captures through Unticket's GitHub worker", async () => {
+  it("routes NoxSpot captures through NoxConnect's GitHub worker", async () => {
     const capture = { type: "spot_create_github_issue", captureId: "spot-1" };
     const m = msg(capture);
     await worker.queue({ messages: [m] }, env);

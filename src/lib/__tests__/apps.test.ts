@@ -14,6 +14,7 @@ describe("Nox app configuration", () => {
     expect(getAppForTab("sprint")).toBe("noxticket");
     expect(getAppForTab("issues")).toBe("noxfeed");
     expect(getAppForTab("noxalert")).toBe("noxalert");
+    expect(getAppForTab("repos")).toBe("noxconnect");
   });
 
   it("falls through to another enabled app and finally NoxConnect", () => {

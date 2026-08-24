@@ -1,6 +1,6 @@
 # Architecture
 
-A high-level map of how unticket fits together. For maintainer-level detail (every API route, config key, and convention), see [CLAUDE.md](./CLAUDE.md).
+A high-level map of how noxconnect fits together. For maintainer-level detail (every API route, config key, and convention), see [CLAUDE.md](./CLAUDE.md).
 
 ## Overview
 
@@ -11,7 +11,7 @@ A high-level map of how unticket fits together. For maintainer-level detail (eve
 └─────────────┘     └──────────┬───────────┘     └──────▲───────┘
                                │ enqueue                │
                     ┌──────────▼───────────┐            │
-   GitHub ─webhook─▶│  Queue (unticket-    │            │
+   GitHub ─webhook─▶│  Queue (noxconnect-    │            │
    GitHub ◀──sync───│  tasks) + cron Worker│────────────┘
                     └──────────┬───────────┘
                                │ archive
@@ -28,7 +28,7 @@ A high-level map of how unticket fits together. For maintainer-level detail (eve
 
 ## Multi-tenancy
 
-Unticket is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `llm_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
+NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `llm_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
 
 ## Auth
 
@@ -47,7 +47,7 @@ GitHub data stays current via three mechanisms, in priority order:
 
 ## Background work
 
-Slow webhook follow-up (LLM narration, install bootstrap, repo backfill) is enqueued to the `unticket-tasks` Queue rather than run inline. The cron Worker's `queue()` handler dispatches by task type with retries; terminal failures are recorded to the `op_failures` table and surfaced to admins in Settings.
+Slow webhook follow-up (LLM narration, install bootstrap, repo backfill) is enqueued to the `noxconnect-tasks` Queue rather than run inline. The cron Worker's `queue()` handler dispatches by task type with retries; terminal failures are recorded to the `op_failures` table and surfaced to admins in Settings.
 
 ## AI narration
 

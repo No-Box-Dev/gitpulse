@@ -81,7 +81,7 @@ describe("SprintTab", () => {
   it("renders a spinner while loading", () => {
     mFeatures.mockReturnValue({ data: undefined, isLoading: true });
     const { container } = renderTab();
-    expect(container.querySelector(".animate-spin")).not.toBeNull();
+    expect(container.querySelector("[role='status']")).not.toBeNull();
   });
 
   it("renders the setup CTA when there are no features (data null)", () => {

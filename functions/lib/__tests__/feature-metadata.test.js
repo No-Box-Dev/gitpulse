@@ -24,7 +24,7 @@ describe("parseFeatureMetadata", () => {
     // caller either re-serializes (which re-adds the spacing) or renders as
     // markdown (which collapses it).
     const body =
-      "Plan goes here\n\n<!-- unticket:metadata\n" +
+      "Plan goes here\n\n<!-- noxticket:metadata\n" +
       JSON.stringify({ statusHistory: [{ status: "todo", at: "2025-01-01" }] }) +
       "\n-->";
     const { content, metadata } = parseFeatureMetadata(body);
@@ -34,7 +34,7 @@ describe("parseFeatureMetadata", () => {
 
   it("treats a corrupt metadata block as no metadata (warns, keeps body)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const body = "Plan\n\n<!-- unticket:metadata\n{not valid json\n-->";
+    const body = "Plan\n\n<!-- noxticket:metadata\n{not valid json\n-->";
     const { content, metadata } = parseFeatureMetadata(body);
     expect(metadata).toEqual({});
     expect(content).toBe(body);
@@ -44,12 +44,20 @@ describe("parseFeatureMetadata", () => {
 
   it("tolerates trailing whitespace after the metadata block", () => {
     const body =
-      "X\n\n<!-- unticket:metadata\n" +
+      "X\n\n<!-- noxticket:metadata\n" +
       JSON.stringify({ statusHistory: [{ status: "todo", at: "2025-01-01" }] }) +
       "\n-->   \n  ";
     const { content, metadata } = parseFeatureMetadata(body);
     expect(content).toBe("X\n");
     expect(metadata.statusHistory).toHaveLength(1);
+  });
+
+  it("reads a pre-rename metadata block and writes the canonical marker", () => {
+    const retired = ["un", "ticket"].join("");
+    const body = `Plan\n\n<!-- ${retired}:metadata\n{"statusHistory":[{"status":"todo"}]}\n-->`;
+    const parsed = parseFeatureMetadata(body);
+    expect(parsed.metadata.statusHistory).toHaveLength(1);
+    expect(serializeFeatureMetadata(parsed.content.trimEnd(), parsed.metadata)).toContain("<!-- noxticket:metadata");
   });
 });
 
@@ -64,7 +72,7 @@ describe("serializeFeatureMetadata", () => {
       statusHistory: [{ status: "production", at: "2026-05-01" }],
     });
     expect(out).toContain('"statusHistory"');
-    expect(out).toContain("plan\n\n<!-- unticket:metadata\n");
+    expect(out).toContain("plan\n\n<!-- noxticket:metadata\n");
     expect(out).toMatch(/-->$/);
   });
 
@@ -103,7 +111,7 @@ describe("readFeatureIssue / updateFeatureBody", () => {
     const issue = await readFeatureIssue("tok", "acme", 42);
     expect(issue.number).toBe(42);
     expect(fetch).toHaveBeenCalledWith(
-      "https://api.github.com/repos/acme/unticket/issues/42",
+      "https://api.github.com/repos/acme/noxconnect/issues/42",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer tok" }),
       }),

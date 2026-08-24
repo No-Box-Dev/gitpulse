@@ -133,7 +133,7 @@ export async function onRequestPost(context) {
     })();
     context.waitUntil(
       work.catch(async (err) => {
-        console.error("[unticket backfill] failed:", err);
+        console.error("[noxconnect backfill] failed:", err);
         await recordFailure(db, {
           ownerId: orgLogin,
           op: "backfillPrs",
@@ -154,7 +154,7 @@ export async function onRequestPost(context) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
-    console.error("[unticket backfill] unhandled error:", message, stack);
+    console.error("[noxconnect backfill] unhandled error:", message, stack);
     return errorResponse(`Backfill failed: ${message}`, 500);
   }
 }
@@ -236,7 +236,7 @@ async function renarrateFallbacks(env, fallbacks) {
         narrateReleaseNotes(env, triggerEventId),
       ]);
     } catch (err) {
-      console.error(`[unticket backfill] re-narrate trigger ${triggerEventId} failed:`, err);
+      console.error(`[noxconnect backfill] re-narrate trigger ${triggerEventId} failed:`, err);
     }
   }
 }
@@ -250,7 +250,7 @@ async function fetchRecentPrs(env, installationId, org, repo, days) {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "Unticket",
+      "User-Agent": "NoxConnect",
     },
   });
   if (!res.ok) {
@@ -272,7 +272,7 @@ async function processBackfill(env, args) {
     try {
       await backfillOnePr(env, args, pr);
     } catch (err) {
-      console.error(`[unticket backfill] PR #${pr.number} failed:`, err);
+      console.error(`[noxconnect backfill] PR #${pr.number} failed:`, err);
     }
   }
 }

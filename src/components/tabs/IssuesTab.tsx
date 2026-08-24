@@ -20,6 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
+import { ViewSkeleton } from "@/components/ui/ViewSkeleton";
 import { cn } from "@/lib/cn";
 import { daysAgo, STALE_ISSUE_DAYS } from "@/lib/dates";
 import { SortIcon } from "@/components/ui/SortIcon";
@@ -32,7 +33,7 @@ type SortDir = "asc" | "desc";
 type GroupBy = "people" | "repo";
 type IssueView = "open" | "closed";
 
-const EXCLUDED_REPOS = new Set(["unticket", ".unticket"]);
+const EXCLUDED_REPOS = new Set(["noxconnect", ".noxconnect"]);
 const CRITICAL_LABELS = new Set(["critical"]);
 
 function isCritical(issue: any): boolean {
@@ -77,8 +78,8 @@ export function IssuesTab({ repoNames, navFilter }: IssuesTabProps) {
     [repoNames, archivedRepos],
   );
 
-  const { data: openIssues, isLoading: openLoading } = useOpenIssues(activeRepoNames);
-  const { data: closedIssues, isLoading: closedLoading } = useClosedIssues(activeRepoNames);
+  const { data: openIssues, isLoading: openLoading } = useOpenIssues(activeRepoNames, view === "open");
+  const { data: closedIssues, isLoading: closedLoading } = useClosedIssues(activeRepoNames, undefined, view === "closed");
 
   const issues = view === "open" ? openIssues : closedIssues;
   const isLoading = view === "open" ? openLoading : closedLoading;
@@ -187,9 +188,7 @@ export function IssuesTab({ repoNames, navFilter }: IssuesTabProps) {
           onBack={() => setUrl({ assignee: null, repo: null })}
         />
       ) : isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Spinner className="w-6 h-6 text-accent" />
-        </div>
+        <ViewSkeleton />
       ) : (
         <CardGrid
           issues={scoped}
@@ -361,7 +360,7 @@ function BucketCard({ bucket, groupBy, view, onOpen }: {
     <button
       onClick={onOpen}
       className={cn(
-        "bg-white border rounded-xl p-4 text-left transition-colors cursor-pointer flex flex-col gap-3",
+        "render-lazy bg-white border rounded-xl p-4 text-left transition-colors cursor-pointer flex flex-col gap-3",
         bucket.isUnassigned
           ? "border-amber-200 hover:border-amber-300 hover:bg-amber-50/40"
           : "border-stone-200 hover:border-stone-300 hover:bg-stone-50/50",

@@ -70,7 +70,7 @@ describe("ReposTab", () => {
   it("shows the spinner while projects are loading", () => {
     mProjects.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     const { container } = renderTab();
-    expect(container.querySelector(".animate-spin")).not.toBeNull();
+    expect(container.querySelector("[role='status']")).not.toBeNull();
   });
 
   it("renders 'Failed to load repos.' on error", () => {

@@ -13,7 +13,7 @@ function StatusBadge({ connected, label }: { connected: boolean; label: string }
   );
 }
 
-// The General-section GitHub card. The GitHub App install is managed on
+// The NoxConnect-section GitHub card. The GitHub App install is managed on
 // GitHub's side, so this is a status card + external link for everyone —
 // non-admins see the link disabled.
 export function GithubConnectionCard({

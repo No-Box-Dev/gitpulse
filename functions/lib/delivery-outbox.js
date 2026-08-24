@@ -1,6 +1,7 @@
 import { TASK } from "./tasks.js";
 import { postSlackMessage, resolveSlackInstall } from "./slack.js";
 import { markSlackChannelVerified, markSlackDeliveryChannelIssue } from "./slack-channel-status.js";
+import { appForDeliverySource, isAppEnabled } from "./apps.js";
 
 const RECOVERY_LIMIT = 100;
 const SLACK_CONFIGURATION_ERRORS = new Set([
@@ -94,6 +95,11 @@ export async function deliverSlackOutbox(env, deliveryId) {
     await markOutboxFailed(env.DB, deliveryId, "Unsupported delivery destination", "invalid_delivery");
     return { failed: "invalid_delivery" };
   }
+  const appId = appForDeliverySource(delivery.source);
+  if (appId && !(await isAppEnabled(env.DB, delivery.org_id, appId))) {
+    await markOutboxServiceDisabled(env.DB, deliveryId, appId);
+    return { blocked: "service_disabled", service: appId };
+  }
   let payload;
   try { payload = JSON.parse(delivery.payload_json); }
   catch {
@@ -159,6 +165,15 @@ export async function markOutboxRetrying(db, deliveryId, code, error) {
 
 export async function markOutboxFailed(db, deliveryId, error, code = "retry_exhausted") {
   await updateFailure(db, deliveryId, "failed", code, error, null);
+}
+
+export async function markOutboxServiceDisabled(db, deliveryId, appId) {
+  await db.prepare(
+    `UPDATE delivery_outbox SET status = 'blocked_service_disabled',
+       last_error_code = 'service_disabled', last_error = ?, next_attempt_at = NULL,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+     WHERE id = ? AND status != 'delivered'`,
+  ).bind(`${appId} is off for this organization`, deliveryId).run();
 }
 
 export async function requeueBlockedForOrg(env, orgId) {

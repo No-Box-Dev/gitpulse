@@ -75,7 +75,7 @@ async function boundedBody(context: AppContext, maxBytes: number): Promise<unkno
 
 async function siteForPublicRequest(context: AppContext, siteId: string): Promise<CaptureSite | Response> {
   const site = await getCaptureSite(context.env.DB, siteId);
-  if (!site) return jsonError(context, "Site not found", 404);
+  if (!site || site.noxspot_enabled === 0) return jsonError(context, "Site not found", 404);
   const config = parseWidgetConfig(site.widget_config);
   if (!originAllowed(config, requestOrigin(context.req.raw))) {
     return jsonError(context, "This origin is not enabled for the site", 403);
@@ -171,6 +171,7 @@ async function submitErrors(context: AppContext) {
 
   const site = await siteForPublicRequest(context, body.siteId);
   if (site instanceof Response) return site;
+  if (site.noxalert_enabled === 0) return jsonError(context, "Automatic error logging is not enabled", 404);
   const config = parseWidgetConfig(site.widget_config);
   if (config.autoErrorLogging !== true) return jsonError(context, "Automatic error logging is not enabled", 404);
   const environment = environmentForOrigin(config, requestOrigin(context.req.raw))?.name ?? null;
@@ -247,9 +248,21 @@ async function serveObject(context: AppContext, key: string) {
   return new Response(object.body, { headers });
 }
 
-app.get("/r2/:key{.+}", (context) => serveObject(context, context.req.param("key")));
-app.get("/api/spots/public/v1/screenshots/:siteId/:objectId", (context) =>
-  serveObject(context, `screenshots/${context.req.param("siteId")}/${context.req.param("objectId")}`));
+async function serveSiteScreenshot(context: AppContext, siteId: string, key: string) {
+  const site = await getCaptureSite(context.env.DB, siteId);
+  if (!site || site.noxspot_enabled === 0) return context.notFound();
+  return serveObject(context, key);
+}
+
+app.get("/r2/:key{.+}", async (context) => {
+  const key = context.req.param("key");
+  const screenshot = key.match(/^screenshots\/([^/]+)\//);
+  return screenshot ? serveSiteScreenshot(context, screenshot[1], key) : serveObject(context, key);
+});
+app.get("/api/spots/public/v1/screenshots/:siteId/:objectId", (context) => {
+  const siteId = context.req.param("siteId");
+  return serveSiteScreenshot(context, siteId, `screenshots/${siteId}/${context.req.param("objectId")}`);
+});
 
 async function serveStandaloneWidget(context: AppContext, version: string, cacheControl: string) {
   const response = await serveObject(context, `widget/${version}/noxspot.min.js`);
@@ -272,7 +285,7 @@ app.get("/widget/:siteId{.+\\.js$}", async (context) => {
     getCaptureSite(context.env.DB, siteId),
     context.env.ASSETS.get("noxspot.min.js"),
   ]);
-  if (!site) return new Response("/* NoxSpot: site not found */", { status: 404, headers: { "Content-Type": "application/javascript" } });
+  if (!site || site.noxspot_enabled === 0) return new Response("/* NoxSpot: site not found */", { status: 404, headers: { "Content-Type": "application/javascript" } });
   if (!loader) return new Response("/* NoxSpot: loader unavailable */", { status: 503, headers: { "Content-Type": "application/javascript" } });
   const config = { ...legacyWidgetConfig(site), coreUrl: `${context.env.PUBLIC_API_BASE_URL.replace(/\/$/, "")}/r2/noxspot-core.min.js` };
   return new Response(`var __NoxSpotSiteConfig=${JSON.stringify(config)};\n${await loader.text()}`, {
@@ -280,10 +293,10 @@ app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   });
 });
 
-app.get("/health", (context) => context.json({ status: "ok", service: "unticket-noxspot-capture", contractVersion: 1 }));
+app.get("/health", (context) => context.json({ status: "ok", service: "noxconnect-noxspot-capture", contractVersion: 1 }));
 
 // Compatibility only: Slack may still have the historical api.noxspot.dev
-// redirect allowlisted while installations move to the canonical Unticket
+// redirect allowlisted while installations move to the canonical NoxConnect
 // callback. Forward only Slack's known response fields; the destination can
 // never be supplied by the request.
 app.get("/slack/callback", (context) => {
@@ -297,7 +310,7 @@ app.get("/slack/callback", (context) => {
   return context.redirect(target.toString(), 302);
 });
 
-app.get("/", (context) => context.json({ name: "Unticket NoxSpot capture API", contractVersion: 1 }));
+app.get("/", (context) => context.json({ name: "NoxConnect NoxSpot capture API", contractVersion: 1 }));
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

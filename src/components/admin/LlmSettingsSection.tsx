@@ -184,9 +184,9 @@ export function LlmSettingsSection() {
         </button>
       </div>
       <p className="text-xs text-stone-400">
-        Bring your own LLM endpoint for narration and PR↔feature matching. Pick
-        Anthropic (also covers Zhipu's Anthropic-compat endpoint), OpenAI, or a
-        LiteLLM proxy — anything that speaks the OpenAI chat-completions shape.
+        Choose the LLM NoxFeed uses for release notes and activity narration. Pick
+        Anthropic (also covering Zhipu's Anthropic-compatible endpoint), OpenAI,
+        or a LiteLLM proxy that supports the OpenAI chat-completions shape.
         We validate with a tiny live call before saving — if your key, base URL
         or model name is wrong, the save is refused.
       </p>

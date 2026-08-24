@@ -37,7 +37,7 @@ export interface IntegrationsStatus {
     channels: {
       fallback: string | null;
       noxAlert: string | null;
-      unticket: string | null;
+      noxticket: string | null;
       noxFeed: string | null;
       noxFeedPosts: string | null;
       noxFeedReleaseNotes: string | null;

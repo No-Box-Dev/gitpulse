@@ -11,7 +11,7 @@
 // { token } — the browser never sees the refresh token.
 //
 // Native flow (macOS device flow): the app holds the refresh token in the
-// Keychain because unticket's server never saw the initial pair (device flow
+// Keychain because noxconnect's server never saw the initial pair (device flow
 // goes GitHub → app directly). We use the App client_secret server-side to
 // swap the refresh token for a fresh pair and return BOTH so the app can
 // rotate its Keychain. No DB row is written or required.
@@ -74,7 +74,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   if (!parsed.ok) return parsed.response;
 
   // Native flow (device flow / Mac app): client holds the refresh token
-  // because the unticket callback never saw the initial pair. Skip the DB
+  // because the noxconnect callback never saw the initial pair. Skip the DB
   // lookup and swap directly.
   if (parsed.data.refresh_token) {
     const result = await refreshWithGitHub({

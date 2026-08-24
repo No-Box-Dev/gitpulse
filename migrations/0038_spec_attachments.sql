@@ -1,6 +1,6 @@
 -- User-uploaded documents attached to a Spec.
 --
--- Object bytes live in R2 (bucket: unticket-spec-attachments, binding
+-- Object bytes live in R2 (bucket: noxconnect-spec-attachments, binding
 -- SPEC_ATTACHMENTS in wrangler.toml). D1 stores the metadata row that
 -- links the object back to its Spec + who uploaded it + how big it is.
 -- FK is CASCADE — deleting a Spec drops its attachment rows in D1; the

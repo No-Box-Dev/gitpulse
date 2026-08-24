@@ -12,7 +12,7 @@ import { SlackRouteField } from "@/components/admin/slack/SlackRouteField";
 import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelStatusBadge";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 
-// The General-section Slack card: connection lifecycle (connect / reconnect /
+// The NoxConnect-section Slack card: connection lifecycle (connect / reconnect /
 // disconnect), health stats, and the organization fallback channel. Per-tool
 // routes live in their own tool sections via SlackRouteField.
 export function SlackConnectionCard() {

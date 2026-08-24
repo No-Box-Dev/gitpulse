@@ -42,10 +42,7 @@ export function TrackedReposSection() {
       <div>
         <h2 className="text-sm font-semibold text-stone-900">Tracked repos</h2>
         <p className="text-xs text-stone-400 mt-1">
-          Uncheck a repo to hide it everywhere — Current, Issues, Repos, feeds,
-          narrator, sync. Re-check it to bring it back. This is the single
-          source of truth; there is no per-page repo-exclude toggle to
-          maintain in parallel.
+          Tracked repositories appear throughout Nox. Uncheck one to retain its data while hiding it from views and syncs.
         </p>
       </div>
 

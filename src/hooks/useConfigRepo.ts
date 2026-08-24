@@ -70,12 +70,12 @@ export function useClosedFeatures(enabled: boolean) {
   });
 }
 
-export function usePeople() {
+export function usePeople(enabled = true) {
   const { selectedOrg } = useAuth();
   return useQuery({
     queryKey: ["people", selectedOrg],
     queryFn: fetchPeople,
-    enabled: !!selectedOrg,
+    enabled: !!selectedOrg && enabled,
   });
 }
 
@@ -261,7 +261,7 @@ export function useCleanDoneFeatures() {
         try {
           await ghDeleteFeature(org, f.id);
         } catch (e) {
-          console.error(`[unticket] Failed to clean done feature #${f.id}:`, e);
+          console.error(`[noxconnect] Failed to clean done feature #${f.id}:`, e);
           failed.push(f.id);
         }
       }

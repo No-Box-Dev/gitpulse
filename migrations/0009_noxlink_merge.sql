@@ -1,5 +1,5 @@
--- Migration 0009: fold NoxLink brain tables into unticket D1.
--- Phase 2 of plans/fold-noxlink-into-unticket.md.
+-- Migration 0009: fold NoxLink brain tables into noxconnect D1.
+-- Phase 2 of plans/fold-noxlink-into-noxconnect.md.
 --
 -- Additive only. No DROP, no destructive ALTER. Names kept verbatim to
 -- the NoxLink schema so the code port (webhook, narrator, actors, notes)
@@ -8,7 +8,7 @@
 -- Deliberately NOT included:
 --   - social_accounts / social_posts        (Bluesky out of scope)
 --   - sessions (NoxLink shape)              (laptop-only signal layer
---                                            collides with unticket's
+--                                            collides with noxconnect's
 --                                            existing per-user auth
 --                                            sessions table; Phase 6
 --                                            kills the laptop pusher)
@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_actor_notes_project ON actor_repo_notes(project_i
 -- ============================================================
 -- Projects — narrator-scope overlay on gh_repos. Keyed by string id
 -- (NoxLink convention) so existing brain rows port verbatim during the
--- Phase 7 data migration. unticket's existing repos table coexists
+-- Phase 7 data migration. noxconnect's existing repos table coexists
 -- until UI repoints to gh_repos joins, then drops.
 -- ============================================================
 
@@ -165,7 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_events_owner ON events(owner_id);
 CREATE INDEX IF NOT EXISTS idx_events_actor ON events(actor_id);
 
 -- ============================================================
--- FK pointers from existing unticket tables into the new mirror layer.
+-- FK pointers from existing noxconnect tables into the new mirror layer.
 -- Nullable until Phase 7 backfill populates them; reads will dual-source
 -- only during the brief migration window before UI repoints.
 -- ============================================================

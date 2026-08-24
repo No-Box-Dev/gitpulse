@@ -54,7 +54,7 @@ export async function onRequestGet(context) {
       redirectUri: resolveSlackOAuthRedirectUri(),
     });
   } catch (err) {
-    console.error("[unticket slack oauth] exchange failed:", err?.message ?? err);
+    console.error("[noxconnect slack oauth] exchange failed:", err?.message ?? err);
     return redirectHome(url, "exchange-failed");
   }
 
@@ -65,11 +65,11 @@ export async function onRequestGet(context) {
     const health = await checkSlackOrgHealth(context.env, orgId, connectionId);
     if (health.status === "ok") {
       await requeueBlockedForOrg(context.env, orgId).catch((error) => {
-        console.error("[unticket slack oauth] delivery replay failed:", error?.message ?? error);
+        console.error("[noxconnect slack oauth] delivery replay failed:", error?.message ?? error);
       });
     }
   } catch (err) {
-    console.error("[unticket slack oauth] persist failed:", err?.message ?? err);
+    console.error("[noxconnect slack oauth] persist failed:", err?.message ?? err);
     return redirectHome(url, "persist-failed");
   }
 

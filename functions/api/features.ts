@@ -18,7 +18,7 @@ import {
   buildFeatureLabels,
   buildIssueBody,
   createFeatureIssue,
-  ensureUnticketRepoLabels,
+  ensureNoxTicketRepoLabels,
   ghIssueToFeature,
   upsertFeatureRow,
 } from "../lib/feature-issues";
@@ -84,7 +84,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 //
 // Uses the GitHub App installation token (NOT the caller's OAuth token), so
 // any logged-in user can create features regardless of their personal repo
-// permissions on {org}/unticket. The webhook + cron syncFeatures + Settings
+// permissions on {org}/noxconnect. The webhook + cron syncFeatures + Settings
 // "Full Re-sync" already cover the inbound path for issues users create
 // directly on GitHub, so D1 stays correct either way.
 //
@@ -131,7 +131,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   }
 
   try {
-    await ensureUnticketRepoLabels(token, orgLogin, stages);
+    await ensureNoxTicketRepoLabels(token, orgLogin, stages);
 
     const body = buildIssueBody(plan, {
       statusHistory: [{ status, timestamp: new Date().toISOString() }],

@@ -113,7 +113,7 @@ describe("storeEvent", () => {
       user: { id: 5, login: "octocat", type: "User", avatar_url: "a.png" },
       additions: 1, deletions: 0, changed_files: 1,
     },
-    repository: { name: "unticket", owner: { login: "no-box-dev" } },
+    repository: { name: "noxconnect", owner: { login: "no-box-dev" } },
     organization: { login: "no-box-dev" },
   };
 
@@ -171,7 +171,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-2", {
       ref: "refs/heads/main",
       commits: [{ id: "c1", message: "fix", author: { name: "x" } }],
-      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
+      repository: { name: "noxconnect", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "octocat", id: 5 },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
@@ -184,7 +184,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-3", {
       ref: "refs/heads/main",
       commits: [{}, {}, {}],
-      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
+      repository: { name: "noxconnect", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "x", id: 1 },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
@@ -200,7 +200,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-feat", {
       ref: "refs/heads/feature/x",
       commits: [{ id: "c1" }, { id: "c2" }, { id: "c3" }],
-      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
+      repository: { name: "noxconnect", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "octocat", id: 5 },
     }, "owner-1");
     // Event row still inserted (the push itself is real activity), but
@@ -214,7 +214,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "release", "del-4", {
       action: "published",
       release: { tag_name: "v1.0.0", author: { login: "x", id: 1 } },
-      repository: { name: "unticket", owner: { login: "no-box-dev" } },
+      repository: { name: "noxconnect", owner: { login: "no-box-dev" } },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
     expect(eventInsert.binds[7]).toBe("Release v1.0.0");
@@ -230,7 +230,7 @@ describe("storeEvent", () => {
     await storeEvent(db, "push", "del-5", {
       ref: "refs/heads/main",
       commits,
-      repository: { name: "unticket", owner: { login: "no-box-dev" }, default_branch: "main" },
+      repository: { name: "noxconnect", owner: { login: "no-box-dev" }, default_branch: "main" },
       sender: { login: "x", id: 1 },
     }, "owner-1");
     const eventInsert = db._calls.runs.find((r) => r.sql.includes("INSERT INTO events"));
@@ -243,7 +243,7 @@ describe("storeEvent", () => {
     await storeEvent(makeDb(), "push", "del-6", {
       ref: "refs/heads/main",
       commits: [],
-      repository: { name: "unticket", owner: { login: "no-box-dev" } },
+      repository: { name: "noxconnect", owner: { login: "no-box-dev" } },
       sender: { login: "octocat", id: 5, type: "User" },
     }, "owner-1");
     // First call to resolveActorFromGithub gets the sender (octocat).
@@ -281,7 +281,7 @@ describe("recordMergedPr", () => {
     const db = makeDb({ insertRowId: 77 });
     const env = { DB: db };
     const result = await recordMergedPr(env, {
-      ownerId: "owner-1", projectId: "proj-1", org: "no-box-dev", repo: "unticket",
+      ownerId: "owner-1", projectId: "proj-1", org: "no-box-dev", repo: "noxconnect",
       deliveryId: "del-99", source: "backfill", pr: PR,
     });
     expect(result).toEqual({ id: 77 });

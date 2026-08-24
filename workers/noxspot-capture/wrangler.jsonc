@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "unticket-noxspot-capture",
+  "name": "noxconnect-noxspot-capture",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -20,7 +20,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "unticket",
+      "database_name": "noxconnect",
       "database_id": "c94084e6-d0be-423c-8de6-249e7cf8bf25"
     }
   ],
@@ -28,7 +28,7 @@
     "producers": [
       {
         "binding": "TASK_QUEUE",
-        "queue": "unticket-tasks"
+        "queue": "noxconnect-tasks"
       }
     ]
   },

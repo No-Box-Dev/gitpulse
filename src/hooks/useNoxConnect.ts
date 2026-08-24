@@ -6,6 +6,5 @@ export function useNoxConnect() {
     queryKey: ["integrations-status"],
     queryFn: fetchIntegrationsStatus,
     staleTime: 30_000,
-    refetchOnMount: "always",
   });
 }

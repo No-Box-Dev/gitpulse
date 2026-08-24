@@ -27,7 +27,7 @@ export async function enqueueTask(env, ownerId, deliveryId, message) {
     // Stamp ownerId/deliveryId so the consumer can attribute terminal failures.
     await env.TASK_QUEUE.send({ ...message, ownerId, deliveryId });
   } catch (err) {
-    console.error(`[unticket queue] enqueue ${message.type} failed:`, err?.message ?? err);
+    console.error(`[noxconnect queue] enqueue ${message.type} failed:`, err?.message ?? err);
     // Best-effort failure logging — wrapped so the "never throws into the
     // caller" contract holds even if the import or recordFailure itself fails.
     try {
@@ -39,7 +39,7 @@ export async function enqueueTask(env, ownerId, deliveryId, message) {
         error: err,
       });
     } catch (logErr) {
-      console.error("[unticket queue] recordFailure failed:", logErr?.message ?? logErr);
+      console.error("[noxconnect queue] recordFailure failed:", logErr?.message ?? logErr);
     }
   }
 }

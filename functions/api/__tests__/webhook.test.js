@@ -44,15 +44,15 @@ vi.mock("../../lib/narrator.js", () => ({
 vi.mock("../../lib/noxalert.js", () => ({
   stageResolvedNoxAlert: vi.fn(async () => ({ queued: true })),
 }));
-vi.mock("../../lib/unticket-slack.js", () => ({
-  stageUnticketActivity: vi.fn(async () => ({ queued: true })),
+vi.mock("../../lib/noxticket-slack.js", () => ({
+  stageNoxTicketActivity: vi.fn(async () => ({ queued: true })),
 }));
 
 import { onRequestPost } from "../webhook.js";
 import { upsertIssue, upsertPR, upsertMember, removeMember, touchRepoPushed } from "../../lib/github-sync.js";
 import { storeEvent } from "../../lib/events.js";
 import { stageResolvedNoxAlert } from "../../lib/noxalert.js";
-import { stageUnticketActivity } from "../../lib/unticket-slack.js";
+import { stageNoxTicketActivity } from "../../lib/noxticket-slack.js";
 
 const SECRET = "shh";
 
@@ -212,7 +212,7 @@ describe("POST /api/webhook — event routing", () => {
     });
     await onRequestPost(makeCtx({ db, request: req }));
     expect(upsertIssue).toHaveBeenCalledWith(expect.any(Object), 7, "api", expect.any(Object), "bob");
-    expect(stageUnticketActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+    expect(stageNoxTicketActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       orgId: 7, ownerId: "acme", repo: "api", action: "closed", actor: "bob",
     }));
     expect(stageResolvedNoxAlert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
@@ -220,14 +220,14 @@ describe("POST /api/webhook — event routing", () => {
     }));
   });
 
-  it("issues.deleted on unticket repo also drops the features row", async () => {
+  it("issues.deleted on noxconnect repo also drops the features row", async () => {
     const db = makeDb({ firstByFragment: { "SELECT id FROM orgs": { id: 7 } } });
     const req = await makeRequest({
       event: "issues",
       payload: {
         action: "deleted",
         organization: { login: "acme" },
-        repository: { name: "unticket" },
+        repository: { name: "noxconnect" },
         issue: { number: 42 },
       },
     });

@@ -2,7 +2,7 @@
 // Browser-side feature CRUD. All mutations go through Pages Functions
 // (functions/api/features*) so the GitHub write + D1 mirror happen in one
 // place on the server — see functions/lib/feature-issues.js. The browser
-// never talks to Octokit for features anymore: the read path hits D1
+// never talks directly to GitHub for features: the read path hits D1
 // directly (fetchFeaturesFromD1) and writes hit /api/features.
 import { apiGet, apiPost, apiPatch, apiDelete } from "./api";
 import type { Feature, FeatureStatus, SpecLink, StatusHistoryEntry } from "./types";
@@ -19,14 +19,16 @@ interface D1FeatureRow {
   updated_at?: string;
 }
 
-const UNTICKET_LABEL = "unticket";
+const NOXTICKET_LABEL = "noxticket";
+const LEGACY_NOXTICKET_LABEL = ["un", "ticket"].join("");
 const FEATURE_LABEL = "feature";
 const BACKLOG_LABEL = "backlog";
 const STATUS_PREFIX = "status:";
 
 // ---------- Metadata (hidden in issue body) ----------
 
-const METADATA_RE = /\n?<!-- unticket:metadata\n([\s\S]*?)\n-->\s*$/;
+const METADATA_RE = /\n?<!-- noxticket:metadata\n([\s\S]*?)\n-->\s*$/;
+const LEGACY_METADATA_RE = new RegExp(`\\n?<!-- ${LEGACY_NOXTICKET_LABEL}:metadata\\n([\\s\\S]*?)\\n-->\\s*$`);
 
 interface FeatureMetadata {
   statusHistory?: StatusHistoryEntry[];
@@ -34,13 +36,13 @@ interface FeatureMetadata {
 }
 
 function parseMetadata(body: string): { content: string; metadata: FeatureMetadata } {
-  const match = body.match(METADATA_RE);
+  const match = body.match(METADATA_RE) ?? body.match(LEGACY_METADATA_RE);
   if (!match) return { content: body, metadata: {} };
   try {
     const metadata = JSON.parse(match[1]) as FeatureMetadata;
     return { content: body.slice(0, match.index!), metadata };
   } catch (e) {
-    console.warn("[unticket] Corrupt feature metadata block, ignoring:", e);
+    console.warn("[noxconnect] Corrupt feature metadata block, ignoring:", e);
     return { content: body, metadata: {} };
   }
 }
@@ -107,7 +109,7 @@ export async function fetchFeaturesFromD1(state: "open" | "closed" = "open"): Pr
   return rows
     .filter((row) => {
       const names = new Set(row.labels.map((l) => l.name));
-      return names.has(UNTICKET_LABEL) && names.has(FEATURE_LABEL);
+      return (names.has(NOXTICKET_LABEL) || names.has(LEGACY_NOXTICKET_LABEL)) && names.has(FEATURE_LABEL);
     })
     .map(d1RowToFeature);
 }

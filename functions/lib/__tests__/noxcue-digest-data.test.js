@@ -18,8 +18,22 @@ describe("NoxCue digest history", () => {
     expect(summary).toEqual({
       metrics: { "users.new": 12, "users.stickiness.dau_mau": 0.25 },
       comparisons: {
-        "users.new": { yesterday: 10, average30d: 22 / 3, sampleDays: 3 },
-        "users.stickiness.dau_mau": { yesterday: null, average30d: null, sampleDays: 0 },
+        "users.new": {
+          yesterday: 10,
+          average30d: 22 / 3,
+          sampleDays: 3,
+          history: [
+            { period: "2026-08-27", value: 8 },
+            { period: "2026-08-28", value: 10 },
+            { period: "2026-08-29", value: 12 },
+          ],
+        },
+        "users.stickiness.dau_mau": {
+          yesterday: null,
+          average30d: null,
+          sampleDays: 0,
+          history: [{ period: "2026-08-29", value: 0.25 }],
+        },
       },
       hasData: true,
       hasReportedData: true,
@@ -53,6 +67,11 @@ describe("NoxCue digest history", () => {
       yesterday: 3,
       average30d: 2.5,
       sampleDays: 2,
+      history: [
+        { period: "2026-08-27", value: 2 },
+        { period: "2026-08-28", value: 3 },
+        { period: "2026-08-29", value: 1 },
+      ],
     });
   });
 
@@ -65,7 +84,10 @@ describe("NoxCue digest history", () => {
       yesterday: null,
       average30d: 20,
       sampleDays: 1,
+      history: [
+        { period: "2026-08-20", value: 20 },
+        { period: "2026-08-29", value: 30 },
+      ],
     });
   });
 });
-

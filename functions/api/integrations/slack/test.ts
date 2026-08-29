@@ -12,7 +12,7 @@ interface Ctx {
 
 const ROUTES = {
   fallback: { field: "fallbackChannelId", kind: "fallback" },
-  noxalert: { field: "noxAlertChannelId", kind: "noxalert" },
+  noxcue: { field: "noxCueChannelId", kind: "noxcue" },
   noxticket: { field: "noxTicketChannelId", kind: "noxticket" },
   noxfeed_posts: { field: "postsChannelId", kind: "noxfeed_posts" },
   noxfeed_release_notes: { field: "releaseNotesChannelId", kind: "noxfeed_release_notes" },

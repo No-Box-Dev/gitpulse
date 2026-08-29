@@ -26,8 +26,7 @@ const TAB_ITEMS: { id: TabId; label: string; keywords: string }[] = [
   { id: "specs", label: "Specs", keywords: "specs product requirements designs" },
   { id: "posts", label: "Merged", keywords: "merged feed posts narrator agents activity" },
   { id: "issues", label: "Issues", keywords: "issues bugs" },
-  { id: "noxalert", label: "NoxAlert", keywords: "alerts opentelemetry otel errors ingest" },
-  { id: "admin", label: "Admin", keywords: "admin settings setup integrations github slack connect oauth config webhook" },
+  { id: "admin", label: "Admin", keywords: "admin settings setup integrations github slack noxcue metrics users connect oauth config webhook" },
   { id: "repos", label: "Repositories", keywords: "repos repositories projects activity" },
 ];
 

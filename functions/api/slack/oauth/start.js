@@ -1,5 +1,10 @@
 import { getCtx, errorResponse } from "../../../lib/db";
-import { isSlackTeamId, signOAuthState, SlackTeamParamSchema } from "../../../lib/slack";
+import {
+  isSlackTeamId,
+  signOAuthState,
+  SlackProjectParamSchema,
+  SlackTeamParamSchema,
+} from "../../../lib/slack";
 import { validate } from "../../../lib/validate";
 
 // POST /api/slack/oauth/start
@@ -12,7 +17,8 @@ import { validate } from "../../../lib/validate";
 // forged state can't trick the callback into installing into another
 // org even if the cookie comparison were somehow bypassed.
 //
-// Body (optional): { "team": "T08B8C3E91N" } pins the authorize page to a
+// Body (optional): { "team": "T08B8C3E91N", "projectId": "proj_acme_api" }
+// pins the authorize page to a
 // specific Slack workspace; `""` (or `null`, what the UI's switch-workspace
 // button sends) explicitly leaves the workspace choice to Slack's picker.
 // When omitted, an existing install's workspace is pinned so reconnects
@@ -38,6 +44,40 @@ export async function onRequestPost(context) {
 
   const parsedTeam = validate(SlackTeamParamSchema.nullish(), body.team);
   if (!parsedTeam.ok) return parsedTeam.response;
+  const parsedProject = validate(SlackProjectParamSchema.nullish(), body.projectId);
+  if (!parsedProject.ok) return parsedProject.response;
+  const projectId = parsedProject.data ?? null;
+
+  if (projectId) {
+    const project = await context.env.DB.prepare(
+      `SELECT id FROM projects
+        WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0`,
+    ).bind(projectId, orgLogin).first();
+    if (!project) return errorResponse("Project not found", 404);
+  }
+
+  const connectionSummary = await context.env.DB.prepare(
+    `SELECT COUNT(*) AS connection_count,
+            SUM(CASE WHEN project_id IS NULL THEN 1 ELSE 0 END) AS unassigned_count
+       FROM slack_connections WHERE org_id = ?`,
+  ).bind(orgId).first();
+  const connectionCount = Number(connectionSummary?.connection_count ?? 0);
+  const unassignedCount = Number(connectionSummary?.unassigned_count ?? 0);
+  const requestedTeam = parsedTeam.data;
+  let requestedExisting = false;
+  if (requestedTeam) {
+    requestedExisting = Boolean(await context.env.DB.prepare(
+      "SELECT 1 FROM slack_connections WHERE org_id = ? AND team_id = ?",
+    ).bind(orgId, requestedTeam).first());
+  }
+  const opensWorkspacePicker = requestedTeam === null || requestedTeam === "";
+  const mayAddWorkspace = opensWorkspacePicker || (Boolean(requestedTeam) && !requestedExisting);
+  if (connectionCount > 0 && mayAddWorkspace && !projectId) {
+    return errorResponse("Choose a project before adding another Slack workspace", 409);
+  }
+  if (connectionCount > 0 && mayAddWorkspace && unassignedCount > 0) {
+    return errorResponse("Assign every existing Slack workspace to a project first", 409);
+  }
 
   let team = parsedTeam.data ?? "";
   if (parsedTeam.data === undefined) {
@@ -47,7 +87,10 @@ export async function onRequestPost(context) {
     team = "";
     try {
       const install = await context.env.DB
-        .prepare("SELECT team_id FROM slack_settings WHERE org_id = ?")
+        .prepare(
+          `SELECT team_id FROM slack_connections
+            WHERE org_id = ? ORDER BY is_default DESC, installed_at LIMIT 1`,
+        )
         .bind(orgId).first();
       const teamId = install?.team_id;
       if (teamId && !isSlackTeamId(teamId)) {
@@ -64,7 +107,7 @@ export async function onRequestPost(context) {
   const nonceArr = new Uint8Array(32);
   crypto.getRandomValues(nonceArr);
   const nonce = [...nonceArr].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const payload = `${nonce}:${orgId}:${encodeURIComponent(userLogin || "")}:${Date.now()}`;
+  const payload = `${nonce}:${orgId}:${encodeURIComponent(userLogin || "")}:${Date.now()}:${encodeURIComponent(projectId || "")}`;
   const sig = await signOAuthState(clientSecret, payload);
   const state = `${payload}.${sig}`;
   const handoffUrl = new URL("/api/slack/oauth/handoff", origin);

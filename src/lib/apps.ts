@@ -1,6 +1,6 @@
 import type { OrgSettings, TabId } from "./types";
 
-export type OptionalNoxAppId = "noxticket" | "noxfeed" | "noxspot" | "noxalert";
+export type OptionalNoxAppId = "noxticket" | "noxfeed" | "noxspot" | "noxcue";
 export type NoxAppId = "noxconnect" | OptionalNoxAppId;
 
 export interface NoxAppDefinition {
@@ -17,7 +17,7 @@ export const OPTIONAL_NOX_APP_IDS: readonly OptionalNoxAppId[] = [
   "noxticket",
   "noxfeed",
   "noxspot",
-  "noxalert",
+  "noxcue",
 ];
 
 export const ADMIN_INTRO = "Use one tab for each Nox app. Turn an app off to pause it. Your saved data and setup stay here.";
@@ -26,7 +26,7 @@ export const SERVICE_OFF_TEXT: Record<OptionalNoxAppId, string> = {
   noxticket: "Feature and spec tools are paused. API calls and Slack posts are blocked.",
   noxfeed: "Feed views, new posts, notes, history backfills, and Slack posts are paused.",
   noxspot: "Widgets, site setup, reports, screenshots, and Slack posts are blocked.",
-  noxalert: "Alert setup, error intake, rules, keys, and Slack posts are blocked.",
+  noxcue: "Daily user metrics, saved history, keys, and Slack delivery are paused.",
 };
 
 export const NOX_APPS: readonly NoxAppDefinition[] = [
@@ -74,13 +74,13 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     defaultTab: "admin",
   },
   {
-    id: "noxalert",
-    name: "NoxAlert",
-    shortName: "Alert",
-    description: "Turn site errors into clear alerts.",
-    includes: "OpenTelemetry intake, rules, keys, and Slack posts",
-    tabs: [{ id: "noxalert", label: "NoxAlert" }],
-    defaultTab: "noxalert",
+    id: "noxcue",
+    name: "NoxCue",
+    shortName: "Cue",
+    description: "Know how your app did today.",
+    includes: "Daily user metrics, project controls, history, keys, and Slack delivery",
+    tabs: [],
+    defaultTab: "admin",
   },
 ] as const;
 
@@ -120,7 +120,7 @@ export function isTabEnabled(tab: TabId, enabledApps: readonly NoxAppId[]): bool
 
 export function getDefaultEnabledTab(enabledApps: readonly NoxAppId[]): TabId {
   // NoxFeed remains the familiar landing experience when it is enabled.
-  for (const appId of ["noxfeed", "noxticket", "noxalert"] as const) {
+  for (const appId of ["noxfeed", "noxticket"] as const) {
     if (enabledApps.includes(appId)) return getNoxApp(appId).defaultTab;
   }
   return "admin";

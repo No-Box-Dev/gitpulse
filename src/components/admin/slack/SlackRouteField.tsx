@@ -12,7 +12,7 @@ import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 // the server's kind validation.
 export type SlackKind =
   | "fallback"
-  | "noxalert"
+  | "noxcue"
   | "noxspot"
   | "noxticket"
   | "noxfeed_posts"
@@ -21,14 +21,14 @@ export type SlackKind =
 // OrgSettings.slack keys, one per routable service stream.
 export type SlackRouteKey =
   | "fallbackChannelId"
-  | "noxAlertChannelId"
+  | "noxCueChannelId"
   | "noxTicketChannelId"
   | "postsChannelId"
   | "releaseNotesChannelId";
 
 const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack"]>> = {
   fallbackChannelId: "fallbackConnectionId",
-  noxAlertChannelId: "noxAlertConnectionId",
+  noxCueChannelId: "noxCueConnectionId",
   noxTicketChannelId: "noxTicketConnectionId",
   postsChannelId: "postsConnectionId",
   releaseNotesChannelId: "releaseNotesConnectionId",

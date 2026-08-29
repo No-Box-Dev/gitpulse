@@ -21,7 +21,6 @@ import { upsertInstallation, setInstallationRepos, getInstallationRepos } from "
 import { TASK, enqueueTask } from "../lib/tasks";
 import { recordFailure } from "../lib/op-failures";
 import { startRepoTracking } from "../lib/repo-tracking";
-import { stageResolvedNoxAlert } from "../lib/noxalert.js";
 import { stageNoxTicketActivity } from "../lib/noxticket-slack.js";
 import { enqueueReviewJob, cancelReviewJobs } from "../lib/review-jobs.js";
 import { isAppEnabled } from "../lib/apps.js";
@@ -226,20 +225,6 @@ export async function onRequestPost(context) {
         });
       } catch (err) {
         await reportWebhookFailure(db, orgLogin, "noxconnect_slack", deliveryId, err, { repo, number: payload.issue?.number });
-      }
-
-      if (action === "closed") {
-        try {
-          await stageResolvedNoxAlert(context.env, {
-            orgId,
-            ownerId: orgLogin,
-            repo,
-            issue: payload.issue,
-            resolvedBy: closedBy,
-          });
-        } catch (err) {
-          await reportWebhookFailure(db, orgLogin, "noxalert_resolved", deliveryId, err, { repo, number: payload.issue?.number });
-        }
       }
 
       // Auto-register issue author as member so they appear in People page.

@@ -41,9 +41,6 @@ vi.mock("../../lib/repo-tracking.js", () => ({
 vi.mock("../../lib/narrator.js", () => ({
   narrateEvent: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("../../lib/noxalert.js", () => ({
-  stageResolvedNoxAlert: vi.fn(async () => ({ queued: true })),
-}));
 vi.mock("../../lib/noxticket-slack.js", () => ({
   stageNoxTicketActivity: vi.fn(async () => ({ queued: true })),
 }));
@@ -51,7 +48,6 @@ vi.mock("../../lib/noxticket-slack.js", () => ({
 import { onRequestPost } from "../webhook.js";
 import { upsertIssue, upsertPR, upsertMember, removeMember, touchRepoPushed } from "../../lib/github-sync.js";
 import { storeEvent } from "../../lib/events.js";
-import { stageResolvedNoxAlert } from "../../lib/noxalert.js";
 import { stageNoxTicketActivity } from "../../lib/noxticket-slack.js";
 
 const SECRET = "shh";
@@ -214,9 +210,6 @@ describe("POST /api/webhook — event routing", () => {
     expect(upsertIssue).toHaveBeenCalledWith(expect.any(Object), 7, "api", expect.any(Object), "bob");
     expect(stageNoxTicketActivity).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       orgId: 7, ownerId: "acme", repo: "api", action: "closed", actor: "bob",
-    }));
-    expect(stageResolvedNoxAlert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      orgId: 7, ownerId: "acme", repo: "api", resolvedBy: "bob",
     }));
   });
 

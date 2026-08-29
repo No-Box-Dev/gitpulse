@@ -59,7 +59,7 @@ describe("agent setup APIs", () => {
       env: { DB: dbWithSettings({ slack: { fallbackChannelId: "C1", postsChannelId: "C2" } }) },
       data: { orgId: 7, isAdmin: true },
     });
-    expect(await response.json()).toMatchObject({ routes: { fallback: "C1", noxfeed_posts: "C2", noxalert: null } });
+    expect(await response.json()).toMatchObject({ routes: { fallback: "C1", noxfeed_posts: "C2", noxcue: null } });
   });
 
   it("rejects unknown route names without mutating config", async () => {
@@ -135,7 +135,7 @@ describe("agent setup APIs", () => {
 
   it.each([
     ["fallback", "fallback"],
-    ["noxalert", "noxalert"],
+    ["noxcue", "noxcue"],
     ["noxticket", "noxticket"],
     ["noxfeed_posts", "noxfeed_posts"],
     ["noxfeed_release_notes", "noxfeed_release_notes"],

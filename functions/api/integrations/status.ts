@@ -80,10 +80,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         requirements: ["github"],
         optionalConnections: ["slack"],
       },
-      noxAlert: {
-        state: githubReady && slackReady ? "ready" : "blocked",
-        requirements: ["github", "slack"],
-        prerequisitesReady: githubReady && slackReady,
+      noxCue: {
+        state: slackReady ? "ready" : "blocked",
+        requirements: ["slack"],
+        prerequisitesReady: slackReady,
       },
     },
     github: {
@@ -108,7 +108,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       defaultChannelId: slackChannels.fallbackChannelId || null,
       channels: {
         fallback: slackChannels.fallbackChannelId || null,
-        noxAlert: slackChannels.noxAlertChannelId || null,
+        noxCue: slackChannels.noxCueChannelId || null,
         noxticket: slackChannels.noxTicketChannelId || null,
         noxFeed: slackChannels.noxFeedChannelId || null,
         noxFeedPosts: slackChannels.postsChannelId || null,

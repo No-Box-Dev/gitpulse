@@ -1,12 +1,12 @@
 # NoxConnect
 
-NoxConnect is the shared GitHub, Slack, identity, and delivery foundation for the Nox product suite. It keeps provider access and organization data in one place while NoxFeed, NoxTicket, NoxSpot, and NoxAlert own their product-specific views, setup, and behavior.
+NoxConnect is the shared GitHub, Slack, identity, and delivery foundation for the Nox product suite. It keeps provider access and organization data in one place while NoxFeed, NoxTicket, NoxSpot, and NoxCue own their product-specific views, setup, and behavior.
 
 - **NoxConnect** — GitHub/Slack connections, organization identity, people, repositories, issues, and pull-request plumbing
 - **NoxFeed** — current work, activity feed, issues, and release narratives
 - **NoxTicket** — features, backlog, specs, and board stages
 - **NoxSpot** — feedback widgets, sites, reports, and screenshots
-- **NoxAlert** — OpenTelemetry intake, rules, keys, and alert delivery
+- **NoxCue** — closed user lifecycle events aggregated into project-configurable daily user reports
 
 **Hosted (free):** [app.unticket.ai](https://app.unticket.ai) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md)
 

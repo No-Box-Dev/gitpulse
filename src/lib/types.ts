@@ -64,7 +64,6 @@ export type TabId =
   | "specs"
   | "prs"
   | "issues"
-  | "noxalert"
   | "admin"
   | "posts"
   | "repos"
@@ -242,7 +241,7 @@ export interface OrgSettings {
     noxticket?: boolean;
     noxfeed?: boolean;
     noxspot?: boolean;
-    noxalert?: boolean;
+    noxcue?: boolean;
   };
   excludedMembers?: string[];
   noxTicketRepo?: string;
@@ -257,8 +256,8 @@ export interface OrgSettings {
   slack?: {
     fallbackChannelId?: string;
     fallbackConnectionId?: string;
-    noxAlertChannelId?: string;
-    noxAlertConnectionId?: string;
+    noxCueChannelId?: string;
+    noxCueConnectionId?: string;
     noxTicketChannelId?: string;
     noxTicketConnectionId?: string;
     postsChannelId?: string;

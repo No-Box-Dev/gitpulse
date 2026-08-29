@@ -77,7 +77,6 @@ describe("GET /api/config/:key", () => {
     expect(errSpy).toHaveBeenCalled();
   });
 });
-
 describe("PUT /api/config/:key", () => {
   it("400s on unknown key", async () => {
     const res = await onRequestPut(makeCtx({ db: makeDb(), params: { key: "evil" }, method: "PUT", body: {} }));
@@ -223,7 +222,7 @@ describe("PUT /api/config/settings — app toggles", () => {
   it("persists optional app booleans", async () => {
     const db = makeDb();
     const body = {
-      apps: { noxfeed: false, noxticket: true, noxspot: false, noxalert: true },
+      apps: { noxfeed: false, noxticket: true, noxspot: false, noxcue: true },
       slack: undefined,
       savedSiteName: "Keep this setup",
     };
@@ -239,7 +238,7 @@ describe("PUT /api/config/settings — app toggles", () => {
     expect(db._calls.batch[3]._sql).toContain("blocked_service_disabled");
     expect(db._calls.batch[3]._binds).toContain("noxspot");
     expect(db._calls.batch[4]._sql).toContain("status = 'pending'");
-    expect(db._calls.batch[4]._binds).toContain("noxalert");
+    expect(db._calls.batch[4]._binds).toContain("noxcue");
   });
 
   it("rejects NoxConnect and non-boolean app values", async () => {

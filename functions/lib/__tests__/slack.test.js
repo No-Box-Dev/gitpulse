@@ -333,7 +333,7 @@ describe("resolveSlackChannels", () => {
   it("returns empty IDs when no settings", async () => {
     expect(await resolveSlackChannels(mkDb(null), "org-1")).toEqual({
       fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
-      postsChannelId: "", releaseNotesChannelId: "",
+      postsChannelId: "", releaseNotesChannelId: "", noxFeedProjectId: "",
     });
   });
   it("adopts a combined NoxFeed route for both streams", async () => {
@@ -342,7 +342,7 @@ describe("resolveSlackChannels", () => {
     } }) };
     expect(await resolveSlackChannels(mkDb(row), "org-1")).toEqual({
       fallbackChannelId: "C0", noxAlertChannelId: "CA", unticketChannelId: "CU", noxFeedChannelId: "CF",
-      postsChannelId: "CF", releaseNotesChannelId: "CF",
+      postsChannelId: "CF", releaseNotesChannelId: "CF", noxFeedProjectId: "",
     });
   });
   it("keeps dedicated NoxFeed routes distinct", async () => {
@@ -356,8 +356,13 @@ describe("resolveSlackChannels", () => {
   it("tolerates corrupt JSON", async () => {
     expect(await resolveSlackChannels(mkDb({ data: "not json" }), "org-1")).toEqual({
       fallbackChannelId: "", noxAlertChannelId: "", unticketChannelId: "", noxFeedChannelId: "",
-      postsChannelId: "", releaseNotesChannelId: "",
+      postsChannelId: "", releaseNotesChannelId: "", noxFeedProjectId: "",
     });
+  });
+
+  it("returns the optional NoxFeed project scope", async () => {
+    const row = { data: JSON.stringify({ slack: { noxFeedProjectId: " proj-1 " } }) };
+    expect(await resolveSlackChannels(mkDb(row), "org-1")).toMatchObject({ noxFeedProjectId: "proj-1" });
   });
 
   it("uses service-specific channels before the organization fallback", () => {

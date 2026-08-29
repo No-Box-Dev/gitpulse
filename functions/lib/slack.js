@@ -138,6 +138,7 @@ export async function resolveSlackChannels(db, orgId) {
     noxFeedChannelId: noxFeedChannelId || postsChannelId || releaseNotesChannelId,
     postsChannelId,
     releaseNotesChannelId,
+    noxFeedProjectId: channelId(slack.noxFeedProjectId),
   };
 }
 
@@ -176,6 +177,7 @@ function emptySlackChannels() {
     noxFeedChannelId: "",
     postsChannelId: "",
     releaseNotesChannelId: "",
+    noxFeedProjectId: "",
   };
 }
 

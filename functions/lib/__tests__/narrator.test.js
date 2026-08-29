@@ -492,6 +492,22 @@ describe("narrateEvent — Slack mirror", () => {
     expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
+  it("does not mirror a project excluded by the NoxFeed Slack scope", async () => {
+    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
+    completeNarrative.mockResolvedValue("I merged it.");
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", noxFeedProjectId: "proj-2" });
+    await narrateEvent(ENV(db), 1);
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
+  });
+
+  it("mirrors a project included by the NoxFeed Slack scope", async () => {
+    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
+    completeNarrative.mockResolvedValue("I merged it.");
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", noxFeedProjectId: "proj-1" });
+    await narrateEvent(ENV(db), 1);
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ source: "posts", channelId: "C1" }));
+  });
+
   it("posts to the Posts channel after inserting a narrative", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");

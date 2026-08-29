@@ -64,7 +64,7 @@ export async function onRequestPut(context) {
     return errorResponse("Config payload too large (max 256KB)", 413);
   }
 
-  const { orgId } = getCtx(context);
+  const { orgId, orgLogin } = getCtx(context);
   let body;
   try { body = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
@@ -73,6 +73,22 @@ export async function onRequestPut(context) {
     && body
     && typeof body === "object"
     && Object.prototype.hasOwnProperty.call(body, "slack");
+
+  if (slackWasSupplied && body.slack?.noxFeedProjectId !== undefined) {
+    if (typeof body.slack.noxFeedProjectId !== "string") {
+      return errorResponse("noxFeedProjectId must be a string", 422);
+    }
+    const projectId = body.slack.noxFeedProjectId.trim();
+    if (projectId) {
+      const project = await context.env.DB.prepare(
+        "SELECT 1 FROM projects WHERE id = ? AND owner_id = ? LIMIT 1",
+      ).bind(projectId, orgLogin).first();
+      if (!project) return errorResponse("Choose a project from this organization", 422);
+      body.slack.noxFeedProjectId = projectId;
+    } else {
+      delete body.slack.noxFeedProjectId;
+    }
+  }
 
   // Board-stages validation runs before the row write so a malformed config
   // can't get persisted and break the kanban for everyone in the org.

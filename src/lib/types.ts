@@ -230,6 +230,8 @@ export interface OrgSettings {
     unticketChannelId?: string;
     postsChannelId?: string;
     releaseNotesChannelId?: string;
+    /** Empty/missing mirrors every project; otherwise only this project posts to Slack. */
+    noxFeedProjectId?: string;
     /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
     noxFeedChannelId?: string;
   };

@@ -582,6 +582,9 @@ async function maybePostToSlack(env, args) {
   const { kind, orgId, ownerId, triggerEventId, actor, project, summary, rawEvent } = args;
   try {
     const channels = await resolveSlackChannels(env.DB, orgId);
+    // The in-app feed stays organization-wide. This optional scope controls
+    // only which project's generated cards are mirrored into Slack.
+    if (channels.noxFeedProjectId && channels.noxFeedProjectId !== rawEvent.project_id) return;
     const channelId = resolveSlackRoute(
       channels,
       kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts",

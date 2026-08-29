@@ -10,7 +10,12 @@ interface DigestResponseService {
     sourceName: string,
     period: string,
     metrics: Record<string, number>,
-    comparisons: Record<string, { yesterday: number | null; average30d: number | null; sampleDays: number }>,
+    comparisons: Record<string, {
+      yesterday: number | null;
+      average30d: number | null;
+      sampleDays: number;
+      history: Array<{ period: string; value: number }>;
+    }>,
   ): Promise<unknown>;
 }
 

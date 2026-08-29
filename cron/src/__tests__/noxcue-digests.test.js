@@ -62,7 +62,15 @@ describe("NoxCue daily digest periods", () => {
       "2026-08-29",
       { "users.new": 86 },
       {
-        "users.new": { yesterday: 80, average30d: 75, sampleDays: 2 },
+        "users.new": {
+          yesterday: 80,
+          average30d: 75,
+          sampleDays: 2,
+          history: [
+            { period: "2026-08-28", value: 80 },
+            { period: "2026-08-29", value: 86 },
+          ],
+        },
       },
     );
     expect(queue.send).toHaveBeenCalledWith(expect.objectContaining({ type: "deliver_slack", outboxId: "delivery-1" }));

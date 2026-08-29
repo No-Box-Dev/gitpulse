@@ -18,6 +18,7 @@ export function completedPeriodAt(timezone, now = new Date()) {
 export function summarizeNoxCueDigestRows(rows, period) {
   const yesterdayPeriod = shiftPeriod(period, -1);
   const historyStart = shiftPeriod(period, -30);
+  const trendStart = shiftPeriod(period, -29);
   const metrics = {};
   const comparisons = {};
   let hasReportedData = false;
@@ -40,12 +41,17 @@ export function summarizeNoxCueDigestRows(rows, period) {
     if (!(metricKey in metrics)) continue;
     const yesterday = values.find((row) => row.period === yesterdayPeriod)?.value ?? null;
     const history = values.filter((row) => row.period >= historyStart && row.period < period);
+    const trend = values
+      .filter((row) => row.period >= trendStart && row.period <= period)
+      .sort((left, right) => left.period.localeCompare(right.period))
+      .map(({ period: trendPeriod, value }) => ({ period: trendPeriod, value }));
     comparisons[metricKey] = {
       yesterday,
       average30d: history.length > 0
         ? history.reduce((sum, row) => sum + row.value, 0) / history.length
         : null,
       sampleDays: history.length,
+      history: trend,
     };
   }
 
@@ -128,4 +134,3 @@ export async function storeNoxCueDerivedMetrics(db, orgId, sourceId, period, met
   ).bind(orgId, sourceId, period, metricKey, value, now));
   if (statements.length > 0) await db.batch(statements);
 }
-

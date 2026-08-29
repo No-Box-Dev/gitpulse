@@ -51,11 +51,11 @@ Slow webhook follow-up (LLM narration, install bootstrap, repo backfill) is enqu
 
 ## Project routing
 
-NoxConnect owns explicit project enablement, the shared repository-to-project map, and named project Slack destinations. GitHub repositories are mirror records, not projects by default: an admin must enable a NoxConnect project before it participates in routing. An enabled project can group multiple repositories; a repository belongs to at most one project. NoxFeed resolves pull-request traffic by repository, while NoxCue resolves its linked project after any source-specific override. Both then fall back to their organization route. Slack workspace ownership is checked when routes are saved so one project's workspace cannot receive another project's traffic.
+NoxConnect owns explicit project enablement, the shared repository-to-project map, and named project Slack destinations. GitHub repositories are mirror records, not projects by default: an admin must enable a NoxConnect project before it participates in routing. An enabled project can group multiple repositories; a repository belongs to at most one project. NoxFeed resolves pull-request traffic by repository, while NoxCue resolves its linked project after any source-specific override. Both then fall back to their organization route. An organization-wide Slack workspace can serve every project; a project-owned workspace is accepted only for that project.
 
 ## AI narration
 
-A bounded managed Anthropic integration narrates pull-request activity. It is paced, can be disabled per organization, and fails closed to deterministic summaries when unavailable. Provider credentials remain server-side and are never returned to the browser.
+A bounded server-side LLM integration narrates pull-request activity. Organizations can use the managed provider or configure Anthropic, Zhipu, or an OpenAI-compatible provider through `llm_settings`. Narration is paced, can be disabled per organization, and fails closed to deterministic summaries when unavailable. Provider credentials remain server-side and are never returned to the browser.
 
 ## Where to look
 

@@ -127,7 +127,9 @@ export function SlackConnectionCard() {
               key={connection.id}
               connection={connection}
               disconnecting={busy === "disconnect"}
-              projects={activeProjects}
+              projects={allProjects.filter((project) => (
+                (!project.archived && project.routing_enabled === 1) || project.id === connection.projectId
+              ))}
               projectRequired={Boolean(data.projectAssignmentRequired)}
               onDisconnect={handleDisconnect}
               onError={setError}
@@ -305,11 +307,14 @@ function SlackConnectionRow({
           className="min-w-44 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600 disabled:opacity-50"
         >
           <option value="" disabled={projectRequired}>{projectRequired ? "Choose project" : "Organization-wide"}</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id} disabled={Boolean(project.archived)}>
-              {project.name}{project.archived ? " (archived)" : ""}
-            </option>
-          ))}
+          {projects.map((project) => {
+            const inactive = Boolean(project.archived) || project.routing_enabled !== 1;
+            return (
+              <option key={project.id} value={project.id} disabled={inactive}>
+                {project.name}{inactive ? " (inactive)" : ""}
+              </option>
+            );
+          })}
         </select>
         <select
           value={channelId}

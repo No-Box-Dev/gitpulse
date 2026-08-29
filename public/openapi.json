@@ -88,7 +88,7 @@
         "summary": "Atomically update one project's repositories and named Slack destinations",
         "parameters": [{ "$ref": "#/components/parameters/projectId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectRoutingInput" } } } },
-        "responses": { "200": { "description": "Project routing updated" }, "403": { "description": "Admin required" }, "409": { "description": "Workspace belongs to another project or channel is unavailable" } }
+        "responses": { "200": { "description": "Project routing updated" }, "400": { "description": "Invalid request body or missing organization context" }, "403": { "description": "Admin required" }, "404": { "description": "Active project not found" }, "409": { "description": "Workspace belongs to another project or channel is unavailable" }, "422": { "description": "Duplicate or unavailable repository selection" } }
       }
     },
     "/api/spots/sites": {

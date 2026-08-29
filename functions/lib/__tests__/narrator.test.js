@@ -30,6 +30,9 @@ vi.mock("../delivery-outbox.js", () => ({
   stageSlackDelivery: vi.fn(async () => ({ id: "delivery-1", status: "pending" })),
   queueOutboxDelivery: vi.fn(async () => true),
 }));
+vi.mock("../noxfeed-routing.js", () => ({
+  resolveNoxFeedDestination: vi.fn(async () => null),
+}));
 
 import {
   narrateEvent,
@@ -43,6 +46,7 @@ import { completeNarrative } from "../llm.js";
 import { recordFailure } from "../op-failures.js";
 import { resolveSlackChannels } from "../slack.js";
 import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
+import { resolveNoxFeedDestination } from "../noxfeed-routing.js";
 
 // D1 stub: dispatch by SQL substring. Tests configure what each query returns
 // and inspect _calls.runs/binds for the INSERT side effect.
@@ -116,6 +120,8 @@ beforeEach(() => {
   stageSlackDelivery.mockResolvedValue({ id: "delivery-1", status: "pending" });
   queueOutboxDelivery.mockReset();
   queueOutboxDelivery.mockResolvedValue(true);
+  resolveNoxFeedDestination.mockReset();
+  resolveNoxFeedDestination.mockResolvedValue(null);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -502,20 +508,28 @@ describe("narrateEvent — Slack mirror", () => {
     expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
-  it("does not mirror a project excluded by the NoxFeed Slack scope", async () => {
+  it("does not fall back when a project explicitly disables Posts delivery", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", noxFeedProjectId: "proj-2" });
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C-DEFAULT" });
+    resolveNoxFeedDestination.mockResolvedValue({
+      projectId: "proj-1", projectName: "Playnist", connectionId: "", channelId: "",
+    });
     await narrateEvent(ENV(db), 1);
     expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
-  it("mirrors a project included by the NoxFeed Slack scope", async () => {
+  it("uses the repository's project-specific workspace and channel", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", noxFeedProjectId: "proj-1" });
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C-DEFAULT" });
+    resolveNoxFeedDestination.mockResolvedValue({
+      projectId: "proj-1", projectName: "Playnist", connectionId: "conn-playnist", channelId: "C-PLAYNIST",
+    });
     await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ source: "posts", channelId: "C1" }));
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
+      source: "posts", connectionId: "conn-playnist", channelId: "C-PLAYNIST",
+    }));
   });
 
   it("posts to the Posts channel after inserting a narrative", async () => {

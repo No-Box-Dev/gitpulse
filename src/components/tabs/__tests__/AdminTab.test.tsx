@@ -81,6 +81,8 @@ vi.mock("@tanstack/react-query", () => {
         ? { connected: true, canConfigure: true, appConfigured: true, health: "ok" }
         : queryKey?.[0] === "slack-channels"
           ? [{ id: "C1", name: "feed", is_private: false }]
+          : queryKey?.[0] === "noxfeed-routes"
+            ? { projects: [], repositories: [] }
           : { failures: [] },
       isLoading: false,
       isError: false,
@@ -273,10 +275,10 @@ describe("AdminTab", () => {
     expect(screen.getByText("Manual sync")).toBeInTheDocument();
     expect(screen.getByText("Sync features")).toBeInTheDocument();
     expect(screen.getByText("Sync from GitHub")).toBeInTheDocument();
-    // NoxSpot site management lives here — there is no NoxSpot tab.
-    expect(screen.getByText("Capture sites")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "NoxSpot" }));
+    expect(screen.getByText("Site setup")).toBeInTheDocument();
     expect(screen.getByText("Add site")).toBeInTheDocument();
-    // NoxAlert project rules and ingest keys live here too.
+    fireEvent.click(screen.getByRole("tab", { name: "NoxAlert" }));
     expect(screen.getByText("Alert rules")).toBeInTheDocument();
     expect(screen.getByText("Public ingest keys")).toBeInTheDocument();
   });
@@ -311,8 +313,9 @@ describe("AdminTab", () => {
     );
     fireEvent.click(screen.getByRole("tab", { name: "NoxFeed" }));
     expect(screen.getAllByText("NoxFeed").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Posts").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Release notes").length).toBeGreaterThan(0);
+    expect(screen.getByText("Project feeds")).toBeInTheDocument();
+    expect(screen.getByText("Default posts")).toBeInTheDocument();
+    expect(screen.getByText("Default release notes")).toBeInTheDocument();
     expect(screen.queryByText("AI Provider")).not.toBeInTheDocument();
   });
 

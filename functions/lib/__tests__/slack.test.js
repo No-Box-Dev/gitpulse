@@ -377,11 +377,6 @@ describe("resolveSlackChannels", () => {
     });
   });
 
-  it("returns the optional NoxFeed project scope", async () => {
-    const row = { data: JSON.stringify({ slack: { noxFeedProjectId: " proj-1 " } }) };
-    expect(await resolveSlackChannels(mkDb(row), "org-1")).toMatchObject({ noxFeedProjectId: "proj-1" });
-  });
-
   it("uses service-specific channels before the organization fallback", () => {
     const channels = {
       fallbackChannelId: "C0", noxAlertChannelId: "CA", noxTicketChannelId: "CU",

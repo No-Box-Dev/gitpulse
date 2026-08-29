@@ -29,6 +29,7 @@ import {
 import { queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
 import { isAppEnabledForOwner } from "./apps.js";
 import { getNoxFeedPrompt, getNoxFeedSlackResponse } from "./noxfeed-response.js";
+import { resolveNoxFeedDestination } from "./noxfeed-routing.js";
 
 const MAX_OUTPUT_LENGTH = 800;
 const MAX_TECHNICAL_OUTPUT_LENGTH = 1200;
@@ -580,8 +581,13 @@ async function maybePostToSlack(env, args) {
   try {
     const channels = await resolveSlackChannels(env.DB, orgId);
     const service = kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts";
-    const channelId = resolveSlackRoute(channels, service);
-    const connectionId = resolveSlackConnectionId(channels, service);
+    const projectDestination = await resolveNoxFeedDestination(env.DB, orgId, rawEvent.repo, kind);
+    const channelId = projectDestination
+      ? projectDestination.channelId
+      : resolveSlackRoute(channels, service);
+    const connectionId = projectDestination
+      ? projectDestination.connectionId
+      : resolveSlackConnectionId(channels, service);
     if (!channelId) return;
 
     const payload = safeParseObject(rawEvent.payload_json);
@@ -594,7 +600,7 @@ async function maybePostToSlack(env, args) {
     let response;
     if (kind === "release_notes") {
       response = await getNoxFeedSlackResponse(env, "release_notes", {
-        projectName: project?.name ?? rawEvent.repo,
+        projectName: projectDestination?.projectName ?? project?.name ?? rawEvent.repo,
         summary,
         prUrl,
         prNumber,
@@ -604,7 +610,7 @@ async function maybePostToSlack(env, args) {
       response = await getNoxFeedSlackResponse(env, "posts", {
         actorName: actor.name,
         avatarUrl,
-        projectName: project?.name ?? rawEvent.repo,
+        projectName: projectDestination?.projectName ?? project?.name ?? rawEvent.repo,
         summary,
         prUrl,
         prNumber,

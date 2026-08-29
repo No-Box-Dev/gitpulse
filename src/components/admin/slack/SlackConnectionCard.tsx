@@ -175,7 +175,7 @@ export function SlackConnectionCard() {
           <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
             <button
               type="button"
-              onClick={handleConnect}
+              onClick={() => handleConnect()}
               disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
               className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
             >

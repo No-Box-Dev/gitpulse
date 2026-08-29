@@ -78,45 +78,6 @@ describe("GET /api/config/:key", () => {
   });
 });
 
-describe("PUT /api/config/settings — NoxFeed Slack project scope", () => {
-  it("rejects a non-string project scope", async () => {
-    const res = await onRequestPut(makeCtx({
-      db: makeDb(), params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: ["proj-1"] } },
-    }));
-    expect(res.status).toBe(422);
-  });
-
-  it("rejects a project outside the organization", async () => {
-    const res = await onRequestPut(makeCtx({
-      db: makeDb({ firstResult: null }), params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: "proj-other" } },
-    }));
-    expect(res.status).toBe(422);
-  });
-
-  it("persists a project belonging to the organization", async () => {
-    const db = makeDb({ firstResult: { exists: 1 } });
-    const res = await onRequestPut(makeCtx({
-      db, params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: " proj-1 " } },
-    }));
-    expect(res.status).toBe(200);
-    expect(db._calls.first[0].binds).toEqual(["proj-1", "acme"]);
-    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify({ slack: { noxFeedProjectId: "proj-1" } }));
-  });
-
-  it("uses an empty project scope as all projects", async () => {
-    const db = makeDb();
-    const res = await onRequestPut(makeCtx({
-      db, params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: "  " } },
-    }));
-    expect(res.status).toBe(200);
-    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify({ slack: {} }));
-  });
-});
-
 describe("PUT /api/config/:key", () => {
   it("400s on unknown key", async () => {
     const res = await onRequestPut(makeCtx({ db: makeDb(), params: { key: "evil" }, method: "PUT", body: {} }));

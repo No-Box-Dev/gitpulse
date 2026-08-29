@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Check, Clipboard, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Check, Clipboard, KeyRound, Plus, Trash2 } from "lucide-react";
 import { ViewSkeleton } from "@/components/ui/ViewSkeleton";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
-import { useIsAdmin } from "@/hooks/useGitHub";
 import { useCreateNoxAlertKey, useNoxAlertProjects, useRevokeNoxAlertKey, useSaveNoxAlertProject } from "@/hooks/useNoxAlert";
 import type { NoxAlertCondition, NoxAlertFilterField, NoxAlertFilterOperator, NoxAlertProjectInput } from "@/lib/noxalert-api";
 
@@ -68,20 +67,6 @@ export function NoxAlertProjectsSection() {
   const serviceText = serviceTexts[projectId] ?? storedInput.rule.filters.services.join(", ");
   const setServiceText = (value: string) => setServiceTexts((current) => ({ ...current, [projectId]: value }));
 
-  if (projects.isLoading) {
-    return (
-      <div className="bg-white rounded-xl border border-stone-200 p-5 flex justify-center">
-        <Spinner className="h-5 w-5 text-accent" />
-      </div>
-    );
-  }
-  if (projects.isError || !projects.data) {
-    return (
-      <div className="bg-white rounded-xl border border-stone-200 p-5 text-sm text-red-700">
-        Could not load NoxAlert settings.
-      </div>
-    );
-  }
   if (projects.isLoading) return <ViewSkeleton rows={3} />;
   if (projects.isError || !projects.data) return <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">Could not load NoxAlert settings.</div>;
 

@@ -7,6 +7,7 @@ import { ReleaseNotesPromptSection } from "@/components/admin/ReleaseNotesPrompt
 import { PostsBackfillSection } from "@/components/admin/PostsBackfillSection";
 import { LlmSettingsSection } from "@/components/admin/LlmSettingsSection";
 import { ToolSectionNav } from "@/components/admin/ToolSectionNav";
+import { NoxFeedProjectRouting } from "@/components/admin/tools/NoxFeedProjectRouting";
 
 const SECTIONS = [
   { id: "feed-delivery", label: "Delivery" },
@@ -37,6 +38,7 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
         {active === "feed-delivery" ? (
           <div className="space-y-3">
             <SettingsIntro title="Delivery" description="Choose where NoxFeed sends optional Slack updates." />
+            {noxConnect.slack.connected ? <NoxFeedProjectRouting /> : null}
             <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <MessagesSquare size={16} className="text-stone-700" />
@@ -44,9 +46,12 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
                 <ReadinessBadge readiness={noxConnect.features.feed} blockedLabel={noxConnect.github.connected ? "Slack optional" : "Needs GitHub"} />
               </div>
               {noxConnect.slack.connected ? (
-                <div className="grid gap-4 border-t border-stone-100 pt-4 lg:grid-cols-2">
-                  <SlackRouteField label="Posts" helpText="Narrated pull request activity." kind="noxfeed_posts" routeKey="postsChannelId" />
-                  <SlackRouteField label="Release notes" helpText="Summaries generated from merged work." kind="noxfeed_release_notes" routeKey="releaseNotesChannelId" />
+                <div className="space-y-3 border-t border-stone-100 pt-4">
+                  <p className="text-xs text-stone-500">Default routes for repositories without a project-specific destination.</p>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <SlackRouteField label="Default posts" helpText="Narrated pull request activity." kind="noxfeed_posts" routeKey="postsChannelId" />
+                    <SlackRouteField label="Default release notes" helpText="Summaries generated from merged work." kind="noxfeed_release_notes" routeKey="releaseNotesChannelId" />
+                  </div>
                 </div>
               ) : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">Connect Slack in NoxConnect before choosing channels.</p>}
             </div>

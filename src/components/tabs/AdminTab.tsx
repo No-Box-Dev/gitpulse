@@ -62,7 +62,7 @@ function isNoxConnectPanel(value: string | null): value is NoxConnectPanelId {
 // setup independent and avoiding background queries for unrelated services.
 export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
   const isAdmin = useIsAdmin();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const noxConnect = useNoxConnect();
   const settingsQuery = useSettings();
   const settings = settingsQuery.data;

@@ -18,7 +18,6 @@ const loadSprintTab = () => import("@/components/tabs/SprintTab").then(m => ({ d
 const loadSpecsTab = () => import("@/components/tabs/SpecsTab").then(m => ({ default: m.SpecsTab }));
 const loadCurrentTab = () => import("@/components/tabs/CurrentTab").then(m => ({ default: m.CurrentTab }));
 const loadIssuesTab = () => import("@/components/tabs/IssuesTab").then(m => ({ default: m.IssuesTab }));
-const loadNoxAlertTab = () => import("@/components/tabs/NoxAlertTab").then(m => ({ default: m.NoxAlertTab }));
 const loadAdminTab = () => import("@/components/tabs/AdminTab").then(m => ({ default: m.AdminTab }));
 const loadPostsTab = () => import("@/components/tabs/PostsTab").then(m => ({ default: m.PostsTab }));
 
@@ -26,7 +25,6 @@ const SprintTab = lazy(loadSprintTab);
 const SpecsTab = lazy(loadSpecsTab);
 const CurrentTab = lazy(loadCurrentTab);
 const IssuesTab = lazy(loadIssuesTab);
-const NoxAlertTab = lazy(loadNoxAlertTab);
 const AdminTab = lazy(loadAdminTab);
 const PostsTab = lazy(loadPostsTab);
 
@@ -37,7 +35,6 @@ const TAB_PRELOADERS: Partial<Record<TabId, () => Promise<unknown>>> = {
   prs: loadCurrentTab,
   engineers: loadCurrentTab,
   issues: loadIssuesTab,
-  noxalert: loadNoxAlertTab,
   admin: loadAdminTab,
   posts: loadPostsTab,
 };
@@ -46,7 +43,7 @@ function preloadTab(tab: TabId) {
   void TAB_PRELOADERS[tab]?.();
 }
 
-const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "noxalert", "admin", "posts", "repos", "engineers"]);
+const VALID_TABS = new Set<string>(["current", "sprint", "specs", "prs", "issues", "admin", "posts", "repos", "engineers"]);
 
 export function DashboardPage() {
   const { selectedOrg } = useAuth();
@@ -147,7 +144,6 @@ export function DashboardPage() {
               <CurrentTab repoNames={repoNames} navFilter={navFilter} />
             )}
             {activeTab === "issues" && <IssuesTab repoNames={repoNames} navFilter={navFilter} />}
-            {activeTab === "noxalert" && <NoxAlertTab />}
             {activeTab === "posts" && <PostsTab />}
           </ErrorBoundary>
         </Suspense>

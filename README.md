@@ -1,10 +1,16 @@
-# Unticket
+# NoxConnect
 
-AI-powered project-management dashboard for GitHub organisations. Unticket syncs your org's pull requests, issues, members, and activity into a fast dashboard with a features kanban, engineer stats, and an event feed — backed by GitHub data, no manual ticket-keeping.
+NoxConnect is the shared GitHub, Slack, identity, and delivery foundation for the Nox product suite. It keeps provider access and organization data in one place while NoxFeed, NoxTicket, NoxSpot, and NoxAlert own their product-specific views, setup, and behavior.
+
+- **NoxConnect** — GitHub/Slack connections, organization identity, people, repositories, issues, and pull-request plumbing
+- **NoxFeed** — current work, activity feed, issues, and release narratives
+- **NoxTicket** — features, backlog, specs, and board stages
+- **NoxSpot** — feedback widgets, sites, reports, and screenshots
+- **NoxAlert** — OpenTelemetry intake, rules, keys, and alert delivery
 
 **Hosted (free):** [app.unticket.ai](https://app.unticket.ai) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-> **License:** Unticket is **source-available** under the [PolyForm Noncommercial License 1.0.0](./LICENSE) — free for any non-commercial use, modify and self-host freely, but **commercial use is not permitted**. It is not an OSI "open source" license. See [LICENSE](./LICENSE).
+> **License:** NoxConnect is **source-available** under the [PolyForm Noncommercial License 1.0.0](./LICENSE) — free for any non-commercial use, modify and self-host freely, but **commercial use is not permitted**. It is not an OSI "open source" license. See [LICENSE](./LICENSE).
 
 ## Quick start (local dev)
 
@@ -24,7 +30,7 @@ Set `VITE_API_TARGET` in `.env.local` to point the dev proxy at your own deploym
 
 ## Stack
 
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Octokit, Radix UI, Lucide icons
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Radix UI, Lucide icons
 - **Backend:** Cloudflare Pages Functions + D1 (SQLite), a sibling cron Worker, Cloudflare Queues + R2
 - **Testing:** Vitest + Testing Library
 

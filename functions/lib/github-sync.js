@@ -1,8 +1,9 @@
 import { getSyncState, setSyncState } from "./db";
-import { filterInactive, getUnticketRepoName } from "./inactive-repos";
+import { filterInactive, getNoxTicketRepoName } from "./inactive-repos";
 import { getInstallationToken } from "./github-app";
 import { upsertGhUser } from "./gh-mirror";
-import { upsertFeatureRow } from "./feature-issues";
+import { hasNoxTicketLabel, NOXTICKET_LABEL, upsertFeatureRow } from "./feature-issues";
+import { LEGACY_NOXTICKET_LABEL } from "./naming-compat.js";
 import { startRepoTracking, stopRepoTracking } from "./repo-tracking";
 
 // Paginated GitHub API fetcher.
@@ -26,7 +27,7 @@ async function fetchAllPages(token, url, params = {}, emptyStatuses = []) {
     const res = await fetch(`${url}?${searchParams}`, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "Unticket",
+        "User-Agent": "NoxConnect",
         Accept: "application/vnd.github+json",
       },
     });
@@ -144,7 +145,7 @@ async function applyNewRepoPolicy(db, orgLogin, newRepoNames) {
     // throws on the same row). Log here so this sync-time path doesn't
     // silently treat a broken row as "include" by default — matches the
     // CLAUDE.md "Handle errors explicitly / No silent fallbacks" rule.
-    console.warn(`[unticket sync] Corrupt settings JSON for org ${orgLogin} — skipping new-repo policy:`, err?.message ?? err);
+    console.warn(`[noxconnect sync] Corrupt settings JSON for org ${orgLogin} — skipping new-repo policy:`, err?.message ?? err);
     return;
   }
   if (policy !== "exclude") return;
@@ -246,7 +247,7 @@ export async function syncPRs(db, token, orgId, orgLogin, repo, since, env = nul
         name: null,
       });
     } catch (err) {
-      console.error("[unticket sync] upsertGhUser failed:", err?.message ?? err);
+      console.error("[noxconnect sync] upsertGhUser failed:", err?.message ?? err);
     }
   }
 
@@ -260,7 +261,7 @@ export async function syncPRs(db, token, orgId, orgLogin, repo, since, env = nul
     try {
       await upsertMember(db, orgId, pr.user, pr.user.type === "Bot" ? "bot" : "human");
     } catch (err) {
-      console.error("[unticket sync] upsertMember from PR author failed:", err?.message ?? err);
+      console.error("[noxconnect sync] upsertMember from PR author failed:", err?.message ?? err);
     }
   }
 
@@ -375,7 +376,7 @@ export async function syncIssues(db, token, orgId, orgLogin, repo, since) {
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
-                  "User-Agent": "Unticket",
+                  "User-Agent": "NoxConnect",
                   Accept: "application/vnd.github+json",
                 },
               }
@@ -385,7 +386,7 @@ export async function syncIssues(db, token, orgId, orgLogin, repo, since) {
             try {
               events = await eventsRes.json();
             } catch {
-              console.error(`[unticket] Failed to parse events JSON for issue #${issue.number}`);
+              console.error(`[noxconnect] Failed to parse events JSON for issue #${issue.number}`);
               return { number: issue.number, login: null };
             }
             const closedEvent = events.filter((e) => e.event === "closed").pop();
@@ -466,7 +467,7 @@ export async function syncIssues(db, token, orgId, orgLogin, repo, since) {
           .bind(orgId, repo, ...chunk)
           .run();
       }
-      console.log(`[unticket] syncIssues: deleted ${stale.length} stale issues from D1 for ${repo}`);
+      console.log(`[noxconnect] syncIssues: deleted ${stale.length} stale issues from D1 for ${repo}`);
     }
   }
 
@@ -515,7 +516,7 @@ export async function syncTeams(db, token, orgId, orgLogin) {
   try {
     teams = await fetchAllPages(token, `https://api.github.com/orgs/${orgLogin}/teams`);
   } catch (err) {
-    console.error(`[unticket sync] syncTeams ${orgLogin} failed:`, err?.message ?? err);
+    console.error(`[noxconnect sync] syncTeams ${orgLogin} failed:`, err?.message ?? err);
     return [];
   }
 
@@ -564,7 +565,7 @@ export async function syncTeams(db, token, orgId, orgLogin) {
         `https://api.github.com/orgs/${orgLogin}/teams/${team.slug}/members`,
       );
     } catch (err) {
-      console.error(`[unticket sync] syncTeams members ${team.slug} failed:`, err?.message ?? err);
+      console.error(`[noxconnect sync] syncTeams members ${team.slug} failed:`, err?.message ?? err);
       continue;
     }
 
@@ -647,9 +648,9 @@ export async function removeTeamMember(db, orgId, teamGithubId, login) {
     .run();
 }
 
-// ---------- Sync Features (unticket repo issues) ----------
+// ---------- Sync Features (noxconnect repo issues) ----------
 //
-// Bidirectional last-write-wins reconcile against {org}/unticket.
+// Bidirectional last-write-wins reconcile against {org}/noxconnect.
 //
 // Each feature row carries two timestamps:
 //   - updated_at    — when the row was last written (by anyone)
@@ -672,25 +673,54 @@ export async function removeTeamMember(db, orgId, teamGithubId, login) {
 // stale state.
 
 export async function syncFeatures(db, token, orgId, orgLogin) {
-  const unticketRepo = await getUnticketRepoName(db, orgId);
+  const noxTicketRepo = await getNoxTicketRepoName(db, orgId);
   const issues = await fetchAllPages(
     token,
-    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/${encodeURIComponent(unticketRepo)}/issues`,
+    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/${encodeURIComponent(noxTicketRepo)}/issues`,
     { state: "all", sort: "updated", direction: "desc" }
   );
 
-  // Only sync issues that carry BOTH the "unticket" and "feature" labels
+  const legacyFeatures = issues.filter((issue) => {
+    if (issue.pull_request) return false;
+    const names = (issue.labels ?? []).map((label) =>
+      String(typeof label === "string" ? label : label?.name ?? "").toLowerCase());
+    return names.includes(LEGACY_NOXTICKET_LABEL)
+      && !names.includes(NOXTICKET_LABEL)
+      && names.includes("feature");
+  });
+  if (legacyFeatures.length > 0) {
+    await ensureCanonicalNoxTicketLabel(token, orgLogin, noxTicketRepo);
+    for (const issue of legacyFeatures) {
+      const labels = (issue.labels ?? [])
+        .map((label) => typeof label === "string" ? label : label?.name)
+        .filter(Boolean)
+        .filter((name) => String(name).toLowerCase() !== LEGACY_NOXTICKET_LABEL);
+      labels.unshift(NOXTICKET_LABEL);
+      try {
+        await ghFetch(
+          `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/${encodeURIComponent(noxTicketRepo)}/issues/${issue.number}`,
+          { method: "PATCH", body: JSON.stringify({ labels: [...new Set(labels)] }) },
+          token,
+        );
+        issue.labels = [...new Set(labels)].map((name) => ({ name, color: "" }));
+      } catch (error) {
+        console.warn(`[noxticket] label migration failed for #${issue.number}:`, error?.message ?? error);
+      }
+    }
+  }
+
+  // Only sync issues that carry a current/legacy NoxTicket label and "feature"
   // (filter out PRs, todos, roles, tasks, and legacy single-label items).
   const features = issues.filter((i) => {
     if (i.pull_request) return false;
     const names = (i.labels ?? []).map((l) => (typeof l === "string" ? l : l.name));
-    return names.includes("unticket") && names.includes("feature");
+    return hasNoxTicketLabel(names) && names.includes("feature");
   });
 
-  console.log(`[unticket] syncFeatures: ${issues.length} total issues, ${features.length} features (org=${orgLogin})`);
+  console.log(`[noxconnect] syncFeatures: ${issues.length} total issues, ${features.length} features (org=${orgLogin})`);
 
   if (features.length === 0 && issues.length > 0) {
-    console.warn(`[unticket] syncFeatures: ${issues.length} issues but 0 features — all PRs? (org=${orgLogin})`);
+    console.warn(`[noxconnect] syncFeatures: ${issues.length} issues but 0 features — all PRs? (org=${orgLogin})`);
   }
 
   // Load existing D1 rows once so the per-feature reconcile doesn't hit D1
@@ -718,7 +748,7 @@ export async function syncFeatures(db, token, orgId, orgLogin) {
       pulled += 1;
     } else if (decision === "push") {
       try {
-        const updatedGhIssue = await pushFeatureToGitHub(token, orgLogin, unticketRepo, d1);
+        const updatedGhIssue = await pushFeatureToGitHub(token, orgLogin, noxTicketRepo, d1);
         await upsertFeatureRow(db, orgId, updatedGhIssue, { from: "github" });
         pushed += 1;
       } catch (err) {
@@ -726,7 +756,7 @@ export async function syncFeatures(db, token, orgId, orgLogin) {
         // tick can retry. Don't pull GitHub's stale state in either, that
         // would defeat the whole point of the LWW guard.
         console.error(
-          `[unticket] syncFeatures push failed for #${ghIssue.number}:`,
+          `[noxconnect] syncFeatures push failed for #${ghIssue.number}:`,
           err?.status,
           err?.message,
           err?.ghBody,
@@ -749,7 +779,7 @@ export async function syncFeatures(db, token, orgId, orgLogin) {
     if (!featureNumbers.has(num) && row.state === "open") toDelete.push(num);
   }
   if (toDelete.length > 0) {
-    console.log(`[unticket] syncFeatures: cleaning up ${toDelete.length} stale features from D1 (org=${orgLogin})`);
+    console.log(`[noxconnect] syncFeatures: cleaning up ${toDelete.length} stale features from D1 (org=${orgLogin})`);
     for (let i = 0; i < toDelete.length; i += 50) {
       const batch = toDelete.slice(i, i + 50);
       await db.batch(
@@ -761,10 +791,25 @@ export async function syncFeatures(db, token, orgId, orgLogin) {
   }
 
   console.log(
-    `[unticket] syncFeatures done: pulled=${pulled} pushed=${pushed} pushFailed=${pushFailed} inSync=${inSync} pruned=${toDelete.length}`,
+    `[noxconnect] syncFeatures done: pulled=${pulled} pushed=${pushed} pushFailed=${pushFailed} inSync=${inSync} pruned=${toDelete.length}`,
   );
 
   return { synced: features.length, total: issues.length, pulled, pushed, pushFailed, inSync };
+}
+
+async function ensureCanonicalNoxTicketLabel(token, orgLogin, repo) {
+  try {
+    await ghFetch(
+      `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/${encodeURIComponent(repo)}/labels`,
+      {
+        method: "POST",
+        body: JSON.stringify({ name: NOXTICKET_LABEL, color: "1B6971", description: "Tracked by NoxTicket" }),
+      },
+      token,
+    );
+  } catch (error) {
+    if (error?.status !== 422) throw error;
+  }
 }
 
 // Decide which side of the LWW reconcile to apply for one feature. Pure
@@ -813,7 +858,7 @@ function parseTs(ts) {
 // Uses GitHub's issue PATCH directly (no dependency on feature-issues.js so
 // we don't create an import cycle from sync → api → sync). The body shape
 // matches what the API PATCH route sends.
-async function pushFeatureToGitHub(token, orgLogin, unticketRepo, d1Row) {
+async function pushFeatureToGitHub(token, orgLogin, noxTicketRepo, d1Row) {
   const labels = JSON.parse(d1Row.labels_json || "[]")
     .map((l) => (typeof l === "string" ? l : l?.name))
     .filter(Boolean);
@@ -828,12 +873,12 @@ async function pushFeatureToGitHub(token, orgLogin, unticketRepo, d1Row) {
     state: d1Row.state || "open",
   };
   const res = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/${encodeURIComponent(unticketRepo)}/issues/${d1Row.number}`,
+    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/${encodeURIComponent(noxTicketRepo)}/issues/${d1Row.number}`,
     {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "Unticket",
+        "User-Agent": "NoxConnect",
         Accept: "application/vnd.github+json",
         "Content-Type": "application/json",
       },
@@ -850,9 +895,9 @@ async function pushFeatureToGitHub(token, orgLogin, unticketRepo, d1Row) {
   return res.json();
 }
 
-// ---------- Migrate unticket config ----------
+// ---------- Migrate noxconnect config ----------
 
-export async function migrateUnticketConfig(db, token, orgId, orgLogin) {
+export async function migrateNoxTicketConfig(db, token, orgId, orgLogin) {
   const existing = await db
     .prepare("SELECT COUNT(*) as count FROM config WHERE org_id = ?")
     .bind(orgId)
@@ -861,11 +906,11 @@ export async function migrateUnticketConfig(db, token, orgId, orgLogin) {
   if (existing && existing.count > 0) return;
 
   const repoRes = await fetch(
-    `https://api.github.com/repos/${orgLogin}/unticket`,
+    `https://api.github.com/repos/${orgLogin}/noxconnect`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "Unticket",
+        "User-Agent": "NoxConnect",
       },
     }
   );
@@ -876,11 +921,11 @@ export async function migrateUnticketConfig(db, token, orgId, orgLogin) {
 
   for (const key of files) {
     const fileRes = await fetch(
-      `https://api.github.com/repos/${orgLogin}/unticket/contents/${key}.json`,
+      `https://api.github.com/repos/${orgLogin}/noxconnect/contents/${key}.json`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          "User-Agent": "Unticket",
+          "User-Agent": "NoxConnect",
           Accept: "application/vnd.github+json",
         },
       }
@@ -909,7 +954,7 @@ export async function migrateUnticketConfig(db, token, orgId, orgLogin) {
 // ---------- syncInit: lightweight init (repos + members + config migration) ----------
 
 export async function syncInit(db, token, orgId, orgLogin) {
-  await migrateUnticketConfig(db, token, orgId, orgLogin);
+  await migrateNoxTicketConfig(db, token, orgId, orgLogin);
   await syncRepos(db, token, orgId, orgLogin);
   await syncMembers(db, token, orgId, orgLogin);
   await syncTeams(db, token, orgId, orgLogin);
@@ -959,7 +1004,7 @@ export async function bootstrapInstallation(env, orgId, orgLogin, installationId
       await syncRepo(db, token, orgId, orgLogin, repo, true, env);
     } catch (err) {
       // Don't abort the whole bootstrap on one bad repo — cron will retry.
-      console.error(`[unticket] bootstrap repo ${repo} failed:`, err?.message ?? err);
+      console.error(`[noxconnect] bootstrap repo ${repo} failed:`, err?.message ?? err);
     }
   }
 
@@ -976,7 +1021,7 @@ export async function syncRepo(db, token, orgId, orgLogin, repo, force = false, 
     const prSince = force ? null : (await getSyncState(db, orgId, `prs:${repo}`))?.lastSynced;
     await syncPRs(db, token, orgId, orgLogin, repo, prSince, env);
   } catch (err) {
-    console.error(`[unticket] syncRepo PRs failed for ${repo}:`, err?.message ?? err);
+    console.error(`[noxconnect] syncRepo PRs failed for ${repo}:`, err?.message ?? err);
     throw err;
   }
 
@@ -984,7 +1029,7 @@ export async function syncRepo(db, token, orgId, orgLogin, repo, force = false, 
     const issueSince = force ? null : (await getSyncState(db, orgId, `issues:${repo}`))?.lastSynced;
     await syncIssues(db, token, orgId, orgLogin, repo, issueSince);
   } catch (err) {
-    console.error(`[unticket] syncRepo issues failed for ${repo}:`, err?.message ?? err);
+    console.error(`[noxconnect] syncRepo issues failed for ${repo}:`, err?.message ?? err);
     throw err;
   }
 
@@ -992,7 +1037,7 @@ export async function syncRepo(db, token, orgId, orgLogin, repo, force = false, 
     const commitSince = force ? null : (await getSyncState(db, orgId, `commits:${repo}`))?.lastSynced;
     await syncCommits(db, token, orgId, orgLogin, repo, commitSince);
   } catch (err) {
-    console.error(`[unticket] syncRepo commits failed for ${repo}:`, err?.message ?? err);
+    console.error(`[noxconnect] syncRepo commits failed for ${repo}:`, err?.message ?? err);
     throw err;
   }
 }
@@ -1038,9 +1083,9 @@ export async function upsertIssue(db, orgId, repo, issue, closedBy = null) {
 }
 
 export async function upsertFeature(db, orgId, issue) {
-  // Only upsert if the issue carries BOTH "unticket" and "feature" labels.
+  // Only upsert if the issue carries a current/legacy NoxTicket label and "feature".
   const labels = (issue.labels ?? []).map((l) => (typeof l === "string" ? l : l.name));
-  if (!labels.includes("unticket") || !labels.includes("feature")) {
+  if (!hasNoxTicketLabel(labels) || !labels.includes("feature")) {
     // Not a feature — remove from features table if it was previously tracked
     await db.prepare("DELETE FROM features WHERE org_id = ? AND number = ?").bind(orgId, issue.number).run();
     return;

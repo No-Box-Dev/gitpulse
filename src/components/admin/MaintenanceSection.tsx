@@ -12,7 +12,7 @@ import {
 } from "@/lib/github";
 
 // Maintenance operations that pull from GitHub on demand or repair derived
-// data. Admin-only — rendered through AdminGate in the Maintenance section.
+// data. Admin-only — rendered through AdminGate in the NoxConnect section.
 
 function RepoHistoryRecoverySection() {
   const qc = useQueryClient();

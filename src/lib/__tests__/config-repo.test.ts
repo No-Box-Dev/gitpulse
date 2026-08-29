@@ -48,9 +48,9 @@ describe("savePeople (D1-backed)", () => {
 
 describe("fetchSettings", () => {
   it("returns the API response as-is", async () => {
-    mockApiGet.mockResolvedValue({ unticketRepo: "config" });
+    mockApiGet.mockResolvedValue({ noxTicketRepo: "config" });
     const result = await fetchSettings();
-    expect(result).toEqual({ unticketRepo: "config" });
+    expect(result).toEqual({ noxTicketRepo: "config" });
   });
 
   it("returns null when API returns null", async () => {

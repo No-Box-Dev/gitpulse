@@ -1,4 +1,5 @@
 import { encryptToken } from "./lib/crypto";
+import { appForApiPath, isAppEnabled, serviceDisabledResponse } from "./lib/apps.js";
 
 // Cache validated tokens for 5 min to avoid hammering GitHub /user
 const tokenCache = new Map();
@@ -35,7 +36,7 @@ async function validateGitHubToken(token) {
   const res = await fetch("https://api.github.com/user", {
     headers: {
       Authorization: `Bearer ${token}`,
-      "User-Agent": "Unticket",
+      "User-Agent": "NoxConnect",
     },
   });
 
@@ -79,7 +80,7 @@ async function verifyOrgMembership(token, tokenHash, orgLogin, userLogin) {
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "Unticket",
+        "User-Agent": "NoxConnect",
       },
     },
   );
@@ -115,6 +116,13 @@ export async function onRequest(context) {
   // Slack Events API — the link_shared unfurl webhook. Verified inside
   // the handler with the signing secret + timestamp, so no bearer here.
   if (url.pathname === "/api/slack/events") {
+    return context.next();
+  }
+
+  // NoxReview runner API — called by the local noxreview runner on Jasper's
+  // Mac, not by a browser session. Handlers verify their own bearer token
+  // (REVIEW_RUNNER_TOKEN) with a constant-time compare.
+  if (url.pathname.startsWith("/api/review/")) {
     return context.next();
   }
 
@@ -212,6 +220,14 @@ export async function onRequest(context) {
     );
   }
 
+  // App switches are enforced before service code runs. Shared NoxConnect
+  // routes stay available so an admin can turn a service back on. No rows are
+  // removed when a service is off.
+  const appId = appForApiPath(url.pathname);
+  if (appId && !(await isAppEnabled(context.env.DB, orgRow.id, appId))) {
+    return serviceDisabledResponse(appId);
+  }
+
   // Upsert session (encrypt token before storing in D1)
   const encryptionKey = context.env.ENCRYPTION_KEY;
   const encryptedToken = await encryptToken(token, encryptionKey);
@@ -251,7 +267,7 @@ export async function onRequest(context) {
       context.env.DB.prepare(
         "DELETE FROM sessions WHERE updated_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')"
       ).run().catch(async (err) => {
-        console.error("[unticket] Session cleanup failed:", err);
+        console.error("[noxconnect] Session cleanup failed:", err);
         try {
           const { recordFailure } = await import("./lib/op-failures.js");
           await recordFailure(context.env.DB, {

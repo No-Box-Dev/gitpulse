@@ -15,12 +15,12 @@ import { recordFailure } from "../../lib/op-failures.js";
 import { __resetLabelCacheForTests } from "../../lib/feature-issues.js";
 
 // Existing-labels response that matches the default board stages with their
-// canonical colors — when ensureUnticketRepoLabels sees these, no POST/PATCH
+// canonical colors — when ensureNoxTicketRepoLabels sees these, no POST/PATCH
 // fires and the next mocked fetch is the actual create/patch call.
 const LABELS_OK_RESPONSE = {
   ok: true,
   json: async () => [
-    { name: "unticket", color: "1B6971" },
+    { name: "noxticket", color: "1B6971" },
     { name: "feature", color: "1B6971" },
     { name: "backlog", color: "94A3B8" },
     { name: "status:todo", color: "94a3b8" },
@@ -156,9 +156,9 @@ describe("POST /api/features", () => {
         ok: true,
         json: async () => ({
           number: 7, title: "Login", state: "open",
-          body: "plan\n\n<!-- unticket:metadata\n{}\n-->",
-          assignees: [], labels: [{ name: "unticket", color: "1B6971" }, { name: "feature", color: "1B6971" }],
-          html_url: "https://github.com/acme/unticket/issues/7",
+          body: "plan\n\n<!-- noxticket:metadata\n{}\n-->",
+          assignees: [], labels: [{ name: "noxticket", color: "1B6971" }, { name: "feature", color: "1B6971" }],
+          html_url: "https://github.com/acme/noxconnect/issues/7",
           created_at: "t", updated_at: "t",
         }),
       });
@@ -197,7 +197,7 @@ describe("POST /api/features", () => {
           number: 8, title: "Later", state: "open",
           body: "",
           assignees: [],
-          labels: [{ name: "unticket" }, { name: "feature" }, { name: "backlog" }],
+          labels: [{ name: "noxticket" }, { name: "feature" }, { name: "backlog" }],
           html_url: "u", created_at: "t", updated_at: "t",
         }),
       });
@@ -258,7 +258,7 @@ describe("PATCH /api/features/:number", () => {
   });
 
   it("returns immediately from D1 and fires GitHub PATCH via waitUntil", async () => {
-    const initialBody = `do it\n\n<!-- unticket:metadata\n${JSON.stringify({
+    const initialBody = `do it\n\n<!-- noxticket:metadata\n${JSON.stringify({
       statusHistory: [{ status: "todo", timestamp: "t1" }],
     })}\n-->`;
     global.fetch
@@ -268,7 +268,7 @@ describe("PATCH /api/features/:number", () => {
         json: async () => ({
           number: 5, title: "X", state: "open",
           body: "ignored", assignees: [],
-          labels: [{ name: "unticket", color: "1B6971" }, { name: "feature", color: "1B6971" },
+          labels: [{ name: "noxticket", color: "1B6971" }, { name: "feature", color: "1B6971" },
                    { name: "status:staging", color: "B89464" }],
           html_url: "u", created_at: "t", updated_at: "t",
         }),
@@ -276,7 +276,7 @@ describe("PATCH /api/features/:number", () => {
     const db = makeDb({
       firstResult: {
         number: 5, title: "X", state: "open", body: initialBody,
-        assignees_json: "[]", labels_json: JSON.stringify([{ name: "unticket" }, { name: "feature" }]),
+        assignees_json: "[]", labels_json: JSON.stringify([{ name: "noxticket" }, { name: "feature" }]),
         html_url: "u",
       },
       allResult: { results: [] },
@@ -302,8 +302,8 @@ describe("PATCH /api/features/:number", () => {
     const ghCall = global.fetch.mock.calls[1];
     expect(ghCall[1].headers.Authorization).toBe("Bearer install-tok");
     const ghBody = JSON.parse(ghCall[1].body);
-    expect(ghBody.labels).toEqual(["unticket", "feature", "status:staging"]);
-    const meta = JSON.parse(ghBody.body.match(/<!-- unticket:metadata\n([\s\S]+)\n-->/)[1]);
+    expect(ghBody.labels).toEqual(["noxticket", "feature", "status:staging"]);
+    const meta = JSON.parse(ghBody.body.match(/<!-- noxticket:metadata\n([\s\S]+)\n-->/)[1]);
     expect(meta.statusHistory).toHaveLength(2);
     expect(meta.statusHistory[1].status).toBe("staging");
   });
@@ -342,7 +342,7 @@ describe("PATCH /api/features/:number", () => {
     // each other's untouched fields. This asserts a title-only PATCH ships
     // ONLY the title, so a concurrent status PATCH can land labels/body
     // without collision.
-    const initialBody = `do it\n\n<!-- unticket:metadata\n${JSON.stringify({
+    const initialBody = `do it\n\n<!-- noxticket:metadata\n${JSON.stringify({
       statusHistory: [{ status: "todo", timestamp: "t1" }],
     })}\n-->`;
     global.fetch
@@ -358,7 +358,7 @@ describe("PATCH /api/features/:number", () => {
     const db = makeDb({
       firstResult: {
         number: 5, title: "X", state: "open", body: initialBody,
-        assignees_json: "[]", labels_json: JSON.stringify([{ name: "unticket" }, { name: "feature" }]),
+        assignees_json: "[]", labels_json: JSON.stringify([{ name: "noxticket" }, { name: "feature" }]),
         html_url: "u",
       },
       allResult: { results: [] },
@@ -449,7 +449,7 @@ describe("DELETE /api/features/:number", () => {
         number: 5, title: "X", state: "open", body: "",
         assignees_json: "[]",
         labels_json: JSON.stringify([
-          { name: "unticket" }, { name: "feature" },
+          { name: "noxticket" }, { name: "feature" },
           { name: "status:ready" }, { name: "bug" },
         ]),
         html_url: "u",
@@ -466,7 +466,7 @@ describe("DELETE /api/features/:number", () => {
     const [closeStmt, detachStmt] = db._calls.batch[0];
     expect(closeStmt.sql).toContain("UPDATE features");
     expect(closeStmt.binds[0]).toContain("bug");
-    expect(closeStmt.binds[0]).not.toContain("unticket");
+    expect(closeStmt.binds[0]).not.toContain("noxconnect");
     expect(closeStmt.binds[0]).not.toContain("status:");
     expect(detachStmt.sql).toContain("UPDATE specs");
     expect(detachStmt.sql).toContain("feature_number = NULL");
@@ -491,7 +491,7 @@ describe("DELETE /api/features/:number", () => {
       firstResult: {
         number: 5, title: "X", state: "open", body: "",
         assignees_json: "[]",
-        labels_json: JSON.stringify([{ name: "unticket" }, { name: "feature" }]),
+        labels_json: JSON.stringify([{ name: "noxticket" }, { name: "feature" }]),
         html_url: "u",
       },
     });

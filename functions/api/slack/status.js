@@ -1,5 +1,6 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
-import { resolveSlackInstall, resolveSlackChannels, slackInstallNeedsReconnect } from "../../lib/slack";
+import { listSlackConnections, resolveSlackInstall, resolveSlackChannels, slackInstallNeedsReconnect } from "../../lib/slack";
+import { listSlackChannelStatuses } from "../../lib/slack-channel-status";
 
 // GET /api/slack/status
 //
@@ -10,12 +11,10 @@ export async function onRequestGet(context) {
   const { orgId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);
 
-  const [install, channels, metadata, deliveries] = await Promise.all([
+  const [install, connections, channels, deliveries, channelStatuses] = await Promise.all([
     resolveSlackInstall(context.env, orgId),
+    listSlackConnections(context.env, orgId),
     resolveSlackChannels(context.env.DB, orgId),
-    context.env.DB.prepare(
-      "SELECT health_status, last_checked_at, last_error FROM slack_settings WHERE org_id = ?",
-    ).bind(orgId).first(),
     context.env.DB.prepare(
       `SELECT
          SUM(CASE WHEN status IN ('pending','queued','processing','retrying') THEN 1 ELSE 0 END) AS pending_count,
@@ -23,6 +22,7 @@ export async function onRequestGet(context) {
          MAX(delivered_at) AS last_delivered_at
        FROM delivery_outbox WHERE org_id = ? AND destination = 'slack'`,
     ).bind(orgId).first(),
+    listSlackChannelStatuses(context.env.DB, orgId),
   ]);
 
   const response = jsonResponse({
@@ -30,9 +30,15 @@ export async function onRequestGet(context) {
     teamId: install?.teamId ?? null,
     teamName: install?.teamName ?? null,
     botUserId: install?.botUserId ?? null,
+    defaultConnectionId: install?.id ?? null,
+    connections: connections.map((connection) => ({
+      ...connection,
+      needsReconnect: slackInstallNeedsReconnect(context.env, connection),
+    })),
+    channelStatuses,
     fallbackChannelId: channels.fallbackChannelId,
     noxAlertChannelId: channels.noxAlertChannelId,
-    unticketChannelId: channels.unticketChannelId,
+    noxTicketChannelId: channels.noxTicketChannelId,
     noxFeedChannelId: channels.noxFeedChannelId,
     postsChannelId: channels.postsChannelId,
     releaseNotesChannelId: channels.releaseNotesChannelId,
@@ -44,9 +50,9 @@ export async function onRequestGet(context) {
       && !!context.env.SLACK_CLIENT_SECRET
       && !!context.env.SLACK_SIGNING_SECRET,
     needsReconnect: slackInstallNeedsReconnect(context.env, install),
-    health: !metadata ? "disconnected" : !install ? "degraded" : metadata.health_status ?? "unknown",
-    lastCheckedAt: metadata?.last_checked_at ?? null,
-    lastError: metadata?.last_error ?? null,
+    health: !install ? "disconnected" : install.health ?? connections[0]?.health ?? "unknown",
+    lastCheckedAt: connections[0]?.lastCheckedAt ?? null,
+    lastError: connections[0]?.lastError ?? null,
     pendingDeliveries: Number(deliveries?.pending_count ?? 0),
     blockedDeliveries: Number(deliveries?.blocked_count ?? 0),
     lastDeliveredAt: deliveries?.last_delivered_at ?? null,

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */ // dynamic D1 rows + GitHub issue payloads
-// /api/features/:number — single-feature mutations against the unticket
+// /api/features/:number — single-feature mutations against the noxconnect
 // repo. PATCH edits title/status/owners/plan; DELETE closes the issue and
-// strips the unticket/feature/status labels.
+// strips the noxticket/feature/status labels.
 //
 // Both paths are *optimistic*: D1 is updated first so the UI reflects the
 // change immediately, and the GitHub write is fired via waitUntil. If the
@@ -12,7 +12,7 @@
 //
 // Mutations use the GitHub App installation token, not the caller's OAuth
 // token — so any logged-in user can edit the board even without personal
-// `issues:write` on {org}/unticket.
+// `issues:write` on {org}/noxconnect.
 
 import { z } from "zod";
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
@@ -24,15 +24,16 @@ import { resolveBoardStages } from "../../lib/board-stages.js";
 import {
   buildFeatureLabels,
   buildIssueBody,
-  ensureUnticketRepoLabels,
+  ensureNoxTicketRepoLabels,
   extractBacklogFromLabels,
   extractStatusFromLabels,
   ghIssueToFeature,
   patchFeatureIssue,
   readFeatureRow,
   upsertFeatureRow,
-  UNTICKET_LABEL,
+  NOXTICKET_LABEL,
   FEATURE_LABEL,
+  hasNoxTicketLabel,
 } from "../../lib/feature-issues";
 import { validate } from "../../lib/validate";
 
@@ -213,7 +214,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
     // Make sure the status:<id> label exists on GitHub before patching —
     // GitHub rejects PATCHes referencing nonexistent labels. The helper is
     // cached per-org so this is a no-op after the first hit.
-    await ensureUnticketRepoLabels(token, orgLogin, stages);
+    await ensureNoxTicketRepoLabels(token, orgLogin, stages);
     const ghIssue = await patchFeatureIssue(token, orgLogin, number, ghPatch);
     await upsertFeatureRow(context.env.DB, orgId, ghIssue, { from: "github" });
   })();
@@ -233,7 +234,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
 }
 
 // DELETE /api/features/:number — close the issue on GitHub, strip
-// unticket/feature/status labels so it disappears from the board, and mark
+// noxticket/feature/status labels so it disappears from the board, and mark
 // D1 closed. Optimistic: D1 closes first; GitHub close runs in waitUntil.
 export async function onRequestDelete(context: Ctx): Promise<Response> {
   const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
@@ -245,13 +246,14 @@ export async function onRequestDelete(context: Ctx): Promise<Response> {
   const row = await readFeatureRow(context.env.DB, orgId, number);
   if (!row) return errorResponse("Feature not found", 404);
 
-  // Drop unticket-owned labels but keep any user-applied ones.
+  // Drop NoxTicket-owned labels but keep any user-applied ones.
   const currentLabels = JSON.parse(row.labels_json || "[]");
   const keepLabels = currentLabels
     .map((l: { name: string }) => l.name)
     .filter(
       (name: string) =>
-        name !== UNTICKET_LABEL &&
+        name !== NOXTICKET_LABEL &&
+        !hasNoxTicketLabel([name]) &&
         name !== FEATURE_LABEL &&
         !name.startsWith("status:"),
     );

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { onRequestPost, parseUnticketUrl } from "../slack/events.js";
+import { onRequestPost, parseNoxConnectUrl } from "../slack/events.js";
 
 // Fixed signing secret so tests can pre-compute valid signatures.
 const SECRET = "signing-secret-fixture";
@@ -33,9 +33,9 @@ function makeCtx({ body, timestamp, signature, env = {}, waitUntil = () => {} })
   return { request: req, env, waitUntil: vi.fn(waitUntil) };
 }
 
-describe("parseUnticketUrl", () => {
+describe("parseNoxConnectUrl", () => {
   it("parses a PR URL", () => {
-    expect(parseUnticketUrl("https://app.unticket.ai/prs/api/123")).toEqual({
+    expect(parseNoxConnectUrl("https://app.unticket.ai/prs/api/123")).toEqual({
       kind: "pr",
       repo: "api",
       number: 123,
@@ -43,7 +43,7 @@ describe("parseUnticketUrl", () => {
   });
 
   it("parses an issue URL", () => {
-    expect(parseUnticketUrl("https://app.unticket.ai/issues/api/45")).toEqual({
+    expect(parseNoxConnectUrl("https://app.unticket.ai/issues/api/45")).toEqual({
       kind: "issue",
       repo: "api",
       number: 45,
@@ -51,22 +51,22 @@ describe("parseUnticketUrl", () => {
   });
 
   it("parses a feature deep-link", () => {
-    expect(parseUnticketUrl("https://app.unticket.ai/?tab=sprint&f=7")).toEqual({
+    expect(parseNoxConnectUrl("https://app.unticket.ai/?tab=sprint&f=7")).toEqual({
       kind: "feature",
       number: 7,
     });
   });
 
-  it("returns null for non-unticket hosts", () => {
-    expect(parseUnticketUrl("https://github.com/foo/bar/pull/1")).toBeNull();
+  it("returns null for non-noxconnect hosts", () => {
+    expect(parseNoxConnectUrl("https://github.com/foo/bar/pull/1")).toBeNull();
   });
 
   it("returns null for unknown paths", () => {
-    expect(parseUnticketUrl("https://app.unticket.ai/random/path")).toBeNull();
+    expect(parseNoxConnectUrl("https://app.unticket.ai/random/path")).toBeNull();
   });
 
   it("returns null when the PR number isn't a number", () => {
-    expect(parseUnticketUrl("https://app.unticket.ai/prs/api/notanumber")).toBeNull();
+    expect(parseNoxConnectUrl("https://app.unticket.ai/prs/api/notanumber")).toBeNull();
   });
 });
 

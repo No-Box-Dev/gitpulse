@@ -136,7 +136,7 @@ describe("agent setup APIs", () => {
   it.each([
     ["fallback", "fallback"],
     ["noxalert", "noxalert"],
-    ["unticket", "unticket"],
+    ["noxticket", "noxticket"],
     ["noxfeed_posts", "noxfeed_posts"],
     ["noxfeed_release_notes", "noxfeed_release_notes"],
   ])("delegates the %s route using the legacy handler's accepted kind", async (route, kind) => {

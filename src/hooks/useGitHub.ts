@@ -162,74 +162,74 @@ function filterIssues<T extends { repo?: string; assignees?: { login: string }[]
     });
 }
 
-export function useOpenPRs(repos: string[]) {
+export function useOpenPRs(_repos: string[], enabled = true) {
   const { selectedOrg } = useAuth();
   const excludedMembers = useExcludedMembers();
   const excludedRepos = useExcludedRepos();
   return useQuery({
-    queryKey: ["prs", selectedOrg, repos],
+    queryKey: ["prs", selectedOrg, "open"],
     queryFn: fetchOpenPRs,
-    enabled: !!selectedOrg && repos.length > 0,
+    enabled: !!selectedOrg && enabled,
     select: (data) => filterPrs(data, excludedMembers, excludedRepos),
   });
 }
 
-export function useOpenIssues(repos: string[]) {
+export function useOpenIssues(_repos: string[], enabled = true) {
   const { selectedOrg } = useAuth();
   const excludedMembers = useExcludedMembers();
   const excludedRepos = useExcludedRepos();
   return useQuery({
-    queryKey: ["issues", selectedOrg, repos],
+    queryKey: ["issues", selectedOrg, "open"],
     queryFn: fetchOpenIssues,
-    enabled: !!selectedOrg && repos.length > 0,
+    enabled: !!selectedOrg && enabled,
     select: (data) => filterIssues(data, excludedMembers, excludedRepos),
   });
 }
 
-export function useClosedIssues(repos: string[], since?: string) {
+export function useClosedIssues(_repos: string[], since?: string, enabled = true) {
   const { selectedOrg } = useAuth();
   const excludedMembers = useExcludedMembers();
   const excludedRepos = useExcludedRepos();
   return useQuery({
-    queryKey: ["closedIssues", selectedOrg, repos, since],
+    queryKey: ["closedIssues", selectedOrg, since],
     queryFn: () => fetchClosedIssues(since),
-    enabled: !!selectedOrg && repos.length > 0,
+    enabled: !!selectedOrg && enabled,
     select: (data) => filterIssues(data, excludedMembers, excludedRepos),
   });
 }
 
-export function useMergedPRs(repos: string[], since?: string) {
+export function useMergedPRs(_repos: string[], since?: string, enabled = true) {
   const { selectedOrg } = useAuth();
   const excludedMembers = useExcludedMembers();
   const excludedRepos = useExcludedRepos();
   return useQuery({
-    queryKey: ["mergedPRs", selectedOrg, repos, since],
+    queryKey: ["mergedPRs", selectedOrg, since],
     queryFn: () => fetchMergedPRs(since),
-    enabled: !!selectedOrg && repos.length > 0,
+    enabled: !!selectedOrg && enabled,
     select: (data) => filterPrs(data, excludedMembers, excludedRepos),
   });
 }
 
-export function useAllPRs(repos: string[], since?: string) {
+export function useAllPRs(_repos: string[], since?: string) {
   const { selectedOrg } = useAuth();
   const excludedMembers = useExcludedMembers();
   const excludedRepos = useExcludedRepos();
   return useQuery({
-    queryKey: ["allPRs", selectedOrg, repos, since],
+    queryKey: ["allPRs", selectedOrg, since],
     queryFn: () => fetchAllPRs(since),
-    enabled: !!selectedOrg && repos.length > 0,
+    enabled: !!selectedOrg,
     select: (data) => filterPrs(data, excludedMembers, excludedRepos),
   });
 }
 
-export function useAllIssues(repos: string[], since?: string) {
+export function useAllIssues(_repos: string[], since?: string) {
   const { selectedOrg } = useAuth();
   const excludedMembers = useExcludedMembers();
   const excludedRepos = useExcludedRepos();
   return useQuery({
-    queryKey: ["allIssues", selectedOrg, repos, since],
+    queryKey: ["allIssues", selectedOrg, since],
     queryFn: () => fetchAllIssues(since),
-    enabled: !!selectedOrg && repos.length > 0,
+    enabled: !!selectedOrg,
     select: (data) => filterIssues(data, excludedMembers, excludedRepos),
   });
 }
@@ -250,12 +250,12 @@ export function useIsAdmin(): boolean {
   return Boolean(data?.isAdmin);
 }
 
-export function useOrgMembers() {
+export function useOrgMembers(enabled = true) {
   const { selectedOrg } = useAuth();
   return useQuery({
     queryKey: ["orgMembers", selectedOrg],
     queryFn: fetchOrgMembers,
-    enabled: !!selectedOrg,
+    enabled: !!selectedOrg && enabled,
     staleTime: 10 * 60 * 1000,
   });
 }
@@ -271,8 +271,8 @@ export function useGhTeamMemberships() {
 }
 
 /** Org members filtered by excludedMembers setting — use this for display. */
-export function useActiveMembers() {
-  const { data: orgMembers, isLoading } = useOrgMembers();
+export function useActiveMembers(enabled = true) {
+  const { data: orgMembers, isLoading } = useOrgMembers(enabled);
   const { data: settings } = useSettings();
   const excludedMembers = settings?.excludedMembers;
   const data = useMemo(() => {
@@ -501,15 +501,15 @@ export function useTriggerSync() {
   });
 }
 
-/** Cross-repo issues assigned to the current user (from D1, excludes unticket repo). */
+/** Cross-repo issues assigned to the current user (from D1, excludes noxconnect repo). */
 export function useAssignedIssues(login: string) {
   const { selectedOrg } = useAuth();
   return useQuery({
     queryKey: ["assignedIssues", selectedOrg, login],
     queryFn: async () => {
       const res = await fetchPaginatedIssues({ assignee: login, state: "all", pageSize: 200 });
-      // Exclude issues from the unticket repo (those are features)
-      return res.data.filter((i) => i.repo !== "unticket" && i.repo !== ".unticket");
+      // Exclude issues from the noxconnect repo (those are features)
+      return res.data.filter((i) => i.repo !== "noxconnect" && i.repo !== ".noxconnect");
     },
     enabled: !!selectedOrg && !!login,
     staleTime: 2 * 60 * 1000,

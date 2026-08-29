@@ -7,7 +7,7 @@ import { useSetProjectArchived } from "@/hooks/useNoxlink";
 
 // One combined card: the auto-include / auto-exclude policy radio at the top,
 // and the list of unacknowledged repos with per-row Track / Mark draft
-// actions below it. Admin-only — rendered through AdminGate in the Unticket
+// actions below it. Admin-only — rendered through AdminGate in the NoxConnect
 // section.
 export function NewReposSection() {
   const { data: settings } = useSettings();
@@ -99,10 +99,7 @@ export function NewReposSection() {
       <div>
         <h2 className="text-sm font-semibold text-stone-900">New repo policy</h2>
         <p className="text-xs text-stone-400 mt-1">
-          When unticket discovers a repo we haven't seen before, should it appear
-          in PRs / Issues / Engineers right away — or wait for you to mark it
-          tracked? Either way, you'll see a banner + dot for newly-detected
-          repos in this section.
+          Decide whether newly discovered repositories are tracked immediately or held for review.
         </p>
         <div className="mt-3 space-y-2">
           <label className="flex items-start gap-2 cursor-pointer">
@@ -117,7 +114,7 @@ export function NewReposSection() {
             <span className="text-sm">
               <span className="text-stone-800">Auto-include new repos</span>
               <span className="block text-xs text-stone-400">
-                Repos appear in dashboards immediately. (Current default.)
+                Show new repositories immediately.
               </span>
             </span>
           </label>
@@ -133,8 +130,7 @@ export function NewReposSection() {
             <span className="text-sm">
               <span className="text-stone-800">Auto-exclude new repos</span>
               <span className="block text-xs text-stone-400">
-                Repos start as drafts. You opt in via Track below before they
-                show up anywhere else.
+                Keep new repositories hidden until reviewed below.
               </span>
             </span>
           </label>

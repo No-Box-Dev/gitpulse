@@ -1,4 +1,4 @@
-# Unticket
+# NoxFeed
 
 > A macOS menubar client for your GitHub team's PR activity. Turns your
 > org's PR + issue flow into a live, AI-narrated feed you can glance at
@@ -9,7 +9,7 @@
 - Menubar-first macOS app: three-mode feed (Opened / Merged / Notes)
 - Current tab shows a per-person view of open PRs, review requests, and
   assigned issues with counts
-- PR detail with a toggle between the GitHub page and unticket's release
+- PR detail with a toggle between the GitHub page and noxfeed's release
   notes
 - Multi-account (multiple GitHub identities) + multi-org support
 - Global hotkey ⌘⇧X to open from anywhere

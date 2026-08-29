@@ -1,4 +1,4 @@
-// Slack Events API endpoint — handles the `link_shared` event so unticket
+// Slack Events API endpoint — handles the `link_shared` event so noxconnect
 // URLs pasted into Slack messages auto-expand into rich Block Kit cards.
 //
 // Endpoint contract with Slack:
@@ -100,7 +100,7 @@ async function handleLinkShared(env, payload) {
     const unfurls = {};
     for (const link of event.links ?? []) {
       if (link.domain !== APP_HOST) continue;
-      const parsed = parseUnticketUrl(link.url);
+      const parsed = parseNoxConnectUrl(link.url);
       if (!parsed) continue;
       const block = await buildUnfurl(env, install.orgId, parsed);
       if (block) unfurls[link.url] = block;
@@ -128,7 +128,7 @@ async function handleLinkShared(env, payload) {
 // ---- URL parsing ----
 
 // Returns { kind: "pr" | "issue" | "feature", repo?, number } or null.
-export function parseUnticketUrl(raw) {
+export function parseNoxConnectUrl(raw) {
   let u;
   try { u = new URL(raw); } catch { return null; }
   if (u.host !== APP_HOST) return null;

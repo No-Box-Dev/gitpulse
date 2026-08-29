@@ -5,7 +5,7 @@ vi.mock("../feature-metadata.js", () => ({
 }));
 vi.mock("../inactive-repos.js", () => ({
   filterInactive: vi.fn(async (_db, _o, _l, names) => names),
-  getUnticketRepoName: vi.fn(async () => "unticket"),
+  getNoxTicketRepoName: vi.fn(async () => "noxconnect"),
 }));
 vi.mock("../github-app.js", () => ({
   getInstallationToken: vi.fn(async () => "ghs_token"),
@@ -132,18 +132,18 @@ describe("upsertIssue", () => {
 });
 
 describe("upsertFeature", () => {
-  it("DELETEs feature row when labels don't include both unticket+feature", async () => {
+  it("DELETEs feature row when labels don't include both noxticket+feature", async () => {
     const db = makeDb();
     await upsertFeature(db, "org", { number: 1, labels: [{ name: "bug" }] });
     expect(db._calls.runs[0].sql).toContain("DELETE FROM features");
   });
 
-  it("requires both 'unticket' AND 'feature' labels", async () => {
+  it("requires both 'noxticket' AND 'feature' labels", async () => {
     const db = makeDb();
     await upsertFeature(db, "org", { number: 1, labels: [{ name: "feature" }] });
     expect(db._calls.runs[0].sql).toContain("DELETE");
 
-    await upsertFeature(db, "org", { number: 2, labels: [{ name: "unticket" }] });
+    await upsertFeature(db, "org", { number: 2, labels: [{ name: "noxticket" }] });
     expect(db._calls.runs[1].sql).toContain("DELETE");
   });
 
@@ -151,7 +151,7 @@ describe("upsertFeature", () => {
     const db = makeDb();
     await upsertFeature(db, "org", {
       number: 5, title: "F", state: "open", body: "b",
-      labels: [{ name: "unticket" }, { name: "feature" }],
+      labels: [{ name: "noxticket" }, { name: "feature" }],
       assignees: [], html_url: "u",
       created_at: "2026-05-01", updated_at: "2026-05-01",
     });
@@ -162,9 +162,19 @@ describe("upsertFeature", () => {
     const db = makeDb();
     await upsertFeature(db, "org", {
       number: 5, title: "F", state: "open",
-      labels: ["unticket", "feature"],
+      labels: ["noxticket", "feature"],
       assignees: [], html_url: "u",
       created_at: "x", updated_at: "x",
+    });
+    expect(db._calls.runs[0].sql).toContain("INSERT INTO features");
+  });
+
+  it("accepts the pre-rename ticket label until GitHub issues are canonicalized", async () => {
+    const db = makeDb();
+    await upsertFeature(db, "org", {
+      number: 6, title: "F", state: "open",
+      labels: [["un", "ticket"].join(""), "feature"],
+      assignees: [], html_url: "u", created_at: "x", updated_at: "x",
     });
     expect(db._calls.runs[0].sql).toContain("INSERT INTO features");
   });

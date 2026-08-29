@@ -3,17 +3,33 @@ import { validateBoardStages } from "../../lib/board-stages.js";
 import { extractStatusFromLabels } from "../../lib/feature-issues.js";
 import { getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
 import { recoverOutboxDeliveries } from "../../lib/delivery-outbox.js";
+import { LEGACY_NOXTICKET_SOURCE, normalizeNoxSettings } from "../../lib/naming-compat.js";
 
 const VALID_KEYS = ["features", "people", "settings"];
 const SLACK_CHANNEL_KEYS = [
   "fallbackChannelId",
   "noxAlertChannelId",
-  "unticketChannelId",
+  "noxTicketChannelId",
   "noxFeedChannelId",
   // Accepted during the compatibility window for older clients.
   "postsChannelId",
   "releaseNotesChannelId",
 ];
+const SLACK_ROUTES = [
+  ["fallbackChannelId", "fallbackConnectionId"],
+  ["noxAlertChannelId", "noxAlertConnectionId"],
+  ["noxTicketChannelId", "noxTicketConnectionId"],
+  ["postsChannelId", "postsConnectionId"],
+  ["releaseNotesChannelId", "releaseNotesConnectionId"],
+  ["noxFeedChannelId", null],
+];
+const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxalert"];
+const APP_DELIVERY_SOURCES = {
+  noxticket: ["noxticket", LEGACY_NOXTICKET_SOURCE],
+  noxfeed: ["posts", "release_notes"],
+  noxspot: ["noxspot"],
+  noxalert: ["noxalert"],
+};
 
 const DEFAULTS = {
   features: [],
@@ -39,12 +55,13 @@ export async function onRequestGet(context) {
   }
 
   try {
-    return jsonResponse(JSON.parse(row.data));
+    const parsed = JSON.parse(row.data);
+    return jsonResponse(key === "settings" ? normalizeNoxSettings(parsed) : parsed);
   } catch (err) {
     // Returning the default silently masked real corruption — drafts
-    // re-appeared, custom unticketRepo names reverted to "unticket".
+    // re-appeared, custom noxTicketRepo names reverted to "noxconnect".
     // Fail loud so the user sees a clear error and fixes the row.
-    console.error(`[unticket] Corrupt config data for key "${key}" (org ${orgId}):`, err?.message ?? err);
+    console.error(`[noxconnect] Corrupt config data for key "${key}" (org ${orgId}):`, err?.message ?? err);
     return errorResponse(`Corrupt config row for "${key}" — repair before continuing`, 500);
   }
 }
@@ -69,24 +86,25 @@ export async function onRequestPut(context) {
   try { body = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
   }
+  if (key === "settings") body = normalizeNoxSettings(body);
+
   const slackWasSupplied = key === "settings"
     && body
     && typeof body === "object"
     && Object.prototype.hasOwnProperty.call(body, "slack");
+  const appsWereSupplied = key === "settings"
+    && body
+    && typeof body === "object"
+    && Object.prototype.hasOwnProperty.call(body, "apps");
 
-  if (slackWasSupplied && body.slack?.noxFeedProjectId !== undefined) {
-    if (typeof body.slack.noxFeedProjectId !== "string") {
-      return errorResponse("noxFeedProjectId must be a string", 422);
+  if (key === "settings" && body && typeof body === "object" && body.apps !== undefined) {
+    if (!body.apps || typeof body.apps !== "object" || Array.isArray(body.apps)) {
+      return errorResponse("apps must be an object", 422);
     }
-    const projectId = body.slack.noxFeedProjectId.trim();
-    if (projectId) {
-      const project = await context.env.DB.prepare(
-        "SELECT 1 FROM projects WHERE id = ? AND owner_id = ? LIMIT 1",
-      ).bind(projectId, orgLogin).first();
-      if (!project) return errorResponse("Choose a project from this organization", 422);
-      body.slack.noxFeedProjectId = projectId;
-    } else {
-      delete body.slack.noxFeedProjectId;
+    for (const [appId, enabled] of Object.entries(body.apps)) {
+      if (!OPTIONAL_APP_KEYS.includes(appId) || typeof enabled !== "boolean") {
+        return errorResponse(`Invalid app setting: ${appId}`, 422);
+      }
     }
   }
 
@@ -125,15 +143,17 @@ export async function onRequestPut(context) {
   }
 
   if (slackWasSupplied && body?.slack && typeof body.slack === "object") {
-    const channelIds = [...new Set(SLACK_CHANNEL_KEYS
-      .map((field) => body.slack[field])
-      .filter((value) => typeof value === "string" && value.trim())
-      .map((value) => value.trim()))];
-    if (channelIds.length > 0) {
-      const install = await resolveSlackInstall(context.env, orgId);
-      if (!install) return errorResponse("Connect Slack before selecting a channel", 409);
+    const routes = SLACK_ROUTES.flatMap(([channelKey, connectionKey]) => {
+      const channelId = typeof body.slack[channelKey] === "string" ? body.slack[channelKey].trim() : "";
+      const connectionId = connectionKey && typeof body.slack[connectionKey] === "string"
+        ? body.slack[connectionKey].trim() : null;
+      return channelId ? [{ channelId, connectionId }] : [];
+    });
+    if (routes.length > 0) {
       try {
-        for (const channelId of channelIds) {
+        for (const { channelId, connectionId } of routes) {
+          const install = await resolveSlackInstall(context.env, orgId, connectionId);
+          if (!install) return errorResponse("Connect the selected Slack workspace before choosing a channel", 409);
           const channel = await getSlackChannel(install.botToken, channelId);
           if (!channel || channel.is_archived) return errorResponse("Slack channel is archived or unavailable", 409);
           if (channel.is_private && !channel.is_member) return errorResponse("Invite the Nox bot to this private channel first", 409);
@@ -174,33 +194,33 @@ export async function onRequestPut(context) {
       .bind(orgId, key, serialized);
 
   const dependentStatements = [];
+  // A CAS miss must not mutate dependent outbox rows. Every repair is guarded
+  // by the desired config value and runs in the same D1 batch as the setting.
+  const configGuard = compareAndSwap
+    ? " AND EXISTS (SELECT 1 FROM config config_guard WHERE config_guard.org_id = ? AND config_guard.key = ? AND config_guard.data = ?)"
+    : "";
+  const configGuardBinds = compareAndSwap ? [orgId, key, serialized] : [];
   if (slackWasSupplied) {
     const slack = body?.slack && typeof body.slack === "object" ? body.slack : {};
     const clean = (value) => typeof value === "string" ? value.trim() : "";
     const fallbackChannelId = clean(slack.fallbackChannelId);
-    // A CAS miss must not mutate the outbox. Every dependent statement is
-    // guarded by the desired config value, and D1 batch executes the config
-    // write + repairs in one transaction.
-    const configGuard = compareAndSwap
-      ? " AND EXISTS (SELECT 1 FROM config config_guard WHERE config_guard.org_id = ? AND config_guard.key = ? AND config_guard.data = ?)"
-      : "";
-    const configGuardBinds = compareAndSwap ? [orgId, key, serialized] : [];
+    const fallbackConnectionId = clean(slack.fallbackConnectionId) || null;
     const routes = [
-      { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
-      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId },
-      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId },
-      { sources: ["unticket"], channelId: clean(slack.unticketChannelId) || fallbackChannelId },
+      { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.postsConnectionId) || fallbackConnectionId },
+      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || fallbackConnectionId },
+      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId, connectionId: clean(slack.noxAlertConnectionId) || fallbackConnectionId },
+      { sources: ["noxticket", LEGACY_NOXTICKET_SOURCE], channelId: clean(slack.noxTicketChannelId) || fallbackChannelId, connectionId: clean(slack.noxTicketConnectionId) || fallbackConnectionId },
     ];
-    for (const { sources, channelId } of routes) {
+    for (const { sources, channelId, connectionId } of routes) {
       const placeholders = sources.map(() => "?").join(",");
       if (channelId) {
         dependentStatements.push(context.env.DB.prepare(
-          `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+          `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
              last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
            WHERE org_id = ? AND source IN (${placeholders})
              AND destination = 'slack' AND status != 'delivered'${configGuard}`,
-        ).bind(channelId, orgId, ...sources, ...configGuardBinds));
+        ).bind(channelId, connectionId, orgId, ...sources, ...configGuardBinds));
       } else {
         dependentStatements.push(context.env.DB.prepare(
           `UPDATE delivery_outbox SET status = 'blocked_configuration',
@@ -216,14 +236,14 @@ export async function onRequestPut(context) {
     // one follow the organization fallback.
     if (fallbackChannelId) {
       dependentStatements.push(context.env.DB.prepare(
-        `UPDATE delivery_outbox SET channel_id = ?, status = 'pending',
+        `UPDATE delivery_outbox SET channel_id = ?, slack_connection_id = ?, status = 'pending',
            last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
          WHERE org_id = ? AND source = 'noxspot' AND destination = 'slack'
            AND status != 'delivered' AND site_id IN (
              SELECT id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NULL
            )${configGuard}`,
-      ).bind(fallbackChannelId, orgId, orgId, ...configGuardBinds));
+      ).bind(fallbackChannelId, fallbackConnectionId, orgId, orgId, ...configGuardBinds));
     } else {
       dependentStatements.push(context.env.DB.prepare(
         `UPDATE delivery_outbox SET status = 'blocked_configuration',
@@ -237,7 +257,30 @@ export async function onRequestPut(context) {
     }
   }
 
-  const [configResult] = slackWasSupplied
+  if (appsWereSupplied) {
+    for (const [appId, sources] of Object.entries(APP_DELIVERY_SOURCES)) {
+      const placeholders = sources.map(() => "?").join(",");
+      if (body.apps?.[appId] === false) {
+        dependentStatements.push(context.env.DB.prepare(
+          `UPDATE delivery_outbox SET status = 'blocked_service_disabled',
+             last_error_code = 'service_disabled', last_error = ?, next_attempt_at = NULL,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND source IN (${placeholders})
+             AND destination = 'slack' AND status != 'delivered'${configGuard}`,
+        ).bind(`${appId} is off for this organization`, orgId, ...sources, ...configGuardBinds));
+      } else {
+        dependentStatements.push(context.env.DB.prepare(
+          `UPDATE delivery_outbox SET status = 'pending',
+             last_error_code = NULL, last_error = NULL, next_attempt_at = NULL,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           WHERE org_id = ? AND source IN (${placeholders})
+             AND destination = 'slack' AND status = 'blocked_service_disabled'${configGuard}`,
+        ).bind(orgId, ...sources, ...configGuardBinds));
+      }
+    }
+  }
+
+  const [configResult] = dependentStatements.length > 0
     ? await context.env.DB.batch([configStatement, ...dependentStatements])
     : [await configStatement.run()];
   if (compareAndSwap && !configResult.meta?.changes) {
@@ -255,7 +298,7 @@ export async function onRequestPut(context) {
     }
   }
 
-  if (slackWasSupplied) {
+  if (slackWasSupplied || appsWereSupplied) {
     await recoverOutboxDeliveries(context.env);
   }
 

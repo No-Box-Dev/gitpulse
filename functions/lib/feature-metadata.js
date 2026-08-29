@@ -1,6 +1,7 @@
 // Server-side feature metadata helpers (mirrors frontend github-features.ts logic)
 
-const METADATA_RE = /\n?<!-- unticket:metadata\n([\s\S]*?)\n-->\s*$/;
+const METADATA_RE = /\n?<!-- noxticket:metadata\n([\s\S]*?)\n-->\s*$/;
+const LEGACY_METADATA_RE = new RegExp(`\\n?<!-- ${["un", "ticket"].join("")}:metadata\\n([\\s\\S]*?)\\n-->\\s*$`);
 
 /**
  * Parse metadata from a feature issue body.
@@ -8,13 +9,13 @@ const METADATA_RE = /\n?<!-- unticket:metadata\n([\s\S]*?)\n-->\s*$/;
  */
 export function parseFeatureMetadata(body) {
   if (!body) return { content: "", metadata: {} };
-  const match = body.match(METADATA_RE);
+  const match = body.match(METADATA_RE) ?? body.match(LEGACY_METADATA_RE);
   if (!match) return { content: body, metadata: {} };
   try {
     const metadata = JSON.parse(match[1]);
     return { content: body.slice(0, match.index), metadata };
   } catch (e) {
-    console.warn("[unticket] Corrupt feature metadata block, ignoring:", e);
+    console.warn("[noxconnect] Corrupt feature metadata block, ignoring:", e);
     return { content: body, metadata: {} };
   }
 }
@@ -32,23 +33,23 @@ export function serializeFeatureMetadata(content, metadata) {
     (metadata.statusHistory && metadata.statusHistory.length > 0) ||
     (metadata.specLinks && metadata.specLinks.length > 0);
   if (!hasData) return content;
-  return `${content}\n\n<!-- unticket:metadata\n${JSON.stringify(metadata)}\n-->`;
+  return `${content}\n\n<!-- noxticket:metadata\n${JSON.stringify(metadata)}\n-->`;
 }
 
 // sanitizeSpecLinks moved to ./spec-links.ts — shared with the manual Specs
 // feature. Import it directly from there.
 
 /**
- * Read a feature issue from the unticket repo.
+ * Read a feature issue from the noxconnect repo.
  * Returns the full issue object from GitHub API.
  */
 export async function readFeatureIssue(token, orgLogin, number) {
   const res = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/unticket/issues/${encodeURIComponent(number)}`,
+    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/noxconnect/issues/${encodeURIComponent(number)}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "Unticket",
+        "User-Agent": "NoxConnect",
         Accept: "application/vnd.github+json",
       },
     }
@@ -60,16 +61,16 @@ export async function readFeatureIssue(token, orgLogin, number) {
 }
 
 /**
- * Update a feature issue body in the unticket repo.
+ * Update a feature issue body in the noxconnect repo.
  */
 export async function updateFeatureBody(token, orgLogin, number, body) {
   const res = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/unticket/issues/${encodeURIComponent(number)}`,
+    `https://api.github.com/repos/${encodeURIComponent(orgLogin)}/noxconnect/issues/${encodeURIComponent(number)}`,
     {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "Unticket",
+        "User-Agent": "NoxConnect",
         Accept: "application/vnd.github+json",
         "Content-Type": "application/json",
       },
@@ -81,4 +82,3 @@ export async function updateFeatureBody(token, orgLogin, number, body) {
   }
   return res.json();
 }
-

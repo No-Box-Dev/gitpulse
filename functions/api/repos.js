@@ -3,7 +3,7 @@ import { getInactiveRepoSet } from "../lib/inactive-repos";
 
 // GET /api/repos
 //   Default: active repos only (drafts, GH-archived, platform-archived, and
-//   the unticket-config repo are hidden — consistent with /api/issues + /api/prs).
+//   the noxconnect-config repo are hidden — consistent with /api/issues + /api/prs).
 //   ?include=all  → return everything with an `inactive: true|false` flag so
 //   the Settings repo-management UI can render and toggle them. Also includes
 //   `discoveredAt` / `acknowledgedAt` so the NewRepoBanner + Settings "Newly

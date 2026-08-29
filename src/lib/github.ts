@@ -1,112 +1,4 @@
-import { Octokit } from "@octokit/rest";
-import { paginateRest } from "@octokit/plugin-paginate-rest";
-import { throttling } from "@octokit/plugin-throttling";
-import { retry } from "@octokit/plugin-retry";
-import { apiGet, apiPost, ApiError, broadcastError, refreshAccessToken } from "./api";
-
-// ---------- Auth (still uses Octokit directly) ----------
-
-const CustomOctokit = Octokit.plugin(paginateRest, throttling, retry);
-
-type CustomOctokitInstance = InstanceType<typeof CustomOctokit>;
-
-let octokitInstance: CustomOctokitInstance | null = null;
-let octokitToken: string | null = null;
-
-export function getOctokit(): CustomOctokitInstance {
-  const token = localStorage.getItem("ut_token");
-  if (!token) throw new Error("Not authenticated");
-  // localStorage token replacement events do not fire in the tab that made
-  // the change. Track the token used by the singleton so a refresh in this or
-  // another tab can never leave Octokit pinned to the expired credential.
-  if (!octokitInstance || octokitToken !== token) {
-    octokitInstance = new CustomOctokit({
-      auth: token,
-      throttle: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        onRateLimit: (retryAfter: number, options: any, _octokit: any, retryCount: number) => {
-          console.warn(
-            `[unticket.ai] Rate limit hit for ${options.url}, retry #${retryCount}, resets in ${retryAfter}s`,
-          );
-          return retryCount < 1;
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        onSecondaryRateLimit: (retryAfter: number, options: any) => {
-          console.warn(
-            `[unticket.ai] Secondary rate limit for ${options.url}, resets in ${retryAfter}s`,
-          );
-          return false;
-        },
-      },
-      retry: { doNotRetry: [400, 401, 403, 404, 422, 451] },
-    });
-    octokitToken = token;
-  }
-  return octokitInstance;
-}
-
-export function resetOctokit() {
-  octokitInstance = null;
-  octokitToken = null;
-}
-
-/** Wraps Octokit errors into ApiError so the retry logic can identify them. */
-function wrapOctokitError(err: unknown, failedToken?: string | null): never {
-  if (err instanceof ApiError) throw err;
-  if (err instanceof Error) {
-    // Octokit includes status in the error object
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const status = (err as any).status as number | undefined;
-    if (status === 401) {
-      // Never let a stale tab delete a newer token written by another tab.
-      // Only the credential that actually failed may terminate the session.
-      if (failedToken && localStorage.getItem("ut_token") === failedToken) {
-        localStorage.removeItem("ut_token");
-        window.dispatchEvent(new CustomEvent("ut:force-logout"));
-      }
-      broadcastError("Token expired or revoked", 401);
-      throw new ApiError("Token expired or revoked", 401);
-    }
-    if (status === 403 || status === 429) {
-      broadcastError(err.message || "Rate limit exceeded", status);
-      throw new ApiError(err.message || "Rate limit exceeded", status);
-    }
-    if (status) {
-      broadcastError(err.message, status);
-      throw new ApiError(err.message, status);
-    }
-    broadcastError(err.message, 0);
-    throw new ApiError(err.message, 0);
-  }
-  broadcastError(String(err), 0);
-  throw new ApiError(String(err), 0);
-}
-
-async function withOctokitAuthRetry<T>(request: (client: CustomOctokitInstance) => Promise<T>): Promise<T> {
-  const attemptedToken = localStorage.getItem("ut_token");
-  try {
-    return await request(getOctokit());
-  } catch (err) {
-    // Every remaining direct GitHub call gets the same silent-refresh path as
-    // fetchUser. A newer cross-tab token is reused without another rotation.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((err as any)?.status === 401 && attemptedToken) {
-      const currentToken = localStorage.getItem("ut_token");
-      const refreshed = currentToken && currentToken !== attemptedToken
-        ? currentToken
-        : await refreshAccessToken(attemptedToken);
-      if (refreshed) {
-        resetOctokit();
-        try {
-          return await request(getOctokit());
-        } catch (retryErr) {
-          throw wrapOctokitError(retryErr, refreshed);
-        }
-      }
-    }
-    throw wrapOctokitError(err, attemptedToken);
-  }
-}
+import { apiGet, apiPost, ApiError, broadcastError } from "./api";
 
 export interface RateLimitInfo {
   limit: number;
@@ -116,30 +8,24 @@ export interface RateLimitInfo {
 }
 
 export async function fetchRateLimit(): Promise<RateLimitInfo> {
-  return withOctokitAuthRetry(async (ok) => {
-    const { data } = await ok.rest.rateLimit.get();
-    const core = data.resources.core;
-    return {
-      limit: core.limit,
-      remaining: core.remaining,
-      reset: core.reset,
-      used: core.used,
-    };
-  });
+  return apiGet<RateLimitInfo>("/api/github/rate-limit");
 }
 
 export async function fetchUser() {
-  return withOctokitAuthRetry(async (ok) => {
-    const { data } = await ok.rest.users.getAuthenticated();
-    return data;
-  });
+  const profile = await apiGet<{ user: { login: string; avatar_url: string; name: string | null } }>("/api/auth/profile?scope=user");
+  return profile.user;
 }
 
-export async function fetchOrgs() {
-  return withOctokitAuthRetry(async (ok) => {
-    const { data } = await ok.rest.orgs.listForAuthenticatedUser();
-    return data;
-  });
+export interface GitHubOrganization {
+  id: number;
+  login: string;
+  avatar_url?: string | null;
+  description?: string | null;
+}
+
+export async function fetchOrgs(): Promise<GitHubOrganization[]> {
+  const profile = await apiGet<{ orgs: GitHubOrganization[] }>("/api/auth/profile?scope=orgs");
+  return profile.orgs;
 }
 
 export interface MeResponse {
@@ -150,7 +36,7 @@ export interface MeResponse {
 
 // App-level identity + admin flag. Backed by `/api/me`, which reads the
 // `org_admins` table populated by the middleware bootstrap (first user from
-// each org auto-promotes to admin). This replaced an Octokit call against
+// each org auto-promotes to admin). This replaced a direct GitHub call against
 // `/orgs/{org}/memberships/{user}` — GitHub org role and app-level admin are
 // no longer coupled.
 export async function fetchMe(): Promise<MeResponse> {
@@ -188,7 +74,7 @@ export async function triggerSync() {
   }
 
   if (iterations >= maxIterations && cursor) {
-    console.error(`[unticket] Sync exceeded max iterations (${maxIterations}). Remaining cursor: ${cursor}`);
+    console.error(`[noxconnect] Sync exceeded max iterations (${maxIterations}). Remaining cursor: ${cursor}`);
     // Return partial success with remaining cursor so callers can resume
     return { ok: false, synced: { repos: init.repos ?? 0, prs: 0, issues: 0, members: 0 }, remainingCursor: cursor };
   }
@@ -244,7 +130,7 @@ export async function triggerSyncWithProgress(
       synced++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[unticket] sync failed for ${repo}:`, msg);
+      console.error(`[noxconnect] sync failed for ${repo}:`, msg);
       failed.push(repo);
     }
   }
@@ -297,7 +183,7 @@ export async function triggerEventsBackfillWithProgress(
       synced++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[unticket] event backfill failed for ${repo}:`, msg);
+      console.error(`[noxconnect] event backfill failed for ${repo}:`, msg);
       failed.push(repo);
     }
   }
@@ -412,7 +298,7 @@ interface ApiMember {
   kind: "human" | "bot";
 }
 
-// ---------- Transform API → Octokit-compatible shapes ----------
+// ---------- Transform NoxConnect API → UI shapes ----------
 
 function transformPR(pr: ApiPR) {
   return {
@@ -456,7 +342,7 @@ function transformIssue(issue: ApiIssue) {
 // ---------- Data fetchers (call our API) ----------
 
 // fetchRepos defaults to ACTIVE repos only. Pass { includeAll: true } from
-// Settings' repo-management UI to see drafts/archived/unticket-repo as well
+// Settings' repo-management UI to see drafts/archived/noxconnect-repo as well
 // (each row carries an `inactive` flag in that case).
 export async function fetchRepos(opts?: { includeAll?: boolean }) {
   const query = opts?.includeAll ? "?include=all" : "";
@@ -698,18 +584,11 @@ export interface IssueBody {
 }
 
 export async function fetchIssueBody(
-  owner: string,
+  _owner: string,
   repo: string,
   number: number,
 ): Promise<IssueBody> {
-  return withOctokitAuthRetry(async (ok) => {
-    const { data } = await ok.rest.issues.get({ owner, repo, issue_number: number });
-    return {
-      body: data.body ?? null,
-      comments: data.comments ?? 0,
-      reactions_total: data.reactions?.total_count ?? 0,
-    };
-  });
+  return apiGet<IssueBody>(`/api/github/details?kind=issue&repo=${encodeURIComponent(repo)}&number=${number}`);
 }
 
 export interface PrBody {
@@ -724,23 +603,11 @@ export interface PrBody {
 }
 
 export async function fetchPrBody(
-  owner: string,
+  _owner: string,
   repo: string,
   number: number,
 ): Promise<PrBody> {
-  return withOctokitAuthRetry(async (ok) => {
-    const { data } = await ok.rest.pulls.get({ owner, repo, pull_number: number });
-    return {
-      body: data.body ?? null,
-      comments: data.comments ?? 0,
-      review_comments: data.review_comments ?? 0,
-      additions: data.additions ?? 0,
-      deletions: data.deletions ?? 0,
-      changed_files: data.changed_files ?? 0,
-      merged: data.merged ?? false,
-      mergeable: data.mergeable ?? null,
-    };
-  });
+  return apiGet<PrBody>(`/api/github/details?kind=pr&repo=${encodeURIComponent(repo)}&number=${number}`);
 }
 
 export interface IssueStats {

@@ -56,51 +56,25 @@ describe("GET /api/config/:key", () => {
     expect(await res.json()).toEqual([{ title: "X" }]);
   });
 
+  it("returns canonical NoxTicket settings for pre-rename stored fields", async () => {
+    const prefix = ["un", "ticket"].join("");
+    const db = makeDb({ firstResult: { data: JSON.stringify({
+      [`${prefix}Repo`]: "legacy-config",
+      slack: { [`${prefix}ChannelId`]: "C1", [`${prefix}ConnectionId`]: "conn-1" },
+    }) } });
+    const res = await onRequestGet(makeCtx({ db, params: { key: "settings" } }));
+    expect(await res.json()).toEqual({
+      noxTicketRepo: "legacy-config",
+      slack: { noxTicketChannelId: "C1", noxTicketConnectionId: "conn-1" },
+    });
+  });
+
   it("500s loudly on corrupt JSON", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = makeDb({ firstResult: { data: "{not json" } });
     const res = await onRequestGet(makeCtx({ db, params: { key: "features" } }));
     expect(res.status).toBe(500);
     expect(errSpy).toHaveBeenCalled();
-  });
-});
-
-describe("PUT /api/config/settings — NoxFeed Slack project scope", () => {
-  it("rejects a non-string project scope", async () => {
-    const res = await onRequestPut(makeCtx({
-      db: makeDb(), params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: ["proj-1"] } },
-    }));
-    expect(res.status).toBe(422);
-  });
-
-  it("rejects a project outside the organization", async () => {
-    const res = await onRequestPut(makeCtx({
-      db: makeDb({ firstResult: null }), params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: "proj-other" } },
-    }));
-    expect(res.status).toBe(422);
-  });
-
-  it("persists a project belonging to the organization", async () => {
-    const db = makeDb({ firstResult: { exists: 1 } });
-    const res = await onRequestPut(makeCtx({
-      db, params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: " proj-1 " } },
-    }));
-    expect(res.status).toBe(200);
-    expect(db._calls.first[0].binds).toEqual(["proj-1", "acme"]);
-    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify({ slack: { noxFeedProjectId: "proj-1" } }));
-  });
-
-  it("uses an empty project scope as all projects", async () => {
-    const db = makeDb();
-    const res = await onRequestPut(makeCtx({
-      db, params: { key: "settings" }, method: "PUT",
-      body: { slack: { noxFeedProjectId: "  " } },
-    }));
-    expect(res.status).toBe(200);
-    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify({ slack: {} }));
   });
 });
 
@@ -242,5 +216,38 @@ describe("PUT /api/config/settings — boardStages validation", () => {
     }));
     expect(res.status).toBe(200);
     expect(db._calls.run).toHaveLength(1);
+  });
+});
+
+describe("PUT /api/config/settings — app toggles", () => {
+  it("persists optional app booleans", async () => {
+    const db = makeDb();
+    const body = {
+      apps: { noxfeed: false, noxticket: true, noxspot: false, noxalert: true },
+      slack: undefined,
+      savedSiteName: "Keep this setup",
+    };
+    const res = await onRequestPut(makeCtx({ db, params: { key: "settings" }, method: "PUT", body }));
+    expect(res.status).toBe(200);
+    expect(db._calls.run).toHaveLength(0);
+    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify(body));
+    expect(db._calls.batch.slice(1)).toHaveLength(4);
+    expect(db._calls.batch[1]._sql).toContain("blocked_service_disabled");
+    expect(db._calls.batch[1]._binds).toContain("noxticket");
+    expect(db._calls.batch[2]._sql).toContain("blocked_service_disabled");
+    expect(db._calls.batch[2]._binds).toEqual(expect.arrayContaining(["posts", "release_notes"]));
+    expect(db._calls.batch[3]._sql).toContain("blocked_service_disabled");
+    expect(db._calls.batch[3]._binds).toContain("noxspot");
+    expect(db._calls.batch[4]._sql).toContain("status = 'pending'");
+    expect(db._calls.batch[4]._binds).toContain("noxalert");
+  });
+
+  it("rejects NoxConnect and non-boolean app values", async () => {
+    for (const apps of [{ noxconnect: false }, { noxfeed: "yes" }]) {
+      const res = await onRequestPut(makeCtx({
+        db: makeDb(), params: { key: "settings" }, method: "PUT", body: { apps },
+      }));
+      expect(res.status).toBe(422);
+    }
   });
 });

@@ -11,7 +11,7 @@ vi.mock("@/hooks/useGitHub", () => ({
 }));
 vi.mock("@/hooks/useConfigRepo", () => ({ useSettings: vi.fn() }));
 vi.mock("@/hooks/useNoxConnect", () => ({ useNoxConnect: vi.fn() }));
-vi.mock("@/lib/unticket-repo-name", () => ({ setUnticketRepoName: vi.fn() }));
+vi.mock("@/lib/noxticket-repo-name", () => ({ setNoxTicketRepoName: vi.fn() }));
 
 // Stub out heavy children so we only test the routing skeleton.
 vi.mock("@/components/TopNav", () => ({
@@ -63,7 +63,7 @@ const mNoxConnect = useNoxConnect as unknown as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   mAuth.mockReset();
   mRepos.mockReturnValue({ data: [{ name: "api" }] });
-  mSettings.mockReturnValue({ data: { unticketRepo: "unticket" } });
+  mSettings.mockReturnValue({ data: { noxTicketRepo: "noxconnect" } });
   mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: false } } });
 });
 
@@ -101,6 +101,13 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
   });
 
+  it("redirects the former repos view into NoxConnect Admin", async () => {
+    mAuth.mockReturnValue({ selectedOrg: "acme" });
+    renderAt("/?tab=repos");
+    await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
+    expect(screen.getByTestId("topnav").textContent).toContain("active:admin");
+  });
+
   it("starts organization onboarding in Admin when GitHub is not ready", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     mNoxConnect.mockReturnValue({ data: { setup: { needsOnboarding: true } } });
@@ -120,5 +127,22 @@ describe("DashboardPage", () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     renderAt("/?tab=nonsense");
     await waitFor(() => expect(screen.getByTestId("tab-issues")).toBeInTheDocument());
+  });
+
+  it("redirects a disabled app deep link to the first enabled app", async () => {
+    mAuth.mockReturnValue({ selectedOrg: "acme" });
+    mSettings.mockReturnValue({ data: { apps: { noxfeed: false } } });
+    renderAt("/?tab=issues");
+    await waitFor(() => expect(screen.getByTestId("tab-sprint")).toBeInTheDocument());
+    expect(screen.queryByTestId("tab-issues")).not.toBeInTheDocument();
+  });
+
+  it("keeps NoxConnect available when every optional app is disabled", async () => {
+    mAuth.mockReturnValue({ selectedOrg: "acme" });
+    mSettings.mockReturnValue({
+      data: { apps: { noxfeed: false, noxticket: false, noxspot: false, noxalert: false } },
+    });
+    renderAt("/");
+    await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
   });
 });

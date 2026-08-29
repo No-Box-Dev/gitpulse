@@ -9,13 +9,56 @@ vi.mock("../delivery-outbox.js", () => ({
   queueOutboxDelivery: vi.fn(async () => true),
   stageSlackDelivery: vi.fn(async () => ({ id: "delivery-1", status: "pending" })),
 }));
+vi.mock("../noxspot-response.js", () => ({
+  getNoxSpotIssueResponse: vi.fn(async (_env, capture) => {
+    const marker = `<!-- noxspot:${capture.captureId} -->`;
+    const reporter = capture.reporterGithubLogin
+      ? `\n- **Reporter:** @${capture.reporterGithubLogin}`
+      : capture.reporter ? `\n- **Reporter:** ${capture.reporter}` : "";
+    const typeLabel = capture.issueType === "error" ? "error"
+      : capture.issueType === "feature" ? "enhancement"
+        : capture.issueType === "feedback" ? "feedback" : "bug";
+    return {
+      contract: "noxspot.response",
+      version: 1,
+      idempotencyMarker: marker,
+      issue: {
+        title: capture.title,
+        body: `${capture.title}${reporter}\n\n${marker}`,
+        labels: [
+          { name: "noxspot", color: "FE795D", description: "Captured with NoxSpot" },
+          { name: typeLabel, color: "D73A4A", description: "Capture type" },
+        ],
+      },
+    };
+  }),
+  getNoxSpotSlackResponse: vi.fn(async (_env, capture, issue) => ({
+    contract: "noxspot.response",
+    version: 1,
+    message: {
+      text: `New NoxSpot issue: ${capture.title}`,
+      blocks: [
+        { type: "section", fields: [{ type: "mrkdwn", text: `*Page*\n${capture.metadata?.url}` }] },
+        { type: "actions", elements: [
+          { type: "button", text: { type: "plain_text", text: "Open reported page" }, url: capture.metadata?.url },
+          { type: "button", text: { type: "plain_text", text: "Open GitHub issue" }, url: issue.html_url },
+        ] },
+      ],
+    },
+  })),
+}));
 vi.mock("../slack.js", () => ({
   resolveSlackChannels: vi.fn(async () => ({
-    fallbackChannelId: "", noxAlertChannelId: "", noxFeedChannelId: "", unticketChannelId: "",
+    fallbackChannelId: "", noxAlertChannelId: "", noxFeedChannelId: "", noxTicketChannelId: "",
   })),
   resolveSlackRoute: vi.fn((channels, service, siteChannelId) => {
     if (service === "noxalert") return channels.noxAlertChannelId || channels.fallbackChannelId || "";
     return siteChannelId || channels.fallbackChannelId || "";
+  }),
+  resolveSlackConnectionId: vi.fn((channels, service, siteConnectionId) => {
+    if (service === "noxspot") return siteConnectionId || channels.fallbackConnectionId || "";
+    if (service === "noxalert") return channels.noxAlertConnectionId || channels.fallbackConnectionId || "";
+    return channels.fallbackConnectionId || "";
   }),
 }));
 
@@ -24,14 +67,23 @@ import { upsertIssue } from "../github-sync.js";
 import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { resolveSlackChannels } from "../slack.js";
 
-function db() {
+function db(site = {}) {
   const calls = [];
+  const configuredSite = {
+    site_name: "Website",
+    repo: "web",
+    project_id: "p1",
+    slack_channel_id: null,
+    slack_connection_id: null,
+    owner_id: "acme",
+    ...site,
+  };
   return {
     _calls: calls,
     prepare(sql) {
       const statement = {
         bind(...binds) { statement.binds = binds; return statement; },
-        async first() { return null; },
+        async first() { return sql.includes("FROM spot_sites site") ? configuredSite : null; },
         async run() { calls.push({ sql, binds: statement.binds }); return { success: true }; },
       };
       return statement;
@@ -54,14 +106,20 @@ const capture = {
   description: "The submit button does nothing.",
   screenshotUrl: "https://cdn.example/shot.png",
   reporter: "Ada",
+  metadata: { url: "https://app.example.com/checkout?cart=1", browser: "Chrome" },
 };
 
 describe("createNoxSpotGitHubIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(resolveSlackChannels).mockResolvedValue({
-      fallbackChannelId: "", noxAlertChannelId: "", noxFeedChannelId: "", unticketChannelId: "",
+      fallbackChannelId: "", noxAlertChannelId: "", noxFeedChannelId: "", noxTicketChannelId: "",
     });
+  });
+
+  it("rejects unknown explicit capture contract versions", async () => {
+    await expect(createNoxSpotGitHubIssue({ DB: db() }, { ...capture, version: 2 }))
+      .rejects.toThrow("Unsupported NoxSpot capture version: 2");
   });
 
   it("creates one labeled GitHub issue, mirrors it, and emits the feed event", async () => {
@@ -147,14 +205,31 @@ describe("createNoxSpotGitHubIssue", () => {
           html_url: "https://github.com/acme/web/issues/14",
         }),
       });
-    const database = db();
+    const database = db({ slack_channel_id: "C123", slack_connection_id: "conn-2" });
     await createNoxSpotGitHubIssue(
       { DB: database, TASK_QUEUE: { send: vi.fn() } },
-      { ...capture, slackChannelId: "C123" },
+      { ...capture, ownerId: "stale-owner", repo: "stale-repo", slackChannelId: "C-STALE", slackConnectionId: "conn-stale" },
     );
     expect(stageSlackDelivery).toHaveBeenCalledWith(database, expect.objectContaining({
-      source: "noxspot", sourceId: "cap-1", channelId: "C123",
+      source: "noxspot", sourceId: "cap-1", connectionId: "conn-2", channelId: "C123",
     }));
+    const stagedMessage = vi.mocked(stageSlackDelivery).mock.calls.at(-1)[1].payload.message;
+    expect(stagedMessage.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "section",
+        fields: expect.arrayContaining([
+          expect.objectContaining({ text: expect.stringContaining("https://app.example.com/checkout?cart=1") }),
+        ]),
+      }),
+      expect.objectContaining({
+        type: "actions",
+        elements: expect.arrayContaining([
+          expect.objectContaining({ text: expect.objectContaining({ text: "Open reported page" }), url: "https://app.example.com/checkout?cart=1" }),
+        ]),
+      }),
+    ]));
+    expect(globalThis.fetch.mock.calls.some(([url]) => String(url).includes("/repos/acme/web/"))).toBe(true);
+    expect(globalThis.fetch.mock.calls.some(([url]) => String(url).includes("stale-owner"))).toBe(false);
     expect(queueOutboxDelivery).toHaveBeenCalledWith(expect.objectContaining({ DB: database }), "delivery-1", "acme");
   });
 
@@ -173,7 +248,7 @@ describe("createNoxSpotGitHubIssue", () => {
       });
     vi.mocked(resolveSlackChannels).mockResolvedValue({
       fallbackChannelId: "C-FALLBACK", noxAlertChannelId: "C-ALERT",
-      noxFeedChannelId: "", unticketChannelId: "",
+      noxFeedChannelId: "", noxTicketChannelId: "",
     });
 
     await createNoxSpotGitHubIssue(
@@ -201,7 +276,7 @@ describe("createNoxSpotGitHubIssue", () => {
       });
     vi.mocked(resolveSlackChannels).mockResolvedValue({
       fallbackChannelId: "C-FALLBACK", noxAlertChannelId: "",
-      noxFeedChannelId: "", unticketChannelId: "",
+      noxFeedChannelId: "", noxTicketChannelId: "",
     });
 
     await createNoxSpotGitHubIssue(

@@ -181,7 +181,7 @@ describe("POST /api/auth/refresh", () => {
 
   it("native flow: swaps refresh_token directly and returns both new values", async () => {
     // Device-flow clients (Mac app) hand in refresh_token — no DB row exists
-    // because unticket's callback never saw the initial pair.
+    // because noxconnect's callback never saw the initial pair.
     const db = makeDb();
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(

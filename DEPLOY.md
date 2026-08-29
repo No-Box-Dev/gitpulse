@@ -1,8 +1,10 @@
-# Self-hosting Unticket
+# Self-hosting NoxConnect
 
-Unticket runs on Cloudflare: a Pages project (frontend + API Functions), a D1 database, a sibling cron Worker, a Queue, and an R2 bucket. This guide walks a fresh deploy end to end.
+NoxConnect runs on Cloudflare: a Pages project (frontend + authenticated API
+Functions), a public NoxSpot capture Worker, a D1 database, a sibling cron
+Worker, a Queue, and R2 buckets. This guide walks a fresh deploy end to end.
 
-> Unticket is source-available under the [PolyForm Noncommercial License](./LICENSE). Self-hosting for non-commercial use is fine; commercial use is not.
+> NoxConnect is source-available under the [PolyForm Noncommercial License](./LICENSE). Self-hosting for non-commercial use is fine; commercial use is not.
 
 ## Prerequisites
 
@@ -14,32 +16,35 @@ Unticket runs on Cloudflare: a Pages project (frontend + API Functions), a D1 da
 ## 1. Clone and configure
 
 ```bash
-git clone https://github.com/No-Box-Dev/unticket.git
-cd unticket
+git clone https://github.com/No-Box-Dev/noxconnect.git
+cd noxconnect
 npm ci
 cp .env.example .env.local
 ```
 
-Edit `wrangler.toml` and `cron/wrangler.toml`: replace `database_id` (and, if you like, the `*-unticket*` resource names) with your own — the committed IDs point at the canonical hosted instance and you cannot deploy to them.
+Edit `wrangler.toml` and `cron/wrangler.toml`: replace `database_id` (and, if you like, the `*-noxconnect*` resource names) with your own — the committed IDs point at the canonical hosted instance and you cannot deploy to them.
 
 ## 2. Provision Cloudflare resources
 
 ```bash
 # D1 database — copy the printed database_id into BOTH wrangler.toml files
-npx wrangler d1 create unticket
+npx wrangler d1 create noxconnect
 
 # Durable background-work queue + its dead-letter queue
-npx wrangler queues create unticket-tasks
-npx wrangler queues create unticket-tasks-dlq
+npx wrangler queues create noxconnect-tasks
+npx wrangler queues create noxconnect-tasks-dlq
 
 # R2 bucket for event-table archival
-npx wrangler r2 bucket create unticket-events-archive
+npx wrangler r2 bucket create noxconnect-events-archive
+
+# R2 bucket for immutable NoxSpot widget assets and temporary screenshots
+npx wrangler r2 bucket create noxspot-assets
 ```
 
 Apply migrations to the remote DB:
 
 ```bash
-npx wrangler d1 migrations apply unticket --remote
+npx wrangler d1 migrations apply noxconnect --remote
 ```
 
 ## 3. Register a GitHub App
@@ -63,7 +68,8 @@ Frontend build var (public) — set in `.env.local` for local builds and as a Pa
 VITE_GITHUB_APP_CLIENT_ID=<your app client id>
 ```
 
-Server-side secrets on the **Pages** project:
+Server-side secrets on the **Pages** project. The hosted instance deliberately
+keeps the legacy `unticket` project name because it owns `app.unticket.ai`:
 
 ```bash
 npx wrangler pages secret put GITHUB_APP_ID         --project-name unticket
@@ -78,15 +84,19 @@ npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name unticket
 npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name unticket
 ```
 
-Generate `ENCRYPTION_KEY` with `openssl rand -hex 32`.
+Generate `ENCRYPTION_KEY` with `openssl rand -hex 32`. `REVIEW_RUNNER_TOKEN` (generate the same way) authorizes the local noxreview runner against `/api/review/*` — keep it out of any client-visible config:
+
+```bash
+npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name unticket
+```
 
 The **cron Worker** needs its own copy of the secrets it uses:
 
 ```bash
-npx wrangler secret put GITHUB_APP_ID        --name unticket-cron
-npx wrangler secret put GITHUB_APP_PRIVATE_KEY --name unticket-cron
-npx wrangler secret put ZHIPU_API_KEY        --name unticket-cron
-npx wrangler secret put ENCRYPTION_KEY       --name unticket-cron
+npx wrangler secret put GITHUB_APP_ID        --name noxconnect-cron
+npx wrangler secret put GITHUB_APP_PRIVATE_KEY --name noxconnect-cron
+npx wrangler secret put ZHIPU_API_KEY        --name noxconnect-cron
+npx wrangler secret put ENCRYPTION_KEY       --name noxconnect-cron
 ```
 
 > **LLM provider:** `ZHIPU_API_KEY` is the default narrator backend (Zhipu's Anthropic-compatible GLM endpoint). Each org can override it with their own key (BYOK) in Settings → AI Provider. Narration is optional — without a key, narration is skipped gracefully.
@@ -106,15 +116,16 @@ The create command prints the app ID and its three credentials. Put the credenti
 SLACK_CONFIG_TOKEN=xoxe.xoxp-... SLACK_APP_ID=A0123456789 npm run slack:push
 ```
 
-Slack configuration tokens expire after 12 hours. They are only needed for manifest management and must not be committed. If a pushed manifest adds OAuth scopes, connected workspaces must reconnect from Unticket Settings to grant them.
+Slack configuration tokens expire after 12 hours. They are only needed for manifest management and must not be committed. If a pushed manifest adds OAuth scopes, connected workspaces must reconnect from NoxConnect Settings to grant them.
 
 For customer installs, open **Manage Distribution** in the Slack app dashboard,
 complete Slack's checklist, and activate unlisted public distribution. Do not
-publish a second Slack app per product: admins start OAuth from Unticket's
+publish a second Slack app per product: admins start OAuth from NoxConnect's
 **Setup** tab, and the resulting encrypted workspace token is shared by
 NoxAlert, NoxFeed, NoxKey, NoxSpot, and NoxTicket for that Nox organization.
-The organization stores a fallback plus service-specific NoxAlert and Unticket
-channels, with separate NoxFeed Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
+The organization can connect multiple Slack workspaces and stores a workspace +
+channel for its fallback and each service-specific route. NoxFeed has separate
+Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
 channels must invite the same NoxConnect bot before they can be selected.
 
 Nox clients discover and manage these shared providers through the authenticated
@@ -128,9 +139,33 @@ returns provider credentials or encrypted tokens.
 npm run build
 npx wrangler pages deploy dist --project-name unticket --branch main
 cd cron && npx wrangler deploy && cd ..
+cd workers/noxspot-capture && npm ci && npm run types && npm test && npx wrangler deploy && cd ../..
 ```
 
-Or wire up CI: `.github/workflows/ci.yml` runs lint/typecheck/tests, and `deploy-pages.yml` deploys Pages + applies D1 migrations + deploys the cron Worker on a green `main`. It needs repo secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+Or wire up CI: `.github/workflows/ci.yml` runs lint/typecheck/tests for Pages and
+the capture Worker, and `deploy-pages.yml` deploys Pages, applies D1 migrations,
+and deploys both Workers on a green `main`. It needs repo secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+The NoxSpot capture Worker has no application secrets. It uses direct bindings
+to the shared D1 database, `noxconnect-tasks` Queue, `noxspot-assets` R2 bucket,
+and its sharded rate-limit Durable Object. After its first deploy, attach the
+`api.noxspot.dev` custom route only during the documented NoxSpot cutover. Keep
+the existing hostname until cached widget installations have migrated.
+The staged migration and rollback gates are documented in
+`docs/NOXSPOT_CUTOVER.md`; migration and widget publication commands default to
+read-only validation and require an explicit `--apply` to write remote state.
+
+Pages and the cron Worker require three private, versioned response bindings:
+`NOXSPOT_RESPONSE` targets `noxspot-api`, `NOXALERT_RESPONSE` targets
+`noxalert`, and `NOXFEED_RESPONSE` targets `noxfeed-response`. Deploy compatible
+product Workers before deploying Pages or cron. The renderers receive only
+bounded product data and public references; GitHub credentials, Slack tokens,
+connection IDs, and delivery state never cross these bindings. NoxFeed's
+response Worker is built from the NoxFeed repository's `service/` directory.
+
+The safe manual order is NoxSpot API, NoxAlert, NoxFeed response, Pages, then
+cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 
 > **Migrations run before code** — the deploy workflow applies D1 migrations before `pages deploy` for this reason. If you deploy manually, run `d1 migrations apply` first.
 
@@ -143,10 +178,13 @@ Or wire up CI: `.github/workflows/ci.yml` runs lint/typecheck/tests, and `deploy
 ## Operations
 
 - **Cron:** reconciles every 30 min (catches missed webhooks, deletes, label changes) and archives `events` older than 90 days to R2 at the 03:00 UTC tick.
+- **NoxSpot capture:** `workers/noxspot-capture` owns the anonymous config,
+  report, error, widget-asset, screenshot, abuse-control, and 90-day screenshot
+  retention surface. It deliberately does not share Pages bearer middleware.
 - **Background failures:** terminal queue failures land in the `op_failures` table; view them in Settings → Background failures (admin-only).
 - **Manual event backfill:** Settings → Live Activity Backfill (admin-only) re-derives missing events over a 30-day window. Rate-limited to once per org per day.
 - **Suspending an org:** set `suspended_at` on its `orgs` row to block all API access (`UPDATE orgs SET suspended_at = datetime('now') WHERE github_login = '<org>'`); set it back to `NULL` to restore.
 
 ## Costs
 
-Unticket fits comfortably in Cloudflare's free/low tiers for a small org. The main variable cost is LLM narration (PR-merge narration only, paced, per-project toggle, BYOK-capable). The backfill endpoint is rate-limited to bound that spend.
+NoxConnect fits comfortably in Cloudflare's free/low tiers for a small org. The main variable cost is LLM narration (PR-merge narration only, paced, per-project toggle, BYOK-capable). The backfill endpoint is rate-limited to bound that spend.

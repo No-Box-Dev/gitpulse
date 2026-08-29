@@ -25,6 +25,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
+import { ViewSkeleton } from "@/components/ui/ViewSkeleton";
 import { cn } from "@/lib/cn";
 import { daysAgo, STALE_PR_DAYS } from "@/lib/dates";
 import { SortIcon } from "@/components/ui/SortIcon";
@@ -84,8 +85,8 @@ export function CurrentTab({ repoNames, navFilter }: CurrentTabProps) {
     [repoNames, archivedRepos],
   );
 
-  const { data: openPRs, isLoading: openLoading } = useOpenPRs(activeRepoNames);
-  const { data: mergedPRs, isLoading: mergedLoading } = useMergedPRs(activeRepoNames);
+  const { data: openPRs, isLoading: openLoading } = useOpenPRs(activeRepoNames, view !== "merged");
+  const { data: mergedPRs, isLoading: mergedLoading } = useMergedPRs(activeRepoNames, undefined, view === "merged");
   const { data: members } = useActiveMembers();
 
   // Draft and Ready share the same underlying fetch (open PRs), split
@@ -214,9 +215,7 @@ export function CurrentTab({ repoNames, navFilter }: CurrentTabProps) {
           onPaneChange={(p) => setUrl({ pane: p === "prs" ? null : p })}
         />
       ) : isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Spinner className="w-6 h-6 text-accent" />
-        </div>
+        <ViewSkeleton />
       ) : (
         <CardGrid
           prs={scopedPrs}
@@ -350,7 +349,7 @@ function BucketCard({ bucket, groupBy, view, onOpen }: {
   return (
     <button
       onClick={onOpen}
-      className="bg-white border border-stone-200 rounded-xl p-4 text-left hover:border-stone-300 hover:bg-stone-50/50 transition-colors cursor-pointer flex flex-col gap-3"
+      className="render-lazy bg-white border border-stone-200 rounded-xl p-4 text-left hover:border-stone-300 hover:bg-stone-50/50 transition-colors cursor-pointer flex flex-col gap-3"
     >
       <div className="flex items-center gap-3 min-w-0">
         {groupBy === "people" ? (

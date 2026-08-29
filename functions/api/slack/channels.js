@@ -11,12 +11,13 @@ export async function onRequestGet(context) {
   if (!orgId) return errorResponse("Missing org context", 400);
   if (!isAdmin) return errorResponse("Admin required", 403);
 
-  const install = await resolveSlackInstall(context.env, orgId);
+  const connectionId = new URL(context.request.url).searchParams.get("connectionId");
+  const install = await resolveSlackInstall(context.env, orgId, connectionId);
   if (!install) return errorResponse("Slack not connected", 404);
 
   try {
     const channels = await listSlackChannels(install.botToken);
-    return jsonResponse({ channels });
+    return jsonResponse({ connectionId: install.id, channels });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : String(err), 502);
   }

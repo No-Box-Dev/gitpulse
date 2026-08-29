@@ -1,15 +1,29 @@
-name = "unticket-cron"
+name = "noxconnect-cron"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 
 [vars]
 SLACK_ACCEPT_LEGACY_INSTALLS = "true"
 
+# NoxSpot owns issue/Slack presentation. This private service binding exposes
+# its versioned renderer without sending product data over the public Internet.
+[[services]]
+binding = "NOXSPOT_RESPONSE"
+service = "noxspot-api"
+
+[[services]]
+binding = "NOXALERT_RESPONSE"
+service = "noxalert"
+
+[[services]]
+binding = "NOXFEED_RESPONSE"
+service = "noxfeed-response"
+
 # Same D1 database as the Pages app — the cron writes the same tables
 # (repos, issues, pull_requests, features, members, reconcile_runs).
 [[d1_databases]]
 binding = "DB"
-database_name = "unticket"
+database_name = "noxconnect"
 database_id = "c94084e6-d0be-423c-8de6-249e7cf8bf25"
 
 # Reconciliation tick. Webhooks are the running source of truth; this
@@ -23,31 +37,31 @@ crons = ["*/30 * * * *"]
 # Durable background-work consumer. The Pages app (functions/api/webhook.js)
 # produces narrate / PR-match / bootstrap / repo-sync tasks here; this Worker's
 # queue() handler runs them with retries + a dead-letter queue. PROVISION BEFORE
-# DEPLOY: `wrangler queues create unticket-tasks` and
-# `wrangler queues create unticket-tasks-dlq`. The consumer records terminal
+# DEPLOY: `wrangler queues create noxconnect-tasks` and
+# `wrangler queues create noxconnect-tasks-dlq`. The consumer records terminal
 # failures on the final (1 + max_retries) delivery, so MAX_DELIVERIES in
 # src/index.js must equal max_retries + 1 (currently 5).
 [[queues.consumers]]
-queue = "unticket-tasks"
+queue = "noxconnect-tasks"
 max_batch_size = 10
 max_retries = 4
-dead_letter_queue = "unticket-tasks-dlq"
+dead_letter_queue = "noxconnect-tasks-dlq"
 
 # The consumer stages follow-up outbox deliveries and the scheduled recovery
 # sweep re-enqueues durable pending rows onto this same queue.
 [[queues.producers]]
 binding = "TASK_QUEUE"
-queue = "unticket-tasks"
+queue = "noxconnect-tasks"
 
 # Event-table retention: the daily archival sweep writes pruned `events` rows
 # here as NDJSON before deleting them from D1 (see src/archive-events.js).
-# PROVISION BEFORE DEPLOY: `wrangler r2 bucket create unticket-events-archive`.
+# PROVISION BEFORE DEPLOY: `wrangler r2 bucket create noxconnect-events-archive`.
 [[r2_buckets]]
 binding = "EVENTS_ARCHIVE"
-bucket_name = "unticket-events-archive"
+bucket_name = "noxconnect-events-archive"
 
 # Secrets required on this worker before the first run:
 #   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY  (reconcile + bootstrap/sync tasks)
 #   ZHIPU_API_KEY + ENCRYPTION_KEY (narration, BYOK, and NoxSpot Slack tasks)
-# Set via: wrangler secret put <NAME> --name unticket-cron
+# Set via: wrangler secret put <NAME> --name noxconnect-cron
 # (ZHIPU_API_KEY was already needed for reconcile's PR-merged narration.)

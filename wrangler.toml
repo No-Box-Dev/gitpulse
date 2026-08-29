@@ -1,26 +1,43 @@
-name = "unticket"
+name = "noxconnect"
 compatibility_date = "2024-12-01"
 pages_build_output_dir = "dist"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "unticket"
+database_name = "noxconnect"
 database_id = "c94084e6-d0be-423c-8de6-249e7cf8bf25"
 
 # Durable background-work queue. functions/api/webhook.js produces here instead
 # of using context.waitUntil; the cron Worker consumes (see cron/wrangler.toml).
-# PROVISION BEFORE DEPLOY: `wrangler queues create unticket-tasks` (+ the DLQ).
+# PROVISION BEFORE DEPLOY: `wrangler queues create noxconnect-tasks` (+ the DLQ).
 # If the binding is absent, enqueueTask records to op_failures instead of 500ing
 # the webhook — but the queue must exist for background work to actually run.
 [[queues.producers]]
 binding = "TASK_QUEUE"
-queue = "unticket-tasks"
+queue = "noxconnect-tasks"
+
+[[services]]
+binding = "NOXSPOT_RESPONSE"
+service = "noxspot-api"
+
+[[services]]
+binding = "NOXALERT_RESPONSE"
+service = "noxalert"
+
+[[services]]
+binding = "NOXFEED_RESPONSE"
+service = "noxfeed-response"
 
 # Spec attachments — user-uploaded documents (.md, .pdf, .docx, .html)
 # attached to a Spec. Objects are keyed `spec/<org_id>/<spec_id>/<attachment_id>`
 # for tenant isolation. See functions/api/specs/[id]/attachments/*.
-# PROVISION BEFORE DEPLOY: `wrangler r2 bucket create unticket-spec-attachments`.
+# PROVISION BEFORE DEPLOY: `wrangler r2 bucket create noxconnect-spec-attachments`.
 # Absent binding = attachment endpoints 503 with a clear message.
 [[r2_buckets]]
 binding = "SPEC_ATTACHMENTS"
-bucket_name = "unticket-spec-attachments"
+bucket_name = "noxconnect-spec-attachments"
+
+# NoxSpot screenshots are deleted from the same admin surface that owns sites.
+[[r2_buckets]]
+binding = "NOXSPOT_ASSETS"
+bucket_name = "noxspot-assets"

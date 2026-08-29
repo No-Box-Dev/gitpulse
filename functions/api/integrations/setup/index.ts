@@ -37,7 +37,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   let slack: Record<string, unknown>;
   try { slack = (await readSlackSettings(context.env.DB, orgId)).slack; }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
-  const routeFields = ["fallbackChannelId", "noxAlertChannelId", "unticketChannelId", "postsChannelId", "releaseNotesChannelId"];
+  const routeFields = ["fallbackChannelId", "noxAlertChannelId", "noxTicketChannelId", "postsChannelId", "releaseNotesChannelId"];
   const configuredRouteCount = routeFields.filter((field) => {
     const value = slack[field];
     return typeof value === "string" && Boolean(value.trim());
@@ -87,11 +87,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         properties: { routes: { type: "object", properties: { noxfeed_posts: { type: ["string", "null"] }, noxfeed_release_notes: { type: ["string", "null"] } } } },
       }) : null,
     },
-    configure_unticket: {
-      title: "Configure Unticket delivery",
+    configure_noxticket: {
+      title: "Configure NoxTicket delivery",
       required: false,
       dependsOn: ["connect_slack"],
-      state: !slackComplete || !isAdmin ? "blocked" : (hasRoute("unticketChannelId") ? "complete" : "available"),
+      state: !slackComplete || !isAdmin ? "blocked" : (hasRoute("noxTicketChannelId") ? "complete" : "available"),
       automatable: true,
       action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing") : null,
     },

@@ -1,9 +1,8 @@
-// Slack posting for every Nox product via the single shared NoxConnect app.
+// Slack posting for every Nox product via shared NoxConnect installations.
 //
 // Per-org install: each workspace's bot token + team metadata lives in the
-// `slack_settings` table (token encrypted with ENCRYPTION_KEY). The Integrations
-// JSON carries only public channel selections. Every product shares this one
-// install, then resolves its own route with the organization fallback last.
+// `slack_connections` table (tokens encrypted with ENCRYPTION_KEY). The
+// Integrations JSON carries only public workspace + channel selections.
 //
 // Auth model: the admin clicks "Connect Slack" in Integrations → OAuth dance →
 // callback stores the bot token. Posting uses `chat.postMessage` against
@@ -11,6 +10,7 @@
 
 import { z } from "zod";
 import { decryptToken, encryptToken } from "./crypto";
+import { normalizeNoxSettings } from "./naming-compat.js";
 
 const SLACK_API = "https://slack.com";
 const TIMEOUT_MS = 5000;
@@ -39,14 +39,19 @@ export class SlackApiError extends Error {
  * A corrupt row is treated as "not connected" so a single bad install
  * never wedges the feed.
  */
-export async function resolveSlackInstall(env, orgId) {
+/** @param {string | null} connectionId */
+export async function resolveSlackInstall(env, orgId, connectionId = null) {
   const db = env?.DB;
   if (!db || !orgId) return null;
   const row = await db
     .prepare(
-      "SELECT app_id, team_id, team_name, bot_user_id, encrypted_bot_token FROM slack_settings WHERE org_id = ?",
+      `SELECT id, app_id, team_id, team_name, bot_user_id, encrypted_bot_token, is_default
+         FROM slack_connections
+        WHERE org_id = ? AND (? IS NULL OR id = ?)
+        ORDER BY is_default DESC, installed_at
+        LIMIT 1`,
     )
-    .bind(orgId)
+    .bind(orgId, connectionId, connectionId)
     .first()
     .catch(() => null);
   if (!row?.encrypted_bot_token) return null;
@@ -55,6 +60,8 @@ export async function resolveSlackInstall(env, orgId) {
     const botToken = await decryptToken(row.encrypted_bot_token, env.ENCRYPTION_KEY);
     if (!botToken) return null;
     return {
+      id: row.id,
+      isDefault: Boolean(row.is_default),
       appId: row.app_id ?? null,
       teamId: row.team_id,
       teamName: row.team_name ?? null,
@@ -70,24 +77,23 @@ export async function saveSlackInstall(env, orgId, install) {
   if (!env.ENCRYPTION_KEY) throw new Error("ENCRYPTION_KEY missing");
   const encrypted = await encryptToken(install.botToken, env.ENCRYPTION_KEY);
 
-  // Wipe channel selections if this is a NEW install or a switch to a
-  // different workspace — the old channel IDs are workspace-scoped and
-  // would route narration to the wrong place (or fail with channel_not_found).
   const existing = await env.DB
-    .prepare("SELECT team_id FROM slack_settings WHERE org_id = ?")
-    .bind(orgId)
+    .prepare("SELECT id FROM slack_connections WHERE org_id = ? AND team_id = ?")
+    .bind(orgId, install.teamId)
     .first()
     .catch(() => null);
-  if (!existing || existing.team_id !== install.teamId) {
-    await clearSlackChannelsForOrg(env.DB, orgId);
-  }
+  const connectionId = existing?.id ?? crypto.randomUUID();
+  const defaultRow = await env.DB.prepare(
+    "SELECT id FROM slack_connections WHERE org_id = ? AND is_default = 1 LIMIT 1",
+  ).bind(orgId).first().catch(() => null);
 
   await env.DB.prepare(
-    `INSERT INTO slack_settings (org_id, app_id, team_id, team_name, bot_user_id, encrypted_bot_token, installed_by, installed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-     ON CONFLICT(org_id) DO UPDATE SET
+    `INSERT INTO slack_connections
+       (id, org_id, app_id, team_id, team_name, bot_user_id, encrypted_bot_token,
+        installed_by, installed_at, is_default)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?)
+     ON CONFLICT(org_id, team_id) DO UPDATE SET
        app_id = excluded.app_id,
-       team_id = excluded.team_id,
        team_name = excluded.team_name,
        bot_user_id = excluded.bot_user_id,
        encrypted_bot_token = excluded.encrypted_bot_token,
@@ -97,16 +103,39 @@ export async function saveSlackInstall(env, orgId, install) {
        last_checked_at = NULL,
        last_error = NULL`,
   )
-    .bind(orgId, install.appId ?? null, install.teamId, install.teamName ?? null, install.botUserId ?? null, encrypted, install.installedBy)
+    .bind(connectionId, orgId, install.appId ?? null, install.teamId, install.teamName ?? null, install.botUserId ?? null, encrypted, install.installedBy, defaultRow ? 0 : 1)
     .run();
+  return connectionId;
 }
 
-export async function deleteSlackInstall(env, orgId) {
-  // Drop channel selections too — they reference a workspace that no
-  // longer has a bot token, so leaving them would either silently fail or
-  // route to the wrong workspace if the admin re-connects elsewhere.
-  await clearSlackChannelsForOrg(env.DB, orgId);
-  await env.DB.prepare("DELETE FROM slack_settings WHERE org_id = ?").bind(orgId).run();
+export async function listSlackConnections(env, orgId) {
+  if (!env?.DB || !orgId) return [];
+  const { results } = await env.DB.prepare(
+    `SELECT id, team_id, team_name, bot_user_id, is_default, health_status,
+            last_checked_at, last_error, app_id
+       FROM slack_connections WHERE org_id = ?
+      ORDER BY is_default DESC, lower(COALESCE(team_name, team_id))`,
+  ).bind(orgId).all();
+  return (results ?? []).map((row) => ({
+    id: row.id, teamId: row.team_id, teamName: row.team_name ?? row.team_id,
+    botUserId: row.bot_user_id ?? null, isDefault: Boolean(row.is_default),
+    health: row.health_status ?? "unknown", lastCheckedAt: row.last_checked_at ?? null,
+    lastError: row.last_error ?? null, appId: row.app_id ?? null,
+  }));
+}
+
+export async function deleteSlackInstall(env, orgId, connectionId = null) {
+  const install = await resolveSlackInstall(env, orgId, connectionId);
+  if (!install) return;
+  await clearSlackChannelsForConnection(env.DB, orgId, install.id, install.isDefault);
+  await env.DB.prepare("DELETE FROM slack_connections WHERE org_id = ? AND id = ?")
+    .bind(orgId, install.id).run();
+  const next = await env.DB.prepare(
+    "SELECT id FROM slack_connections WHERE org_id = ? ORDER BY is_default DESC, installed_at LIMIT 1",
+  ).bind(orgId).first();
+  if (next?.id) await env.DB.prepare(
+    "UPDATE slack_connections SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END WHERE org_id = ?",
+  ).bind(next.id, orgId).run();
 }
 
 // ---------- Per-org settings.slack.* (channels) ----------
@@ -120,7 +149,7 @@ export async function resolveSlackChannels(db, orgId) {
     .catch(() => null);
   if (!row?.data) return emptySlackChannels();
   let settings;
-  try { settings = JSON.parse(row.data); } catch { return emptySlackChannels(); }
+  try { settings = normalizeNoxSettings(JSON.parse(row.data)); } catch { return emptySlackChannels(); }
   const slack = settings?.slack;
   if (!slack || typeof slack !== "object") return emptySlackChannels();
   // The first central-routing release briefly combined both NoxFeed streams.
@@ -132,14 +161,30 @@ export async function resolveSlackChannels(db, orgId) {
   const releaseNotesChannelId = channelId(slack.releaseNotesChannelId) || noxFeedChannelId;
   return {
     fallbackChannelId: channelId(slack.fallbackChannelId),
+    fallbackConnectionId: channelId(slack.fallbackConnectionId),
     noxAlertChannelId: channelId(slack.noxAlertChannelId),
-    unticketChannelId: channelId(slack.unticketChannelId),
+    noxAlertConnectionId: channelId(slack.noxAlertConnectionId),
+    noxTicketChannelId: channelId(slack.noxTicketChannelId),
+    noxTicketConnectionId: channelId(slack.noxTicketConnectionId),
     // Retained for clients released during the combined-route window.
     noxFeedChannelId: noxFeedChannelId || postsChannelId || releaseNotesChannelId,
     postsChannelId,
+    postsConnectionId: channelId(slack.postsConnectionId),
     releaseNotesChannelId,
-    noxFeedProjectId: channelId(slack.noxFeedProjectId),
+    releaseNotesConnectionId: channelId(slack.releaseNotesConnectionId),
   };
+}
+
+export function resolveSlackConnectionId(channels, service, siteConnectionId = "") {
+  const fallback = channelId(channels?.fallbackConnectionId);
+  switch (service) {
+    case "noxalert": return channelId(channels?.noxAlertConnectionId) || fallback;
+    case "noxspot": return channelId(siteConnectionId) || fallback;
+    case "noxticket": return channelId(channels?.noxTicketConnectionId) || fallback;
+    case "noxfeed_posts": return channelId(channels?.postsConnectionId) || fallback;
+    case "noxfeed_release_notes": return channelId(channels?.releaseNotesConnectionId) || fallback;
+    default: return fallback;
+  }
 }
 
 export function resolveSlackRoute(channels, service, siteChannelId = "") {
@@ -149,8 +194,8 @@ export function resolveSlackRoute(channels, service, siteChannelId = "") {
       return channelId(channels?.noxAlertChannelId) || fallback;
     case "noxspot":
       return channelId(siteChannelId) || fallback;
-    case "unticket":
-      return channelId(channels?.unticketChannelId) || fallback;
+    case "noxticket":
+      return channelId(channels?.noxTicketChannelId) || fallback;
     case "noxfeed_posts":
       return channelId(channels?.postsChannelId)
         || channelId(channels?.noxFeedChannelId)
@@ -172,12 +217,16 @@ export function resolveSlackRoute(channels, service, siteChannelId = "") {
 function emptySlackChannels() {
   return {
     fallbackChannelId: "",
+    fallbackConnectionId: "",
     noxAlertChannelId: "",
-    unticketChannelId: "",
+    noxAlertConnectionId: "",
+    noxTicketChannelId: "",
+    noxTicketConnectionId: "",
     noxFeedChannelId: "",
     postsChannelId: "",
+    postsConnectionId: "",
     releaseNotesChannelId: "",
-    noxFeedProjectId: "",
+    releaseNotesConnectionId: "",
   };
 }
 
@@ -269,17 +318,17 @@ export function slackInstallNeedsReconnect(env, install) {
   return install.appId !== env.SLACK_APP_ID;
 }
 
-export async function checkSlackOrgHealth(env, orgId) {
-  const install = await resolveSlackInstall(env, orgId);
+export async function checkSlackOrgHealth(env, orgId, connectionId = null) {
+  const install = await resolveSlackInstall(env, orgId, connectionId);
   if (!install) {
-    const row = await env.DB.prepare("SELECT 1 FROM slack_settings WHERE org_id = ?").bind(orgId).first();
+    const row = await env.DB.prepare("SELECT 1 FROM slack_connections WHERE org_id = ?").bind(orgId).first();
     if (!row) return { status: "disconnected", recovered: false };
-    await writeSlackHealth(env.DB, orgId, "degraded", "Slack credentials could not be decrypted");
+    if (connectionId) await writeSlackHealth(env.DB, orgId, connectionId, "degraded", "Slack credentials could not be decrypted");
     return { status: "degraded", recovered: false };
   }
   const previous = await env.DB.prepare(
-    "SELECT health_status FROM slack_settings WHERE org_id = ?",
-  ).bind(orgId).first();
+    "SELECT health_status FROM slack_connections WHERE org_id = ? AND id = ?",
+  ).bind(orgId, install.id).first();
   try {
     if (slackInstallNeedsReconnect(env, install)) {
       throw new SlackApiError("Reconnect Slack with the currently configured app", {
@@ -290,46 +339,25 @@ export async function checkSlackOrgHealth(env, orgId) {
     if (auth.team_id && install.teamId && auth.team_id !== install.teamId) {
       throw new SlackApiError("Slack token belongs to a different workspace", { code: "workspace_mismatch" });
     }
-    const { results } = await env.DB.prepare(
-      "SELECT DISTINCT slack_channel_id FROM spot_sites WHERE org_id = ? AND slack_channel_id IS NOT NULL",
-    ).bind(orgId).all();
-    const feedChannels = await resolveSlackChannels(env.DB, orgId);
-    const channelIds = new Set([
-      ...(results ?? []).map((row) => row.slack_channel_id),
-      feedChannels.fallbackChannelId,
-      feedChannels.noxAlertChannelId,
-      feedChannels.unticketChannelId,
-      feedChannels.postsChannelId,
-      feedChannels.releaseNotesChannelId,
-    ].filter(Boolean));
-    await Promise.all([...channelIds].map(async (channelId) => {
-      const channel = await getSlackChannel(install.botToken, channelId);
-      if (!channel || channel.is_archived) {
-        throw new SlackApiError("Configured Slack channel is archived or unavailable", { code: "channel_unavailable" });
-      }
-      if (channel.is_private && !channel.is_member) {
-        throw new SlackApiError("Slack bot is not a member of the private channel", { code: "not_in_channel" });
-      }
-    }));
-    await writeSlackHealth(env.DB, orgId, "ok", null);
+    await writeSlackHealth(env.DB, orgId, install.id, "ok", null);
     return { status: "ok", recovered: previous?.health_status !== "ok" };
   } catch (error) {
-    await writeSlackHealth(env.DB, orgId, "degraded", error instanceof Error ? error.message : String(error));
+    await writeSlackHealth(env.DB, orgId, install.id, "degraded", error instanceof Error ? error.message : String(error));
     return { status: "degraded", recovered: false, error };
   }
 }
 
-async function writeSlackHealth(db, orgId, status, error) {
+async function writeSlackHealth(db, orgId, connectionId, status, error) {
   await db.prepare(
-    `UPDATE slack_settings SET health_status = ?, last_error = ?,
-       last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ?`,
-  ).bind(status, error ? String(error).slice(0, 1000) : null, orgId).run();
+    `UPDATE slack_connections SET health_status = ?, last_error = ?,
+       last_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE org_id = ? AND id = ?`,
+  ).bind(status, error ? String(error).slice(0, 1000) : null, orgId, connectionId).run();
 }
 
 // Attach Block Kit unfurls to a Slack message. `unfurls` is a map keyed by
 // the original URL that was shared. Slack accepts an empty `unfurls: {}`
 // as a no-op which we use when nothing in the shared list matches an
-// unticket URL.
+// noxconnect URL.
 export function unfurlSlackLinks(token, { channel, ts, unfurls }) {
   return slackPost(token, "chat.unfurl", { channel, ts, unfurls });
 }
@@ -342,7 +370,7 @@ export async function resolveInstallByTeamId(env, teamId) {
   const db = env?.DB;
   if (!db || !teamId) return null;
   const row = await db
-    .prepare("SELECT org_id, encrypted_bot_token FROM slack_settings WHERE team_id = ?")
+    .prepare("SELECT org_id, encrypted_bot_token FROM slack_connections WHERE team_id = ? ORDER BY is_default DESC LIMIT 1")
     .bind(teamId)
     .first()
     .catch(() => null);
@@ -581,14 +609,19 @@ export async function clearSlackChannelsForOrg(db, orgId) {
     .catch(() => null);
   if (!row?.data) return;
   let settings;
-  try { settings = JSON.parse(row.data); } catch { return; }
+  try { settings = normalizeNoxSettings(JSON.parse(row.data)); } catch { return; }
   if (!settings?.slack) return;
   delete settings.slack.fallbackChannelId;
+  delete settings.slack.fallbackConnectionId;
   delete settings.slack.noxAlertChannelId;
-  delete settings.slack.unticketChannelId;
+  delete settings.slack.noxAlertConnectionId;
+  delete settings.slack.noxTicketChannelId;
+  delete settings.slack.noxTicketConnectionId;
   delete settings.slack.noxFeedChannelId;
   delete settings.slack.postsChannelId;
+  delete settings.slack.postsConnectionId;
   delete settings.slack.releaseNotesChannelId;
+  delete settings.slack.releaseNotesConnectionId;
   if (Object.keys(settings.slack).length === 0) {
     delete settings.slack;
   }
@@ -603,74 +636,43 @@ export async function clearSlackChannelsForOrg(db, orgId) {
     .run();
 }
 
-// ---------- Block Kit builders (carried over from v1) ----------
-
-export function buildPostsBlocks({ actorName, projectName, summary, prUrl, prNumber, avatarUrl }) {
-  const header = [actorName ? `*${escapeMrkdwn(actorName)}*` : "*Unknown*"];
-  if (projectName) header.push(`\`${escapeMrkdwn(projectName)}\``);
-  const blocks = [
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: `${header.join("  •  ")}\n${escapeMrkdwn(summary || "(no summary)")}` },
-      ...(avatarUrl ? { accessory: { type: "image", image_url: avatarUrl, alt_text: actorName || "actor" } } : {}),
-    },
+async function clearSlackChannelsForConnection(db, orgId, connectionId, wasDefault) {
+  if (!db || !orgId || !connectionId) return;
+  await db.prepare(
+    `UPDATE spot_sites SET slack_channel_id = NULL, slack_connection_id = NULL
+      WHERE org_id = ? AND (slack_connection_id = ? OR (? = 1 AND slack_connection_id IS NULL))`,
+  ).bind(orgId, connectionId, wasDefault ? 1 : 0).run();
+  await db.prepare(
+    `UPDATE delivery_outbox SET status = 'blocked_configuration',
+       last_error_code = 'slack_not_connected', last_error = 'Selected Slack workspace was disconnected',
+       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+     WHERE org_id = ? AND destination = 'slack' AND status != 'delivered'
+       AND (slack_connection_id = ? OR (? = 1 AND slack_connection_id IS NULL))`,
+  ).bind(orgId, connectionId, wasDefault ? 1 : 0).run().catch(() => null);
+  const row = await db.prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
+    .bind(orgId).first().catch(() => null);
+  if (!row?.data) return;
+  let settings;
+  try { settings = normalizeNoxSettings(JSON.parse(row.data)); } catch { return; }
+  if (!settings?.slack) return;
+  const pairs = [
+    ["fallbackConnectionId", "fallbackChannelId"],
+    ["noxAlertConnectionId", "noxAlertChannelId"],
+    ["noxTicketConnectionId", "noxTicketChannelId"],
+    ["postsConnectionId", "postsChannelId"],
+    ["releaseNotesConnectionId", "releaseNotesChannelId"],
   ];
-  if (prUrl) {
-    blocks.push({
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: prNumber ? `View PR #${prNumber}` : "View PR" },
-          url: prUrl,
-        },
-      ],
-    });
+  for (const [connectionKey, channelKey] of pairs) {
+    if (settings.slack[connectionKey] === connectionId || (wasDefault && !settings.slack[connectionKey])) {
+      delete settings.slack[connectionKey];
+      delete settings.slack[channelKey];
+    }
   }
-  return { text: stripForFallback(summary), blocks };
-}
-
-export function buildReleaseNotesBlocks({ projectName, summary, prUrl, prNumber }) {
-  const header = projectName
-    ? `*Release note* — \`${escapeMrkdwn(projectName)}\``
-    : "*Release note*";
-  const blocks = [
-    { type: "section", text: { type: "mrkdwn", text: header } },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "```\n" + truncate(sanitizeForCodeFence(summary ?? "(no release note)"), 2800) + "\n```",
-      },
-    },
-  ];
-  if (prUrl) {
-    blocks.push({
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: prNumber ? `View PR #${prNumber}` : "View PR" },
-          url: prUrl,
-        },
-      ],
-    });
-  }
-  return { text: stripForFallback(summary), blocks };
-}
-
-function escapeMrkdwn(s) {
-  return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
-}
-
-function stripForFallback(s) {
-  return truncate(String(s ?? "").replace(/\s+/g, " ").trim(), 140);
-}
-
-function truncate(s, max) {
-  return s.length > max ? s.slice(0, max - 1) + "…" : s;
-}
-
-function sanitizeForCodeFence(s) {
-  return String(s ?? "").replace(/`{3,}/g, (m) => m.split("").join("​"));
+  if (Object.keys(settings.slack).length === 0) delete settings.slack;
+  await db.prepare(
+    `INSERT INTO config (org_id, key, data, updated_at)
+     VALUES (?, 'settings', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+     ON CONFLICT(org_id, key) DO UPDATE SET data = excluded.data,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
+  ).bind(orgId, JSON.stringify(settings)).run();
 }

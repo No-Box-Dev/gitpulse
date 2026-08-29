@@ -81,13 +81,13 @@ describe("SprintTab", () => {
   it("renders a spinner while loading", () => {
     mFeatures.mockReturnValue({ data: undefined, isLoading: true });
     const { container } = renderTab();
-    expect(container.querySelector(".animate-spin")).not.toBeNull();
+    expect(container.querySelector("[role='status']")).not.toBeNull();
   });
 
   it("renders the setup CTA when there are no features (data null)", () => {
     mFeatures.mockReturnValue({ data: null, isLoading: false });
     renderTab();
-    expect(screen.getByRole("heading", { name: /Set up unticket/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Set up NoxTicket/i })).toBeInTheDocument();
   });
 
   it("renders the kanban columns when features load", () => {

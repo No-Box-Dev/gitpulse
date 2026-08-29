@@ -54,22 +54,22 @@ export async function onRequestGet(context) {
       redirectUri: resolveSlackOAuthRedirectUri(),
     });
   } catch (err) {
-    console.error("[unticket slack oauth] exchange failed:", err?.message ?? err);
+    console.error("[noxconnect slack oauth] exchange failed:", err?.message ?? err);
     return redirectHome(url, "exchange-failed");
   }
 
   try {
-    await saveSlackInstall(context.env, orgId, { ...install, installedBy: userLogin });
+    const connectionId = await saveSlackInstall(context.env, orgId, { ...install, installedBy: userLogin });
     // Validate the new token immediately. The redirect target can now render
     // authoritative health instead of the previous install's cached result.
-    const health = await checkSlackOrgHealth(context.env, orgId);
+    const health = await checkSlackOrgHealth(context.env, orgId, connectionId);
     if (health.status === "ok") {
       await requeueBlockedForOrg(context.env, orgId).catch((error) => {
-        console.error("[unticket slack oauth] delivery replay failed:", error?.message ?? error);
+        console.error("[noxconnect slack oauth] delivery replay failed:", error?.message ?? error);
       });
     }
   } catch (err) {
-    console.error("[unticket slack oauth] persist failed:", err?.message ?? err);
+    console.error("[noxconnect slack oauth] persist failed:", err?.message ?? err);
     return redirectHome(url, "persist-failed");
   }
 

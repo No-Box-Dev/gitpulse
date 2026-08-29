@@ -112,7 +112,7 @@ function SpecCard({ spec, feature, showFeature, onClick }: SpecCardProps) {
     <button
       onClick={onClick}
       className={cn(
-        "text-left rounded-xl border border-stone-200 bg-white p-4 hover:border-accent hover:shadow-sm transition-all cursor-pointer flex flex-col gap-2 min-h-[120px]",
+        "render-lazy text-left rounded-xl border border-stone-200 bg-white p-4 hover:border-accent hover:shadow-sm transition-all cursor-pointer flex flex-col gap-2 min-h-[120px]",
         spec.archived && "opacity-70",
       )}
     >

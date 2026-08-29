@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/slack.js", () => ({
-  resolveSlackInstall: vi.fn(async () => ({ botToken: "xoxb-test" })),
+  checkSlackOrgHealth: vi.fn(async () => ({ status: "ok", recovered: false })),
+  resolveSlackInstall: vi.fn(async () => ({ id: "conn-2", botToken: "xoxb-test" })),
   postSlackMessage: vi.fn(async () => ({ ok: true, channel: "C-ALERT", ts: "1.2" })),
 }));
 
 import { onRequestPost } from "../slack/test.js";
-import { postSlackMessage } from "../../lib/slack.js";
+import { checkSlackOrgHealth, postSlackMessage } from "../../lib/slack.js";
 
 function context(body) {
+  const calls = [];
   return {
     request: new Request("https://app.unticket.ai/api/slack/test", {
       method: "POST",
@@ -17,10 +19,37 @@ function context(body) {
     }),
     data: { orgId: 7, orgLogin: "acme", isAdmin: true },
     env: {
+      NOXALERT_RESPONSE: {
+        buildResolvedResponse: vi.fn(),
+        buildTestResponse: vi.fn(async (org) => ({ contract: "noxalert.response", version: 1, message: { text: `NoxAlert delivery test for ${org}`, blocks: [{ type: "section" }] } })),
+      },
+      NOXSPOT_RESPONSE: {
+        buildIssueResponse: vi.fn(),
+        buildSlackResponse: vi.fn(),
+        buildTestResponse: vi.fn(async (org) => ({ contract: "noxspot.response", version: 1, message: { text: `NoxSpot delivery test for ${org}`, blocks: [{ type: "section" }] } })),
+      },
+      NOXFEED_RESPONSE: {
+        buildPrompt: vi.fn(),
+        buildSlackResponse: vi.fn(),
+        buildTestResponse: vi.fn(async (org, stream) => ({
+          contract: "noxfeed.response",
+          version: 1,
+          message: {
+            text: `NoxFeed ${stream === "posts" ? "posts" : stream === "release_notes" ? "release notes" : "delivery"} delivery test for ${org}`.replace("delivery delivery", "delivery"),
+            blocks: [{ type: "section" }],
+          },
+        })),
+      },
       DB: {
-        prepare: () => ({ bind: () => ({ run: async () => ({ success: true }) }) }),
+        prepare: (sql) => ({
+          bind: (...binds) => ({
+            first: async () => null,
+            run: async () => { calls.push({ sql, binds }); return { success: true }; },
+          }),
+        }),
       },
     },
+    calls,
   };
 }
 
@@ -41,6 +70,20 @@ describe("Slack route tests", () => {
     const response = await onRequestPost(context({ kind: "wrong", channelId: "C-OTHER" }));
     expect(response.status).toBe(400);
     expect(postSlackMessage).not.toHaveBeenCalled();
+  });
+
+  it("verifies one workspace connection and posts a real test message", async () => {
+    const ctx = context({ kind: "connection", connectionId: "conn-2", channelId: "C-ALERT" });
+    const response = await onRequestPost(ctx);
+    expect(response.status).toBe(200);
+    expect(checkSlackOrgHealth).toHaveBeenCalledWith(expect.anything(), 7, "conn-2");
+    expect(postSlackMessage).toHaveBeenCalledWith(
+      "xoxb-test",
+      "C-ALERT",
+      expect.objectContaining({ text: "NoxConnect workspace test for acme" }),
+    );
+    expect(ctx.calls.some((call) => call.sql.includes("INSERT INTO slack_channel_status")
+      && call.binds.includes("C-ALERT"))).toBe(true);
   });
 
   it.each([

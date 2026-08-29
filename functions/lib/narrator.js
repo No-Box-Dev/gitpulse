@@ -8,7 +8,7 @@
 //   - narrateEvent looks up that pr_narrative row and REUSES its text
 //     (no LLM call) — Posts feed voice matches opened voice, so the reuse
 //     is free and coherent.
-//   - narrateReleaseNotes ALWAYS calls the LLM with RELEASE_NOTES_SYSTEM.
+//   - narrateReleaseNotes ALWAYS asks NoxFeed for its structured prompt.
 //     Reuse was attempted here too, but the chat-style opened voice looked
 //     like a Post inside the Release-notes feed (missing the "Change
 //     Summary / Breaking Changes / Affected Areas" structure). One extra
@@ -22,20 +22,14 @@ import { completeNarrative } from "./llm";
 import { resolveLlmConfig } from "./llm-config";
 import { recordFailure } from "./op-failures";
 import {
-  ACTOR_SYSTEM,
-  buildActorMessage,
-  PR_OPENED_SYSTEM,
-  buildPrOpenedMessage,
-  RELEASE_NOTES_SYSTEM,
-  buildReleaseNotesMessage,
-} from "./prompt";
-import {
   resolveSlackChannels,
+  resolveSlackConnectionId,
   resolveSlackRoute,
-  buildPostsBlocks,
-  buildReleaseNotesBlocks,
 } from "./slack";
 import { queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
+import { isAppEnabledForOwner } from "./apps.js";
+import { getNoxFeedPrompt, getNoxFeedSlackResponse } from "./noxfeed-response.js";
+import { resolveNoxFeedDestination } from "./noxfeed-routing.js";
 
 const MAX_OUTPUT_LENGTH = 800;
 const MAX_TECHNICAL_OUTPUT_LENGTH = 1200;
@@ -63,6 +57,7 @@ export async function narrateEvent(env, eventId) {
   if (!row) return;
   if (!NARRATABLE_TYPES.includes(row.type)) return;
   if (!row.actor_id || !row.project_id || !row.owner_id) return;
+  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed"))) return;
 
   const project = await env.DB.prepare(
     "SELECT name, narrator_enabled FROM projects WHERE id = ? AND owner_id = ?"
@@ -115,7 +110,7 @@ export async function narrateEvent(env, eventId) {
     model = `reused:${reused.model}`;
     source = "narrator-reused";
   } else {
-    const userMessage = buildActorMessage({
+    const prompt = await getNoxFeedPrompt(env, "actor", {
       actorName: actor.name,
       actorTone: actor.tone,
       projectName: project.name,
@@ -128,7 +123,7 @@ export async function narrateEvent(env, eventId) {
     });
     // Per-org override (BYOK) wins; default falls back to env.ZHIPU_API_KEY.
     const llmConfig = await resolveLlmConfig(env, orgId);
-    const text = await completeNarrative(llmConfig, ACTOR_SYSTEM, userMessage);
+    const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
     source = "narrator";
 
     if (text) {
@@ -230,6 +225,7 @@ export async function narrateReleaseNotes(env, eventId) {
   if (!row) return;
   if (!NARRATABLE_TYPES.includes(row.type)) return;
   if (!row.actor_id || !row.project_id || !row.owner_id) return;
+  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed"))) return;
 
   const project = await env.DB.prepare(
     "SELECT name, narrator_enabled FROM projects WHERE id = ? AND owner_id = ?"
@@ -257,8 +253,8 @@ export async function narrateReleaseNotes(env, eventId) {
   ).bind(row.owner_id, row.repo, prNumber).first();
   if (existing) return;
 
-  // Release notes ALWAYS call the LLM with the structured RELEASE_NOTES_SYSTEM
-  // prompt — no reuse of the pr_narrative row. Reusing that row inside the
+  // Release notes ALWAYS call the LLM with NoxFeed's structured prompt — no
+  // reuse of the pr_narrative row. Reusing that row inside the
   // Release-notes feed produced chat-style entries that looked like Posts,
   // not release notes (see the header comment). The 1 extra LLM call per
   // merge is the price of the structured format.
@@ -267,7 +263,7 @@ export async function narrateReleaseNotes(env, eventId) {
   let model;
   let source = "release-notes";
   {
-    const userMessage = buildReleaseNotesMessage({
+    const promptInput = {
       actorName: actor.name,
       projectName: project.name,
       event: {
@@ -276,13 +272,14 @@ export async function narrateReleaseNotes(env, eventId) {
         payload: triggerPayload,
         created_at: row.created_at,
       },
-    });
+    };
 
-    const [llmConfig, systemPrompt] = await Promise.all([
+    const [llmConfig, systemOverride] = await Promise.all([
       resolveLlmConfig(env, orgId),
       resolveReleaseNotesPrompt(env.DB, orgId),
     ]);
-    const text = await completeNarrative(llmConfig, systemPrompt, userMessage);
+    const prompt = await getNoxFeedPrompt(env, "release_notes", promptInput, systemOverride);
+    const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
 
     if (text) {
       const trimmed = text.trim();
@@ -356,6 +353,7 @@ export async function narratePrOpened(env, eventId) {
   if (!row) return;
   if (!NARRATABLE_TYPES_OPENED.includes(row.type)) return;
   if (!row.actor_id || !row.project_id || !row.owner_id) return;
+  if (!(await isAppEnabledForOwner(env.DB, row.owner_id, "noxfeed"))) return;
 
   const project = await env.DB.prepare(
     "SELECT name, narrator_enabled FROM projects WHERE id = ? AND owner_id = ?"
@@ -389,7 +387,7 @@ export async function narratePrOpened(env, eventId) {
   ).bind(row.owner_id, row.repo, prNumber).first();
   if (existing) return;
 
-  const userMessage = buildPrOpenedMessage({
+  const prompt = await getNoxFeedPrompt(env, "pr_opened", {
     actorName: actor.name,
     actorTone: actor.tone,
     projectName: project.name,
@@ -403,7 +401,7 @@ export async function narratePrOpened(env, eventId) {
 
   const orgId = await resolveOrgId(env.DB, row.owner_id);
   const llmConfig = await resolveLlmConfig(env, orgId);
-  const text = await completeNarrative(llmConfig, PR_OPENED_SYSTEM, userMessage);
+  const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
 
   let summary;
   let technicalSummary;
@@ -582,13 +580,14 @@ async function maybePostToSlack(env, args) {
   const { kind, orgId, ownerId, triggerEventId, actor, project, summary, rawEvent } = args;
   try {
     const channels = await resolveSlackChannels(env.DB, orgId);
-    // The in-app feed stays organization-wide. This optional scope controls
-    // only which project's generated cards are mirrored into Slack.
-    if (channels.noxFeedProjectId && channels.noxFeedProjectId !== rawEvent.project_id) return;
-    const channelId = resolveSlackRoute(
-      channels,
-      kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts",
-    );
+    const service = kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts";
+    const projectDestination = await resolveNoxFeedDestination(env.DB, orgId, rawEvent.repo, kind);
+    const channelId = projectDestination
+      ? projectDestination.channelId
+      : resolveSlackRoute(channels, service);
+    const connectionId = projectDestination
+      ? projectDestination.connectionId
+      : resolveSlackConnectionId(channels, service);
     if (!channelId) return;
 
     const payload = safeParseObject(rawEvent.payload_json);
@@ -598,20 +597,20 @@ async function maybePostToSlack(env, args) {
       ? `https://github.com/${rawEvent.org}/${rawEvent.repo}/pull/${prNumber}`
       : null;
 
-    let blocks;
+    let response;
     if (kind === "release_notes") {
-      blocks = buildReleaseNotesBlocks({
-        projectName: project?.name ?? rawEvent.repo,
+      response = await getNoxFeedSlackResponse(env, "release_notes", {
+        projectName: projectDestination?.projectName ?? project?.name ?? rawEvent.repo,
         summary,
         prUrl,
         prNumber,
       });
     } else {
       const avatarUrl = await fetchActorAvatar(env.DB, actor.id, ownerId);
-      blocks = buildPostsBlocks({
+      response = await getNoxFeedSlackResponse(env, "posts", {
         actorName: actor.name,
         avatarUrl,
-        projectName: project?.name ?? rawEvent.repo,
+        projectName: projectDestination?.projectName ?? project?.name ?? rawEvent.repo,
         summary,
         prUrl,
         prNumber,
@@ -622,11 +621,12 @@ async function maybePostToSlack(env, args) {
       source: kind === "release_notes" ? "release_notes" : "posts",
       sourceId: `${triggerEventId}:${kind}`,
       siteId: null,
+      connectionId,
       channelId,
       payload: {
         message: {
-          ...blocks,
-          client_msg_id: `unticket-${kind}-${triggerEventId}`,
+          ...response.message,
+          client_msg_id: `noxconnect-${kind}-${triggerEventId}`,
         },
       },
     });
@@ -657,23 +657,23 @@ async function fetchActorAvatar(db, actorId, ownerId) {
 }
 
 // Per-org override of the release-notes system prompt, stored in
-// config.settings.releaseNotesPrompt. Falls back to the bundled default
-// (RELEASE_NOTES_SYSTEM) when no row, empty string, or corrupt JSON.
+// config.settings.releaseNotesPrompt. A null response tells the NoxFeed
+// response service to use its product-owned default prompt.
 async function resolveReleaseNotesPrompt(db, orgId) {
-  if (!db || !orgId) return RELEASE_NOTES_SYSTEM;
+  if (!db || !orgId) return null;
   try {
     const row = await db
       .prepare("SELECT data FROM config WHERE org_id = ? AND key = 'settings'")
       .bind(orgId)
       .first();
-    if (!row?.data) return RELEASE_NOTES_SYSTEM;
+    if (!row?.data) return null;
     const settings = JSON.parse(row.data);
     const custom = typeof settings?.releaseNotesPrompt === "string"
       ? settings.releaseNotesPrompt.trim()
       : "";
-    return custom || RELEASE_NOTES_SYSTEM;
+    return custom || null;
   } catch {
-    return RELEASE_NOTES_SYSTEM;
+    return null;
   }
 }
 

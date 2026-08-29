@@ -1,13 +1,13 @@
-# Contributing to unticket
+# Contributing to noxconnect
 
-Thanks for your interest in improving unticket. This is source-available software, free for non-commercial use under the [PolyForm Noncommercial License 1.0.0](./LICENSE). Contributions are welcome under that same license.
+Thanks for your interest in improving noxconnect. This is source-available software, free for non-commercial use under the [PolyForm Noncommercial License 1.0.0](./LICENSE). Contributions are welcome under that same license.
 
 ## Workflow
 
-1. **Fork** the repo (`No-Box-Dev/unticket`) to your own account.
+1. **Fork** the repo (`No-Box-Dev/noxconnect`) to your own account.
 2. **Branch** off `main` with a descriptive name, e.g. `feat/issues-label-filter` or `fix/oauth-refresh-race`.
 3. Make your change. Keep it focused — one logical change per PR.
-4. **Open a pull request** against `No-Box-Dev/unticket:main`. Fill out the PR template.
+4. **Open a pull request** against `No-Box-Dev/noxconnect:main`. Fill out the PR template.
 
 ## Required checks
 

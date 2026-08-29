@@ -23,7 +23,7 @@ export interface RepoInfo {
   retiredAt?: string | null;
   retirementReason?: string | null;
   transferredTo?: string | null;
-  // True for drafts (platform-archived), GH-archived, or the unticket repo.
+  // True for drafts (platform-archived), GH-archived, or the noxconnect repo.
   // Only present when the endpoint is called with `?include=all`.
   inactive?: boolean;
 }
@@ -64,6 +64,7 @@ export type TabId =
   | "specs"
   | "prs"
   | "issues"
+  | "noxalert"
   | "admin"
   | "posts"
   | "repos"
@@ -78,7 +79,10 @@ export interface NoxSpotSite {
   buttonText: string;
   widgetMode: "development" | "release";
   autoErrorLogging: boolean;
+  environments: NoxSpotEnvironment[];
+  blocks: NoxSpotBlock[];
   slackChannelId: string | null;
+  slackConnectionId: string | null;
   slackEffectiveChannelId: string | null;
   slackUsesFallback: boolean;
   slackHealth: "disabled" | "disconnected" | "pending" | "connected" | "degraded";
@@ -90,6 +94,24 @@ export interface NoxSpotSite {
   openIssueCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface NoxSpotEnvironment {
+  name: string;
+  url: string;
+  buttonColor?: string | null;
+  buttonText?: string | null;
+  widgetMode?: "development" | "release" | null;
+  enabled?: boolean;
+}
+
+export interface NoxSpotBlock {
+  id: string;
+  type: "title" | "description" | "reporter" | "contact_email" | "custom_text" | "custom_textarea" | "custom_select" | "element_picker" | "metadata" | "console_logs";
+  label?: string | null;
+  required?: boolean;
+  options?: string[];
+  environments?: string[];
 }
 
 export interface NavFilter {
@@ -110,7 +132,7 @@ export interface ReviewPR {
   created_at: string;
 }
 
-/** Cross-repo issue assigned to the user (sourced from D1, not unticket repo) */
+/** Cross-repo issue assigned to the user (sourced from D1, not noxconnect repo) */
 export interface AssignedIssue {
   repo: string;
   number: number;
@@ -121,7 +143,7 @@ export interface AssignedIssue {
   created_at: string;
 }
 
-// unticket config repo types
+// noxconnect config repo types
 
 // Status IDs are now admin-configurable per org (see BoardStage + useBoardStages).
 // The default ids match the historical scheme so existing features keep working
@@ -214,8 +236,16 @@ export interface Spec {
 }
 
 export interface OrgSettings {
+  // NoxConnect is always enabled and is therefore not stored here. Missing
+  // optional-app values default to true for backwards compatibility.
+  apps?: {
+    noxticket?: boolean;
+    noxfeed?: boolean;
+    noxspot?: boolean;
+    noxalert?: boolean;
+  };
   excludedMembers?: string[];
-  unticketRepo?: string;
+  noxTicketRepo?: string;
   boardStages?: BoardStage[];
   // Admin-editable system prompt for the Release-notes feed. Empty/missing
   // falls back to the bundled default (RELEASE_NOTES_SYSTEM in
@@ -226,12 +256,15 @@ export interface OrgSettings {
   // lives in slack_settings; config stores public channel IDs only.
   slack?: {
     fallbackChannelId?: string;
+    fallbackConnectionId?: string;
     noxAlertChannelId?: string;
-    unticketChannelId?: string;
+    noxAlertConnectionId?: string;
+    noxTicketChannelId?: string;
+    noxTicketConnectionId?: string;
     postsChannelId?: string;
+    postsConnectionId?: string;
     releaseNotesChannelId?: string;
-    /** Empty/missing mirrors every project; otherwise only this project posts to Slack. */
-    noxFeedProjectId?: string;
+    releaseNotesConnectionId?: string;
     /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
     noxFeedChannelId?: string;
   };

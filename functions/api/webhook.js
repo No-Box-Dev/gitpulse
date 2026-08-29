@@ -22,7 +22,9 @@ import { TASK, enqueueTask } from "../lib/tasks";
 import { recordFailure } from "../lib/op-failures";
 import { startRepoTracking } from "../lib/repo-tracking";
 import { stageResolvedNoxAlert } from "../lib/noxalert.js";
-import { stageUnticketActivity } from "../lib/unticket-slack.js";
+import { stageNoxTicketActivity } from "../lib/noxticket-slack.js";
+import { enqueueReviewJob, cancelReviewJobs } from "../lib/review-jobs.js";
+import { isAppEnabled } from "../lib/apps.js";
 
 // Every `waitUntil` handler that logs a failure runs after the webhook
 // response has already been returned — a plain console.error is invisible
@@ -30,7 +32,7 @@ import { stageUnticketActivity } from "../lib/unticket-slack.js";
 // human-readable line to the runtime logs AND persist to op_failures so
 // admins see it in Settings → Background failures.
 function reportWebhookFailure(db, orgLogin, op, deliveryId, err, extra) {
-  console.error(`[unticket webhook] ${op} failed`, {
+  console.error(`[noxconnect webhook] ${op} failed`, {
     delivery: deliveryId,
     msg: err?.message ?? String(err),
     ...(extra ?? {}),
@@ -139,6 +141,7 @@ export async function onRequestPost(context) {
   const orgId = orgRow.id;
   const db = context.env.DB;
   const action = payload.action;
+  const noxFeedEnabled = await isAppEnabled(db, orgId, "noxfeed");
 
   // Bump orgs.last_event_at on every webhook write — the reconcile cron
   // uses this to flag installations that have gone silent (no events for
@@ -158,7 +161,7 @@ export async function onRequestPost(context) {
     // NoxLink's text convention (org github_login).
     try {
       const stored = await storeEvent(db, event, deliveryId, payload, orgLogin);
-      if (stored?.id) {
+      if (stored?.id && noxFeedEnabled) {
         // Narrate via the durable queue so the webhook returns immediately and
         // the work survives a failed attempt (retried, then dead-lettered).
         // Three narrators, one PR lifecycle:
@@ -200,7 +203,7 @@ export async function onRequestPost(context) {
           .prepare("DELETE FROM issues WHERE org_id = ? AND repo = ? AND number = ?")
           .bind(orgId, repo, payload.issue.number)
           .run();
-        if (repo === "unticket") {
+        if (repo === "noxconnect") {
           await db
             .prepare("DELETE FROM features WHERE org_id = ? AND number = ?")
             .bind(orgId, payload.issue.number)
@@ -213,7 +216,7 @@ export async function onRequestPost(context) {
       await upsertIssue(db, orgId, repo, payload.issue, closedBy);
 
       try {
-        await stageUnticketActivity(context.env, {
+        await stageNoxTicketActivity(context.env, {
           orgId,
           ownerId: orgLogin,
           repo,
@@ -222,7 +225,7 @@ export async function onRequestPost(context) {
           actor: payload.sender?.login ?? null,
         });
       } catch (err) {
-        await reportWebhookFailure(db, orgLogin, "unticket_slack", deliveryId, err, { repo, number: payload.issue?.number });
+        await reportWebhookFailure(db, orgLogin, "noxconnect_slack", deliveryId, err, { repo, number: payload.issue?.number });
       }
 
       if (action === "closed") {
@@ -248,8 +251,8 @@ export async function onRequestPost(context) {
         }
       }
 
-      // Also upsert into features table if this is a unticket repo issue
-      if (repo === "unticket") {
+      // Also upsert into features table if this is a noxconnect repo issue
+      if (repo === "noxconnect") {
         await upsertFeature(db, orgId, payload.issue);
       }
       return jsonResponse({ ok: true, event, action, repo, number: payload.issue.number });
@@ -262,6 +265,17 @@ export async function onRequestPost(context) {
       // Map merged PRs: GitHub sends action=closed with merged=true
       const pr = payload.pull_request;
       await upsertPR(db, orgId, repo, pr);
+
+      // NoxReview queueing — no-ops unless the repo is enabled in settings.
+      try {
+        if (["opened", "synchronize", "ready_for_review"].includes(action)) {
+          await enqueueReviewJob(db, orgId, orgLogin, repo, pr, action);
+        } else if (action === "closed") {
+          await cancelReviewJobs(db, orgId, repo, pr.number);
+        }
+      } catch (err) {
+        await reportWebhookFailure(db, orgLogin, "review_job", deliveryId, err, { repo, action });
+      }
 
       // Auto-register PR author as member so they appear in People page.
       if (pr.user?.login) {
@@ -375,7 +389,7 @@ export async function onRequestPost(context) {
     return jsonResponse({ ok: true, skipped: `unhandled event: ${event}` });
   } catch (e) {
     // Don't leak internal error details to webhook senders. Log server-side only.
-    console.error("[unticket webhook]", event, action, e instanceof Error ? e.stack : e);
+    console.error("[noxconnect webhook]", event, action, e instanceof Error ? e.stack : e);
     return errorResponse("Webhook processing failed", 500);
   }
 }

@@ -49,11 +49,11 @@ describe("withStatusTransition", () => {
 });
 
 describe("fetchFeaturesFromD1", () => {
-  it("filters out rows missing 'unticket' OR 'feature' labels", async () => {
+  it("filters out rows missing 'noxticket' OR 'feature' labels", async () => {
     mockGet.mockResolvedValue([
-      { number: 1, title: "ok", body: "", assignees: [], labels: [{ name: "unticket" }, { name: "feature" }], html_url: "u" },
-      { number: 2, title: "no-unticket", body: "", assignees: [], labels: [{ name: "feature" }], html_url: "u" },
-      { number: 3, title: "no-feature", body: "", assignees: [], labels: [{ name: "unticket" }], html_url: "u" },
+      { number: 1, title: "ok", body: "", assignees: [], labels: [{ name: "noxticket" }, { name: "feature" }], html_url: "u" },
+      { number: 2, title: "no-noxticket", body: "", assignees: [], labels: [{ name: "feature" }], html_url: "u" },
+      { number: 3, title: "no-feature", body: "", assignees: [], labels: [{ name: "noxticket" }], html_url: "u" },
     ]);
     const result = await fetchFeaturesFromD1();
     expect(result).toHaveLength(1);
@@ -62,7 +62,7 @@ describe("fetchFeaturesFromD1", () => {
 
   it("derives status='todo' from labels with no status: prefix", async () => {
     mockGet.mockResolvedValue([
-      { number: 1, title: "x", body: "", assignees: [], labels: [{ name: "unticket" }, { name: "feature" }], html_url: "u" },
+      { number: 1, title: "x", body: "", assignees: [], labels: [{ name: "noxticket" }, { name: "feature" }], html_url: "u" },
     ]);
     const result = await fetchFeaturesFromD1();
     expect(result[0].status).toBe("todo");
@@ -72,7 +72,7 @@ describe("fetchFeaturesFromD1", () => {
     mockGet.mockResolvedValue([
       {
         number: 1, title: "x", body: "", assignees: [], html_url: "u",
-        labels: [{ name: "unticket" }, { name: "feature" }, { name: "status:staging" }],
+        labels: [{ name: "noxticket" }, { name: "feature" }, { name: "status:staging" }],
       },
     ]);
     const result = await fetchFeaturesFromD1();
@@ -83,13 +83,13 @@ describe("fetchFeaturesFromD1", () => {
     // Feature bodies used to prefix a plan-text section before the metadata
     // block; that concept is retired — issueToFeature no longer surfaces
     // the body content on the wire. Metadata still comes through.
-    const body = `Plan content here\n\n<!-- unticket:metadata\n${JSON.stringify({
+    const body = `Plan content here\n\n<!-- noxticket:metadata\n${JSON.stringify({
       statusHistory: [{ status: "todo", timestamp: "2026-01-01T00:00:00Z" }],
     })}\n-->`;
     mockGet.mockResolvedValue([
       {
         number: 1, title: "x", body, assignees: [], html_url: "u",
-        labels: [{ name: "unticket" }, { name: "feature" }],
+        labels: [{ name: "noxticket" }, { name: "feature" }],
       },
     ]);
     const result = await fetchFeaturesFromD1();
@@ -98,11 +98,11 @@ describe("fetchFeaturesFromD1", () => {
 
   it("tolerates corrupt metadata block (treats as plain body)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const body = `Body\n\n<!-- unticket:metadata\nnot json\n-->`;
+    const body = `Body\n\n<!-- noxticket:metadata\nnot json\n-->`;
     mockGet.mockResolvedValue([
       {
         number: 1, title: "x", body, assignees: [], html_url: "u",
-        labels: [{ name: "unticket" }, { name: "feature" }],
+        labels: [{ name: "noxticket" }, { name: "feature" }],
       },
     ]);
     await fetchFeaturesFromD1();

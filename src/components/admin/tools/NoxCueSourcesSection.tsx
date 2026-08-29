@@ -233,12 +233,12 @@ function SlackDestination({ draft, setDraft }: { draft: NoxCueSourceInput; setDr
     label: `${connection.teamName}${connection.isDefault ? " · default" : ""}`,
   }));
   return <div className="space-y-2">
-    <label className="text-sm font-medium text-stone-700">Slack destination</label>
+    <label className="text-sm font-medium text-stone-700">Slack source override</label>
     <div className="grid gap-3 sm:grid-cols-2">
       <SearchableSelect value={connectionId} onChange={(next) => setDraft({ ...draft, slackConnectionId: next || null, slackChannelId: null })} options={workspaceOptions} placeholder="Select workspace" className="w-full" />
       <SearchableSelect value={draft.slackChannelId ?? ""} onChange={(next) => setDraft({ ...draft, slackChannelId: next || null, slackConnectionId: next ? connectionId : null })} options={selectedWorkspace.channelOptions} placeholder={selectedWorkspace.channels.isLoading ? "Loading channels…" : "Use organization fallback"} className="w-full" />
     </div>
-    <p className="text-xs text-stone-400">Leave the channel empty to use the organization fallback channel.</p>
+    <p className="text-xs text-stone-400">Leave this empty to use the linked project's NoxCue route, then the organization default.</p>
   </div>;
 }
 

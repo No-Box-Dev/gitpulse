@@ -117,16 +117,28 @@ export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
             source.digest_time_local,
             COALESCE(
               NULLIF(source.slack_channel_id, ''),
+              NULLIF(project_route.channel_id, ''),
               NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), ''),
               NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '')
             ) AS channel_id,
             COALESCE(
               NULLIF(source.slack_connection_id, ''),
+              NULLIF(project_route.connection_id, ''),
               NULLIF(json_extract(config.data, '$.slack.noxCueConnectionId'), ''),
               NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '')
             ) AS connection_id
        FROM cue_sources source
        LEFT JOIN config ON config.org_id = source.org_id AND config.key = 'settings'
+       LEFT JOIN project_slack_routes project_route
+         ON project_route.org_id = source.org_id
+        AND project_route.project_id = source.project_id
+        AND project_route.route_key = 'noxcue'
+        AND EXISTS (
+          SELECT 1 FROM project_routing_settings routing_settings
+           WHERE routing_settings.org_id = source.org_id
+             AND routing_settings.project_id = source.project_id
+             AND routing_settings.enabled = 1
+        )
       WHERE source.enabled = 1 AND source.digest_enabled = 1
         AND COALESCE(json_extract(config.data, '$.apps.noxcue'), 1) != 0
       ORDER BY source.id LIMIT ?`,

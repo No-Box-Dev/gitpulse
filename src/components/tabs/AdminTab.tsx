@@ -31,6 +31,7 @@ import { NoxCueSection } from "@/components/admin/tools/NoxCueSection";
 import { ServiceActivationCard, ServiceToggle } from "@/components/admin/ServiceActivationCard";
 import { NewReposSection } from "@/components/admin/NewReposSection";
 import { TrackedReposSection } from "@/components/admin/TrackedReposSection";
+import { ProjectRoutingSection } from "@/components/admin/ProjectRoutingSection";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then((module) => ({ default: module.ReposTab })));
@@ -300,6 +301,9 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
                   <SectionHeading title="Repositories" description="Choose what NoxConnect tracks, then inspect repository activity." />
                   <NewReposSection />
                   <TrackedReposSection />
+                  <AdminGate title="Projects and routing" description="Group repositories into projects and choose project-specific product destinations.">
+                    <ProjectRoutingSection />
+                  </AdminGate>
                   <SectionHeading title="Repository activity" description="Inspect pull requests, issues, and contribution history for tracked repositories." />
                   <Suspense fallback={connectionsLoading}><ReposTab repoNames={repoNames} /></Suspense>
                 </> : null}

@@ -63,7 +63,7 @@ vi.mock("@tanstack/react-query", () => {
         ? { connected: true, canConfigure: true, appConfigured: true, health: "ok" }
         : queryKey?.[0] === "slack-channels"
           ? [{ id: "C1", name: "feed", is_private: false }]
-          : queryKey?.[0] === "noxfeed-routes"
+          : queryKey?.[0] === "project-routing"
             ? { projects: [], repositories: [] }
           : { failures: [] },
       isLoading: false,
@@ -273,6 +273,15 @@ describe("AdminTab", () => {
     expect(screen.getByRole("tab", { name: /Repositories/ })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("renders shared project routing inside NoxConnect for admins", async () => {
+    mIsAdmin.mockReturnValue(true);
+    render(<MemoryRouter><AdminTab repoNames={["api", "web"]} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Repositories/ }));
+    expect(await screen.findByText("Projects and routing")).toBeInTheDocument();
+    expect(screen.getByText(/Enable only the NoxConnect projects you actually use/i)).toBeInTheDocument();
+  });
+
   it("opens legacy repos links on NoxConnect", async () => {
     render(
       <MemoryRouter initialEntries={["/?tab=repos"]}>
@@ -284,7 +293,7 @@ describe("AdminTab", () => {
     expect(await screen.findByTestId("admin-repositories")).toHaveTextContent("api");
   });
 
-  it("renders separate NoxFeed route fields for posts and release notes", () => {
+  it("keeps organization NoxFeed defaults in the product section", () => {
     mIsAdmin.mockReturnValue(true);
     mSettings.mockReturnValue({ data: { slack: { noxFeedChannelId: "C1" } } });
     render(
@@ -294,7 +303,7 @@ describe("AdminTab", () => {
     );
     fireEvent.click(screen.getByRole("tab", { name: "NoxFeed" }));
     expect(screen.getAllByText("NoxFeed").length).toBeGreaterThan(0);
-    expect(screen.getByText("Project feeds")).toBeInTheDocument();
+    expect(screen.getByText(/Project-specific destinations are managed under NoxConnect/i)).toBeInTheDocument();
     expect(screen.getByText("Default posts")).toBeInTheDocument();
     expect(screen.getByText("Default release notes")).toBeInTheDocument();
     expect(screen.queryByText("AI Provider")).not.toBeInTheDocument();

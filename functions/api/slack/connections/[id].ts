@@ -56,12 +56,14 @@ export async function onRequestPatch(context: Context): Promise<Response> {
   let projectName: string | null = null;
   if (projectId) {
     const project = await context.env.DB.prepare(
-      `SELECT name FROM projects
-        WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0`,
+      `SELECT project.name FROM projects project
+        JOIN project_routing_settings routing ON routing.project_id = project.id
+       WHERE project.id = ? AND project.owner_id = ? AND routing.org_id = ?
+         AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0`,
     )
-      .bind(projectId, orgLogin)
+      .bind(projectId, orgLogin, orgId)
       .first<{ name: string }>();
-    if (!project) return errorResponse("Project not found", 404);
+    if (!project) return errorResponse("Enabled NoxConnect project not found", 404);
     projectName = project.name;
   }
 

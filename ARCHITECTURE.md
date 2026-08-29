@@ -49,9 +49,13 @@ GitHub data stays current via three mechanisms, in priority order:
 
 Slow webhook follow-up (LLM narration, install bootstrap, repo backfill) is enqueued to the `noxconnect-tasks` Queue rather than run inline. The cron Worker's `queue()` handler dispatches by task type with retries; terminal failures are recorded to the `op_failures` table and surfaced to admins in Settings.
 
+## Project routing
+
+NoxConnect owns explicit project enablement, the shared repository-to-project map, and named project Slack destinations. GitHub repositories are mirror records, not projects by default: an admin must enable a NoxConnect project before it participates in routing. An enabled project can group multiple repositories; a repository belongs to at most one project. NoxFeed resolves pull-request traffic by repository, while NoxCue resolves its linked project after any source-specific override. Both then fall back to their organization route. Slack workspace ownership is checked when routes are saved so one project's workspace cannot receive another project's traffic.
+
 ## AI narration
 
-A bounded LLM integration narrates pull-request merges. It's paced, disable-able per project, and supports per-org Bring-Your-Own-Key (Anthropic-compatible or OpenAI-compatible providers). The default backend is Zhipu's GLM endpoint. Keys are encrypted at rest and never returned to the browser.
+A bounded managed Anthropic integration narrates pull-request activity. It is paced, can be disabled per organization, and fails closed to deterministic summaries when unavailable. Provider credentials remain server-side and are never returned to the browser.
 
 ## Where to look
 
@@ -61,5 +65,6 @@ A bounded LLM integration narrates pull-request merges. It's paced, disable-able
 | GitHub data hooks | `src/hooks/useGitHub.ts` |
 | API routes | `functions/api/` |
 | Shared server helpers | `functions/lib/` |
+| Project routing core | `functions/lib/project-routing.ts`, `functions/api/projects/routing*` |
 | DB schema | `migrations/` |
 | Cron + queue consumer | `cron/src/` |

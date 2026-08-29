@@ -33,8 +33,27 @@ interface DigestSource {
   name: string;
   timezone: string;
   digest_time_local: string;
-  channel_id: string | null;
-  connection_id: string | null;
+  source_channel_id: string | null;
+  source_connection_id: string | null;
+  project_channel_id: string | null;
+  project_connection_id: string | null;
+  organization_channel_id: string | null;
+  organization_connection_id: string | null;
+  fallback_channel_id: string | null;
+  fallback_connection_id: string | null;
+}
+
+type SlackDestination = { channelId: string; connectionId: string };
+
+export function resolveDigestSlackDestination(source: DigestSource): SlackDestination | null {
+  const candidates = [
+    [source.source_channel_id, source.source_connection_id],
+    [source.project_channel_id, source.project_connection_id],
+    [source.organization_channel_id, source.organization_connection_id],
+    [source.fallback_channel_id, source.fallback_connection_id],
+  ];
+  const pair = candidates.find(([channelId, connectionId]) => channelId && connectionId);
+  return pair ? { channelId: pair[0]!, connectionId: pair[1]! } : null;
 }
 
 export function localDateTime(nowMs: number, timezone: string) {
@@ -65,7 +84,12 @@ function configuredMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
-async function createDigest(env: DigestEnv, source: DigestSource, period: string) {
+async function createDigest(
+  env: DigestEnv,
+  source: DigestSource,
+  destination: SlackDestination,
+  period: string,
+) {
   const existing = await env.DB.prepare(
     "SELECT id FROM cue_digest_runs WHERE source_id = ? AND period = ?",
   ).bind(source.id, period).first();
@@ -87,8 +111,8 @@ async function createDigest(env: DigestEnv, source: DigestSource, period: string
     source: "noxcue",
     sourceId: `digest:${source.id}:${period}`,
     siteId: null,
-    connectionId: source.connection_id,
-    channelId: source.channel_id,
+    connectionId: destination.connectionId,
+    channelId: destination.channelId,
     payload: { message: response.message },
   });
   if (!delivery?.id) throw new Error("NoxCue digest outbox write failed");
@@ -115,18 +139,14 @@ export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
   const { results } = await env.DB.prepare(
     `SELECT source.id, source.org_id, source.owner_id, source.project_id, source.name, source.timezone,
             source.digest_time_local,
-            COALESCE(
-              NULLIF(source.slack_channel_id, ''),
-              NULLIF(project_route.channel_id, ''),
-              NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '')
-            ) AS channel_id,
-            COALESCE(
-              NULLIF(source.slack_connection_id, ''),
-              NULLIF(project_route.connection_id, ''),
-              NULLIF(json_extract(config.data, '$.slack.noxCueConnectionId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '')
-            ) AS connection_id
+            NULLIF(source.slack_channel_id, '') AS source_channel_id,
+            NULLIF(source.slack_connection_id, '') AS source_connection_id,
+            NULLIF(project_route.channel_id, '') AS project_channel_id,
+            NULLIF(project_route.connection_id, '') AS project_connection_id,
+            NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), '') AS organization_channel_id,
+            NULLIF(json_extract(config.data, '$.slack.noxCueConnectionId'), '') AS organization_connection_id,
+            NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '') AS fallback_channel_id,
+            NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '') AS fallback_connection_id
        FROM cue_sources source
        LEFT JOIN config ON config.org_id = source.org_id AND config.key = 'settings'
        LEFT JOIN project_slack_routes project_route
@@ -147,11 +167,12 @@ export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
   let skipped = 0;
   let failed = 0;
   for (const source of results ?? []) {
-    if (!source.channel_id) { skipped += 1; continue; }
+    const destination = resolveDigestSlackDestination(source);
+    if (!destination) { skipped += 1; continue; }
     try {
       const local = localDateTime(nowMs, source.timezone);
       if (local.minutes < configuredMinutes(source.digest_time_local)) { skipped += 1; continue; }
-      const result = await createDigest(env, source, previousPeriod(local.period));
+      const result = await createDigest(env, source, destination, previousPeriod(local.period));
       if (result.created) created += 1;
       else skipped += 1;
     } catch (error) {

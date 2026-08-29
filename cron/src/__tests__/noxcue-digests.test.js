@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { localDateTime, previousPeriod, runNoxCueDigests } from "../noxcue-digests.js";
+import {
+  localDateTime,
+  previousPeriod,
+  resolveDigestSlackDestination,
+  runNoxCueDigests,
+} from "../noxcue-digests.js";
 
 describe("NoxCue daily digest periods", () => {
   it("uses the source timezone and the previous completed local day", () => {
@@ -15,6 +20,19 @@ describe("NoxCue daily digest periods", () => {
     expect(previousPeriod("2026-03-01")).toBe("2026-02-28");
   });
 
+  it("keeps each Slack channel paired with its own connection", () => {
+    expect(resolveDigestSlackDestination({
+      source_channel_id: "C-source",
+      source_connection_id: null,
+      project_channel_id: "C-project",
+      project_connection_id: "connection-project",
+      organization_channel_id: "C-org",
+      organization_connection_id: "connection-org",
+      fallback_channel_id: "C-fallback",
+      fallback_connection_id: "connection-fallback",
+    })).toEqual({ channelId: "C-project", connectionId: "connection-project" });
+  });
+
   it("stages a digest containing only metrics selected for the source project", async () => {
     const statements = [];
     const prepare = (sql) => {
@@ -25,7 +43,10 @@ describe("NoxCue daily digest periods", () => {
           if (sql.includes("FROM cue_sources source")) return { results: [{
             id: "source-1", org_id: 7, owner_id: "acme", project_id: "playnist", name: "Checkout",
             timezone: "Asia/Kuala_Lumpur", digest_time_local: "00:30",
-            channel_id: "C123", connection_id: "connection-1",
+            source_channel_id: "C123", source_connection_id: "connection-1",
+            project_channel_id: null, project_connection_id: null,
+            organization_channel_id: null, organization_connection_id: null,
+            fallback_channel_id: null, fallback_connection_id: null,
           }] };
           if (sql.includes("FROM cue_daily_metrics")) return { results: [
             { period: "2026-07-30", metric_key: "users.new", value: 70, origin: "reported" },

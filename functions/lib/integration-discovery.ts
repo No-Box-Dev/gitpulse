@@ -9,7 +9,7 @@ export const SLACK_ROUTING_BODY_SCHEMA = {
       additionalProperties: false,
       properties: {
         fallback: { type: ["string", "null"] },
-        noxalert: { type: ["string", "null"] },
+        noxcue: { type: ["string", "null"] },
         noxticket: { type: ["string", "null"] },
         noxfeed_posts: { type: ["string", "null"] },
         noxfeed_release_notes: { type: ["string", "null"] },

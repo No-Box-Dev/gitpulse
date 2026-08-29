@@ -18,9 +18,6 @@ export async function createNoxSpotGitHubIssue(env, capture) {
   if (!(await isAppEnabled(env.DB, capture.orgId, "noxspot"))) {
     return { skipped: "service_disabled", service: "noxspot" };
   }
-  if (capture.issueType === "error" && !(await isAppEnabled(env.DB, capture.orgId, "noxalert"))) {
-    return { skipped: "service_disabled", service: "noxalert" };
-  }
   const resolvedCapture = await resolveCaptureFromSetup(env.DB, capture);
   const installationId = await getInstallationIdForOrg(env.DB, resolvedCapture.orgId);
   if (!installationId) throw new Error(`GitHub App not installed for org ${resolvedCapture.orgId}`);
@@ -41,22 +38,21 @@ export async function createNoxSpotGitHubIssue(env, capture) {
   await upsertIssue(env.DB, resolvedCapture.orgId, resolvedCapture.repo, issue);
   await storeEvent(env.DB, resolvedCapture, issue);
   const slackChannels = await resolveSlackChannels(env.DB, resolvedCapture.orgId);
-  const isAlert = resolvedCapture.issueType === "error";
   const slackChannelId = resolveSlackRoute(
     slackChannels,
-    isAlert ? "noxalert" : "noxspot",
+    "noxspot",
     resolvedCapture.slackChannelId,
   );
   const slackConnectionId = resolveSlackConnectionId(
     slackChannels,
-    isAlert ? "noxalert" : "noxspot",
+    "noxspot",
     resolvedCapture.slackChannelId ? resolvedCapture.slackConnectionId : "",
   );
   if (slackChannelId) {
     const slackResponse = await getNoxSpotSlackResponse(env, resolvedCapture, issue);
     const delivery = await stageSlackDelivery(env.DB, {
       orgId: resolvedCapture.orgId,
-      source: isAlert ? "noxalert" : "noxspot",
+      source: "noxspot",
       sourceId: resolvedCapture.captureId,
       siteId: resolvedCapture.siteId,
       connectionId: slackConnectionId,

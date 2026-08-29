@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+import { createCueKey, createCueKeySchema, cueSourceInputSchema, hashCueKey } from "../noxcue-settings";
+
+describe("NoxCue settings contracts", () => {
+  it("creates secret keys with stable hashes", async () => {
+    const secret = createCueKey();
+    expect(secret).toMatch(/^nox_secret_[A-Za-z0-9_-]{40,}$/);
+    expect(await hashCueKey(secret)).toBe(await hashCueKey(secret));
+  });
+
+  it("accepts daily source and Slack destination settings", () => {
+    expect(cueSourceInputSchema.parse({
+      name: "Checkout",
+      enabled: true,
+      projectId: null,
+      slackChannelId: "C123",
+      slackConnectionId: "connection-1",
+    })).toMatchObject({
+      name: "Checkout", projectId: null, timezone: "UTC",
+      digestEnabled: true, digestTimeLocal: "00:30",
+      slackChannelId: "C123", slackConnectionId: "connection-1",
+    });
+    expect(cueSourceInputSchema.safeParse({
+      name: "Checkout", enabled: true, projectId: null,
+      timezone: "Not/A_Zone", digestTimeLocal: "25:00",
+    }).success).toBe(false);
+  });
+
+  it("only accepts server key creation", () => {
+    expect(createCueKeySchema.safeParse({ name: "Server", kind: "secret" }).success).toBe(true);
+    expect(createCueKeySchema.safeParse({ name: "Browser", kind: "publishable" }).success).toBe(false);
+    expect(createCueKeySchema.safeParse({ name: "Unknown", kind: "admin" }).success).toBe(false);
+  });
+});
+

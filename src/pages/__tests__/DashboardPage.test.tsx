@@ -140,7 +140,7 @@ describe("DashboardPage", () => {
   it("keeps NoxConnect available when every optional app is disabled", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     mSettings.mockReturnValue({
-      data: { apps: { noxfeed: false, noxticket: false, noxspot: false, noxalert: false } },
+      data: { apps: { noxfeed: false, noxticket: false, noxspot: false, noxcue: false } },
     });
     renderAt("/");
     await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());

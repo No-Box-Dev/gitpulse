@@ -152,38 +152,73 @@
         }
       }
     },
-    "/api/alerts/projects": {
+    "/api/cues/sources": {
       "get": {
-        "operationId": "listNoxAlertProjects",
-        "summary": "List NoxAlert project settings, rules, and keys",
-        "responses": { "200": { "description": "Projects" } }
-      }
-    },
-    "/api/alerts/projects/{projectId}": {
-      "put": {
-        "operationId": "configureNoxAlertProject",
-        "summary": "Configure a NoxAlert project and error rule",
-        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxAlertProjectUpdate" } } } },
-        "responses": { "200": { "description": "Project configured" } }
-      }
-    },
-    "/api/alerts/projects/{projectId}/keys": {
+        "operationId": "listNoxCueSources",
+        "summary": "List NoxCue sources, linked projects, and ingest keys",
+        "responses": { "200": { "description": "Sources" } }
+      },
       "post": {
-        "operationId": "createNoxAlertKey",
-        "summary": "Create a one-time NoxAlert ingest key",
+        "operationId": "createNoxCueSource",
+        "summary": "Create a NoxCue event source",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueSourceInput" } } } },
+        "responses": { "201": { "description": "Source created" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}": {
+      "put": {
+        "operationId": "updateNoxCueSource",
+        "summary": "Update a NoxCue event source",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueSourceInput" } } } },
+        "responses": { "200": { "description": "Source updated" } }
+      },
+      "delete": {
+        "operationId": "deleteNoxCueSource",
+        "summary": "Delete a NoxCue source and revoke its keys",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "responses": { "200": { "description": "Source deleted" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}/keys": {
+      "post": {
+        "operationId": "createNoxCueKey",
+        "summary": "Create a one-time NoxCue server ingest key",
         "description": "The key value is returned once. Do not log it.",
-        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } } } } },
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "kind"], "properties": { "name": { "type": "string" }, "kind": { "const": "secret" } } } } } },
         "responses": { "201": { "description": "Key created" } }
       }
     },
-    "/api/alerts/projects/{projectId}/keys/{keyId}": {
+    "/api/cues/sources/{sourceId}/keys/{keyId}": {
       "delete": {
-        "operationId": "revokeNoxAlertKey",
-        "summary": "Revoke a NoxAlert ingest key",
-        "parameters": [{ "$ref": "#/components/parameters/projectId" }, { "$ref": "#/components/parameters/keyId" }],
+        "operationId": "revokeNoxCueKey",
+        "summary": "Revoke a NoxCue ingest key",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/keyId" }],
         "responses": { "200": { "description": "Key revoked" } }
+      }
+    },
+    "/api/cues/projects/{projectId}/metrics": {
+      "get": {
+        "operationId": "getNoxCueProjectMetrics",
+        "summary": "List selectable metrics and their active event status for one project",
+        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
+        "responses": { "200": { "description": "Project metric settings and readiness" } }
+      },
+      "put": {
+        "operationId": "updateNoxCueProjectMetrics",
+        "summary": "Choose metrics included in one project's daily report",
+        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueProjectMetricSelection" } } } },
+        "responses": { "200": { "description": "Project metric settings updated" } }
+      }
+    },
+    "/api/cues/metrics": {
+      "get": {
+        "operationId": "getNoxCueDailyHealth",
+        "summary": "Get stored NoxCue-derived user metrics and digest state",
+        "parameters": [{ "name": "sourceId", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Daily user health" } }
       }
     }
   },
@@ -195,6 +230,7 @@
     "parameters": {
       "provider": { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "enum": ["github", "slack"] } },
       "projectId": { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "sourceId": { "name": "sourceId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "siteId": { "name": "siteId", "in": "path", "required": true, "schema": { "type": "string" } },
       "keyId": { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string" } }
     },
@@ -251,7 +287,7 @@
             "additionalProperties": false,
             "properties": {
               "fallback": { "type": ["string", "null"] },
-              "noxalert": { "type": ["string", "null"] },
+              "noxcue": { "type": ["string", "null"] },
               "noxticket": { "type": ["string", "null"] },
               "noxfeed_posts": { "type": ["string", "null"] },
               "noxfeed_release_notes": { "type": ["string", "null"] }
@@ -263,7 +299,7 @@
         "type": "object",
         "required": ["route"],
         "properties": {
-          "route": { "type": "string", "enum": ["fallback", "noxalert", "noxticket", "noxfeed_posts", "noxfeed_release_notes"] },
+          "route": { "type": "string", "enum": ["fallback", "noxcue", "noxticket", "noxfeed_posts", "noxfeed_release_notes"] },
           "channelId": { "type": "string", "maxLength": 80, "description": "Optional candidate channel; otherwise uses saved routing and fallback." }
         }
       },
@@ -338,46 +374,33 @@
           "rating": { "type": ["integer", "null"], "minimum": 1, "maximum": 5 }
         }
       },
-      "NoxAlertProjectUpdate": {
+      "NoxCueSourceInput": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["enabled", "allowedOrigins", "rule"],
+        "required": ["name", "enabled", "projectId", "timezone", "digestEnabled", "digestTimeLocal", "slackChannelId", "slackConnectionId"],
         "properties": {
+          "name": { "type": "string", "maxLength": 120 },
           "enabled": { "type": "boolean" },
-          "allowedOrigins": { "type": "array", "maxItems": 20, "items": { "type": "string", "format": "uri", "description": "Exact origin without a path." } },
-          "rule": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["name", "filters", "notifyAfterCount", "windowSeconds", "repeatAfterSeconds"],
-            "properties": {
-              "name": { "type": "string", "maxLength": 120 },
-              "filters": { "$ref": "#/components/schemas/NoxAlertFilters" },
-              "notifyAfterCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
-              "windowSeconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
-              "repeatAfterSeconds": { "type": "integer", "minimum": 60, "maximum": 604800 }
-            }
+          "projectId": { "type": ["string", "null"] },
+          "timezone": { "type": "string", "description": "IANA timezone used for completed daily periods." },
+          "digestEnabled": { "type": "boolean" },
+          "digestTimeLocal": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$" },
+          "slackChannelId": { "type": ["string", "null"] },
+          "slackConnectionId": { "type": ["string", "null"] }
+        }
+      },
+      "NoxCueProjectMetricSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabledMetricKeys"],
+        "properties": {
+          "enabledMetricKeys": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": { "type": "string", "enum": ["users.new", "users.total", "users.active.daily", "users.active.weekly", "users.active.monthly", "users.stickiness.dau_mau"] }
           }
-        }
-      },
-      "NoxAlertFilters": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["environments", "services", "include", "exclude"],
-        "properties": {
-          "environments": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 64 } },
-          "services": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 120 } },
-          "include": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/NoxAlertCondition" } },
-          "exclude": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/NoxAlertCondition" } }
-        }
-      },
-      "NoxAlertCondition": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["field", "operator", "value"],
-        "properties": {
-          "field": { "type": "string", "enum": ["service", "environment", "release", "error.type", "error.message", "page.url", "page.route"] },
-          "operator": { "type": "string", "enum": ["equals", "starts_with", "contains"] },
-          "value": { "type": "string", "maxLength": 256 }
         }
       }
     }

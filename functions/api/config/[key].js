@@ -8,7 +8,7 @@ import { LEGACY_NOXTICKET_SOURCE, normalizeNoxSettings } from "../../lib/naming-
 const VALID_KEYS = ["features", "people", "settings"];
 const SLACK_CHANNEL_KEYS = [
   "fallbackChannelId",
-  "noxAlertChannelId",
+  "noxCueChannelId",
   "noxTicketChannelId",
   "noxFeedChannelId",
   // Accepted during the compatibility window for older clients.
@@ -17,18 +17,18 @@ const SLACK_CHANNEL_KEYS = [
 ];
 const SLACK_ROUTES = [
   ["fallbackChannelId", "fallbackConnectionId"],
-  ["noxAlertChannelId", "noxAlertConnectionId"],
+  ["noxCueChannelId", "noxCueConnectionId"],
   ["noxTicketChannelId", "noxTicketConnectionId"],
   ["postsChannelId", "postsConnectionId"],
   ["releaseNotesChannelId", "releaseNotesConnectionId"],
   ["noxFeedChannelId", null],
 ];
-const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxalert"];
+const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxcue"];
 const APP_DELIVERY_SOURCES = {
   noxticket: ["noxticket", LEGACY_NOXTICKET_SOURCE],
   noxfeed: ["posts", "release_notes"],
   noxspot: ["noxspot"],
-  noxalert: ["noxalert"],
+  noxcue: ["noxcue"],
 };
 
 const DEFAULTS = {
@@ -208,7 +208,7 @@ export async function onRequestPut(context) {
     const routes = [
       { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.postsConnectionId) || fallbackConnectionId },
       { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || fallbackConnectionId },
-      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId, connectionId: clean(slack.noxAlertConnectionId) || fallbackConnectionId },
+      { sources: ["noxcue"], channelId: clean(slack.noxCueChannelId) || fallbackChannelId, connectionId: clean(slack.noxCueConnectionId) || fallbackConnectionId },
       { sources: ["noxticket", LEGACY_NOXTICKET_SOURCE], channelId: clean(slack.noxTicketChannelId) || fallbackChannelId, connectionId: clean(slack.noxTicketConnectionId) || fallbackConnectionId },
     ];
     for (const { sources, channelId, connectionId } of routes) {

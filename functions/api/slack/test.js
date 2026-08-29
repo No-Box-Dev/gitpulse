@@ -2,13 +2,15 @@ import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { checkSlackOrgHealth, resolveSlackInstall, postSlackMessage } from "../../lib/slack";
 import { markSlackChannelIssue, markSlackChannelVerified } from "../../lib/slack-channel-status";
 import { appForSlackKind, isAppEnabled, serviceDisabledResponse } from "../../lib/apps.js";
-import { getNoxAlertTestResponse } from "../../lib/noxalert-response.js";
+import { getNoxCueDigestResponse, getNoxCueTestResponse } from "../../lib/noxcue-response.js";
+import { completedPeriodAt, loadNoxCueDigestData } from "../../lib/noxcue-digest-data.js";
+import { loadEnabledNoxCueMetricKeys, selectNoxCueDigestMetrics } from "../../lib/noxcue-project-metrics.js";
 import { getNoxSpotTestResponse } from "../../lib/noxspot-response.js";
 import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
 import { buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
 // POST /api/slack/test
-// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxalert" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes" }
+// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxcue" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes", sourceId?: string }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -24,9 +26,10 @@ export async function onRequestPost(context) {
 
   const connectionId = typeof body?.connectionId === "string" ? body.connectionId.trim() : null;
   const channelId = typeof body?.channelId === "string" ? body.channelId.trim() : "";
+  const sourceId = typeof body?.sourceId === "string" ? body.sourceId.trim() : "";
   const legacyKinds = { narrative: "noxfeed_posts", release_notes: "noxfeed_release_notes" };
   const allowedKinds = new Set([
-    "connection", "fallback", "noxalert", "noxspot", "noxticket", "noxfeed",
+    "connection", "fallback", "noxcue", "noxspot", "noxticket", "noxfeed",
     "noxfeed_posts", "noxfeed_release_notes",
   ]);
   const kind = legacyKinds[body?.kind] ?? (allowedKinds.has(body?.kind) ? body.kind : null);
@@ -50,8 +53,27 @@ export async function onRequestPost(context) {
   if (!install) return errorResponse("Slack not connected", 404);
 
   let payload;
-  if (kind === "noxalert") {
-    payload = (await getNoxAlertTestResponse(context.env, orgLogin)).message;
+  if (kind === "noxcue") {
+    if (sourceId) {
+      const source = await context.env.DB.prepare(
+        `SELECT name, timezone, project_id FROM cue_sources WHERE id = ? AND org_id = ?`,
+      ).bind(sourceId, orgId).first();
+      if (!source) return errorResponse("NoxCue source not found", 404);
+      const period = completedPeriodAt(source.timezone);
+      const digest = await loadNoxCueDigestData(context.env.DB, sourceId, period);
+      if (!digest.hasData) return errorResponse("NoxCue source has no daily user statistics", 404);
+      const enabledKeys = await loadEnabledNoxCueMetricKeys(context.env.DB, orgId, source.project_id);
+      const selected = selectNoxCueDigestMetrics(digest, enabledKeys);
+      payload = (await getNoxCueDigestResponse(
+        context.env,
+        source.name,
+        period,
+        selected.metrics,
+        selected.comparisons,
+      )).message;
+    } else {
+      payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
+    }
   } else if (kind === "noxspot") {
     payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
   } else if (kind === "noxticket") {

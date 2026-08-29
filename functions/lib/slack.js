@@ -73,12 +73,12 @@ export async function resolveSlackInstall(env, orgId, connectionId = null) {
   }
 }
 
-export async function saveSlackInstall(env, orgId, install) {
+export async function saveSlackInstall(env, orgId, install, projectId = null) {
   if (!env.ENCRYPTION_KEY) throw new Error("ENCRYPTION_KEY missing");
   const encrypted = await encryptToken(install.botToken, env.ENCRYPTION_KEY);
 
   const existing = await env.DB
-    .prepare("SELECT id FROM slack_connections WHERE org_id = ? AND team_id = ?")
+    .prepare("SELECT id, project_id FROM slack_connections WHERE org_id = ? AND team_id = ?")
     .bind(orgId, install.teamId)
     .first()
     .catch(() => null);
@@ -90,8 +90,8 @@ export async function saveSlackInstall(env, orgId, install) {
   await env.DB.prepare(
     `INSERT INTO slack_connections
        (id, org_id, app_id, team_id, team_name, bot_user_id, encrypted_bot_token,
-        installed_by, installed_at, is_default)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?)
+       installed_by, installed_at, is_default, project_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?)
      ON CONFLICT(org_id, team_id) DO UPDATE SET
        app_id = excluded.app_id,
        team_name = excluded.team_name,
@@ -99,11 +99,12 @@ export async function saveSlackInstall(env, orgId, install) {
        encrypted_bot_token = excluded.encrypted_bot_token,
        installed_by = excluded.installed_by,
        installed_at = excluded.installed_at,
+       project_id = COALESCE(excluded.project_id, slack_connections.project_id),
        health_status = 'unknown',
        last_checked_at = NULL,
        last_error = NULL`,
   )
-    .bind(connectionId, orgId, install.appId ?? null, install.teamId, install.teamName ?? null, install.botUserId ?? null, encrypted, install.installedBy, defaultRow ? 0 : 1)
+    .bind(connectionId, orgId, install.appId ?? null, install.teamId, install.teamName ?? null, install.botUserId ?? null, encrypted, install.installedBy, defaultRow ? 0 : 1, projectId ?? existing?.project_id ?? null)
     .run();
   return connectionId;
 }
@@ -111,9 +112,14 @@ export async function saveSlackInstall(env, orgId, install) {
 export async function listSlackConnections(env, orgId) {
   if (!env?.DB || !orgId) return [];
   const { results } = await env.DB.prepare(
-    `SELECT id, team_id, team_name, bot_user_id, is_default, health_status,
-            last_checked_at, last_error, app_id
-       FROM slack_connections WHERE org_id = ?
+    `SELECT connection.id, connection.team_id, connection.team_name,
+            connection.bot_user_id, connection.is_default,
+            connection.health_status, connection.last_checked_at,
+            connection.last_error, connection.app_id, connection.project_id,
+            project.name AS project_name
+       FROM slack_connections connection
+       LEFT JOIN projects project ON project.id = connection.project_id
+      WHERE connection.org_id = ?
       ORDER BY is_default DESC, lower(COALESCE(team_name, team_id))`,
   ).bind(orgId).all();
   return (results ?? []).map((row) => ({
@@ -121,6 +127,7 @@ export async function listSlackConnections(env, orgId) {
     botUserId: row.bot_user_id ?? null, isDefault: Boolean(row.is_default),
     health: row.health_status ?? "unknown", lastCheckedAt: row.last_checked_at ?? null,
     lastError: row.last_error ?? null, appId: row.app_id ?? null,
+    projectId: row.project_id ?? null, projectName: row.project_name ?? null,
   }));
 }
 
@@ -162,8 +169,8 @@ export async function resolveSlackChannels(db, orgId) {
   return {
     fallbackChannelId: channelId(slack.fallbackChannelId),
     fallbackConnectionId: channelId(slack.fallbackConnectionId),
-    noxAlertChannelId: channelId(slack.noxAlertChannelId),
-    noxAlertConnectionId: channelId(slack.noxAlertConnectionId),
+    noxCueChannelId: channelId(slack.noxCueChannelId),
+    noxCueConnectionId: channelId(slack.noxCueConnectionId),
     noxTicketChannelId: channelId(slack.noxTicketChannelId),
     noxTicketConnectionId: channelId(slack.noxTicketConnectionId),
     // Retained for clients released during the combined-route window.
@@ -172,13 +179,14 @@ export async function resolveSlackChannels(db, orgId) {
     postsConnectionId: channelId(slack.postsConnectionId),
     releaseNotesChannelId,
     releaseNotesConnectionId: channelId(slack.releaseNotesConnectionId),
+    noxFeedProjectId: channelId(slack.noxFeedProjectId),
   };
 }
 
 export function resolveSlackConnectionId(channels, service, siteConnectionId = "") {
   const fallback = channelId(channels?.fallbackConnectionId);
   switch (service) {
-    case "noxalert": return channelId(channels?.noxAlertConnectionId) || fallback;
+    case "noxcue": return channelId(channels?.noxCueConnectionId) || fallback;
     case "noxspot": return channelId(siteConnectionId) || fallback;
     case "noxticket": return channelId(channels?.noxTicketConnectionId) || fallback;
     case "noxfeed_posts": return channelId(channels?.postsConnectionId) || fallback;
@@ -190,8 +198,8 @@ export function resolveSlackConnectionId(channels, service, siteConnectionId = "
 export function resolveSlackRoute(channels, service, siteChannelId = "") {
   const fallback = channelId(channels?.fallbackChannelId);
   switch (service) {
-    case "noxalert":
-      return channelId(channels?.noxAlertChannelId) || fallback;
+    case "noxcue":
+      return channelId(channels?.noxCueChannelId) || fallback;
     case "noxspot":
       return channelId(siteChannelId) || fallback;
     case "noxticket":
@@ -218,8 +226,8 @@ function emptySlackChannels() {
   return {
     fallbackChannelId: "",
     fallbackConnectionId: "",
-    noxAlertChannelId: "",
-    noxAlertConnectionId: "",
+    noxCueChannelId: "",
+    noxCueConnectionId: "",
     noxTicketChannelId: "",
     noxTicketConnectionId: "",
     noxFeedChannelId: "",
@@ -227,6 +235,7 @@ function emptySlackChannels() {
     postsConnectionId: "",
     releaseNotesChannelId: "",
     releaseNotesConnectionId: "",
+    noxFeedProjectId: "",
   };
 }
 
@@ -302,6 +311,10 @@ async function slackGet(token, endpoint, params = {}) {
 // Post a Block Kit message to a channel. Throws on Slack error.
 export function postSlackMessage(token, channelId, payload) {
   return slackPost(token, "chat.postMessage", { channel: channelId, ...payload });
+}
+
+export function updateSlackMessage(token, channelId, messageTs, payload) {
+  return slackPost(token, "chat.update", { channel: channelId, ts: messageTs, ...payload });
 }
 
 export async function getSlackChannel(token, channelId) {
@@ -479,6 +492,12 @@ export const SlackTeamParamSchema = z
     message: "Invalid Slack team id",
   });
 
+export const SlackProjectParamSchema = z
+  .string()
+  .trim()
+  .min(1, "Project is required")
+  .max(240, "Invalid project id");
+
 export function buildOAuthAuthorizeUrl(
   clientId,
   origin,
@@ -570,18 +589,25 @@ export async function verifyOAuthState(secret, state, maxAgeMs = null) {
   let diff = 0;
   for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
   if (diff !== 0) return null;
-  // Current payload format: `<nonce>:<orgId>:<encodedUserLogin>:<issuedAtMs>`.
+  // Current payload format:
+  // `<nonce>:<orgId>:<encodedUserLogin>:<issuedAtMs>:<encodedProjectId>`.
+  // Project is blank for an organization-wide first workspace.
   // The legacy three-part shape remains valid for callbacks already in flight,
   // but cannot pass a max-age check at the agent browser handoff.
   const parts = payload.split(":");
   if (parts.length < 3) return null;
   const orgId = Number(parts[1]);
   if (!Number.isFinite(orgId) || orgId <= 0) return null;
-  if (parts.length === 4) {
+  if (parts.length === 4 || parts.length === 5) {
     const issuedAt = Number(parts[3]);
     if (!Number.isFinite(issuedAt) || issuedAt <= 0) return null;
     if (maxAgeMs != null && (Date.now() - issuedAt > maxAgeMs || issuedAt > Date.now() + 60_000)) return null;
-    return { orgId, userLogin: parts[2], issuedAt };
+    return {
+      orgId,
+      userLogin: parts[2],
+      issuedAt,
+      projectId: parts.length === 5 ? parts[4] : "",
+    };
   }
   if (maxAgeMs != null) return null;
   return { orgId, userLogin: parts.slice(2).join(":") };
@@ -613,8 +639,8 @@ export async function clearSlackChannelsForOrg(db, orgId) {
   if (!settings?.slack) return;
   delete settings.slack.fallbackChannelId;
   delete settings.slack.fallbackConnectionId;
-  delete settings.slack.noxAlertChannelId;
-  delete settings.slack.noxAlertConnectionId;
+  delete settings.slack.noxCueChannelId;
+  delete settings.slack.noxCueConnectionId;
   delete settings.slack.noxTicketChannelId;
   delete settings.slack.noxTicketConnectionId;
   delete settings.slack.noxFeedChannelId;
@@ -657,7 +683,7 @@ async function clearSlackChannelsForConnection(db, orgId, connectionId, wasDefau
   if (!settings?.slack) return;
   const pairs = [
     ["fallbackConnectionId", "fallbackChannelId"],
-    ["noxAlertConnectionId", "noxAlertChannelId"],
+    ["noxCueConnectionId", "noxCueChannelId"],
     ["noxTicketConnectionId", "noxTicketChannelId"],
     ["postsConnectionId", "postsChannelId"],
     ["releaseNotesConnectionId", "releaseNotesChannelId"],

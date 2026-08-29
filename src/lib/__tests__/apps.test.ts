@@ -3,7 +3,7 @@ import { getDefaultEnabledTab, getEnabledNoxApps, getAppForTab, isNoxAppEnabled,
 
 describe("Nox app configuration", () => {
   it("keeps existing organizations fully enabled by default", () => {
-    expect(getEnabledNoxApps(null)).toEqual(["noxconnect", "noxticket", "noxfeed", "noxspot", "noxalert"]);
+    expect(getEnabledNoxApps(null)).toEqual(["noxconnect", "noxticket", "noxfeed", "noxspot", "noxcue"]);
   });
 
   it("never allows NoxConnect to be disabled", () => {
@@ -13,7 +13,6 @@ describe("Nox app configuration", () => {
   it("maps every product view to its owning app", () => {
     expect(getAppForTab("sprint")).toBe("noxticket");
     expect(getAppForTab("issues")).toBe("noxfeed");
-    expect(getAppForTab("noxalert")).toBe("noxalert");
     expect(getAppForTab("repos")).toBe("noxconnect");
   });
 

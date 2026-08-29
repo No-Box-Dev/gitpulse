@@ -21,8 +21,8 @@ binding = "NOXSPOT_RESPONSE"
 service = "noxspot-api"
 
 [[services]]
-binding = "NOXALERT_RESPONSE"
-service = "noxalert"
+binding = "NOXCUE_RESPONSE"
+service = "noxcue"
 
 [[services]]
 binding = "NOXFEED_RESPONSE"

@@ -12,6 +12,9 @@ vi.mock("@/hooks/useGitHub", () => ({
   useAcknowledgeRepos: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
 }));
 vi.mock("@/hooks/useNoxConnect", () => ({ useNoxConnect: vi.fn() }));
+vi.mock("@/components/admin/tools/NoxCueSourcesSection", () => ({
+  NoxCueSourcesSection: () => <div>Project metric controls</div>,
+}));
 vi.mock("@/components/SyncFromGithub", () => ({
   SyncFromGithubModal: ({ open }: { open: boolean }) =>
     open ? <div data-testid="sync-modal" /> : null,
@@ -30,27 +33,6 @@ vi.mock("@/hooks/useConfigRepo", () => ({
 vi.mock("@/hooks/useNoxlink", () => ({
   useFeedProjects: vi.fn(),
   useSetProjectArchived: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
-}));
-vi.mock("@/hooks/useNoxAlert", () => ({
-  useNoxAlertProjects: vi.fn(() => ({
-    data: {
-      projects: [{
-        id: "p1",
-        name: "api",
-        repo: "api",
-        enabled: false,
-        allowedOrigins: [],
-        rule: null,
-        keys: [],
-      }],
-      slackReady: true,
-    },
-    isLoading: false,
-    isError: false,
-  })),
-  useSaveNoxAlertProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isSuccess: false })),
-  useCreateNoxAlertKey: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
-  useRevokeNoxAlertKey: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 vi.mock("@/hooks/useNoxSpot", () => ({
   useNoxSpotSites: vi.fn(() => ({ data: [], isLoading: false })),
@@ -141,7 +123,7 @@ const noxConnectData = {
   features: {
     feed: { state: "ready" as const, requirements: ["github"] },
     noxSpot: { state: "ready" as const, requirements: ["github"] },
-    noxAlert: { state: "ready" as const, requirements: ["github", "slack"], prerequisitesReady: true },
+    noxCue: { state: "ready" as const, requirements: ["slack"], prerequisitesReady: true },
   },
 };
 
@@ -278,9 +260,8 @@ describe("AdminTab", () => {
     fireEvent.click(screen.getByRole("tab", { name: "NoxSpot" }));
     expect(screen.getByText("Site setup")).toBeInTheDocument();
     expect(screen.getByText("Add site")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "NoxAlert" }));
-    expect(screen.getByText("Alert rules")).toBeInTheDocument();
-    expect(screen.getByText("Public ingest keys")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "NoxCue" }));
+    expect(screen.getByText("Project metric controls")).toBeInTheDocument();
   });
 
   it("renders repositories inside NoxConnect", async () => {

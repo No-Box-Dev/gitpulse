@@ -19,9 +19,8 @@ function context(body) {
     }),
     data: { orgId: 7, orgLogin: "acme", isAdmin: true },
     env: {
-      NOXALERT_RESPONSE: {
-        buildResolvedResponse: vi.fn(),
-        buildTestResponse: vi.fn(async (org) => ({ contract: "noxalert.response", version: 1, message: { text: `NoxAlert delivery test for ${org}`, blocks: [{ type: "section" }] } })),
+      NOXCUE_RESPONSE: {
+        buildTestResponse: vi.fn(async (org) => ({ contract: "noxcue.response", version: 1, message: { text: `NoxCue delivery test for ${org}`, blocks: [{ type: "section" }] } })),
       },
       NOXSPOT_RESPONSE: {
         buildIssueResponse: vi.fn(),
@@ -56,13 +55,13 @@ function context(body) {
 describe("Slack route tests", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("sends the NoxAlert-specific payload to the selected alert channel", async () => {
-    const response = await onRequestPost(context({ kind: "noxalert", channelId: "C-ALERT" }));
+  it("sends the NoxCue-specific payload to the selected channel", async () => {
+    const response = await onRequestPost(context({ kind: "noxcue", channelId: "C-ALERT" }));
     expect(response.status).toBe(200);
     expect(postSlackMessage).toHaveBeenCalledWith(
       "xoxb-test",
       "C-ALERT",
-      expect.objectContaining({ text: "NoxAlert delivery test for acme" }),
+      expect.objectContaining({ text: "NoxCue delivery test for acme" }),
     );
   });
 

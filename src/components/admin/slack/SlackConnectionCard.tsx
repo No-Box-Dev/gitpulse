@@ -4,6 +4,7 @@ import { Loader2, MessageSquare } from "lucide-react";
 import {
   startSlackOAuth,
   disconnectSlack,
+  updateSlackConnectionProject,
   type SlackConnection,
 } from "@/lib/slack-api";
 import { apiPost } from "@/lib/api";
@@ -11,6 +12,8 @@ import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { SlackRouteField } from "@/components/admin/slack/SlackRouteField";
 import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelStatusBadge";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
+import { useFeedProjects } from "@/hooks/useNoxlink";
+import type { FeedProject } from "@/lib/noxlink-api";
 
 // The NoxConnect-section Slack card: connection lifecycle (connect / reconnect /
 // disconnect), health stats, and the organization fallback channel. Per-tool
@@ -18,6 +21,8 @@ import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 export function SlackConnectionCard() {
   const qc = useQueryClient();
   const { status } = useSlackChannels();
+  const projects = useFeedProjects();
+  const [newProjectId, setNewProjectId] = useState("");
 
   // Seed the OAuth-failure banner from the ?slack= param at first render —
   // the callback redirects back with the failure reason in the URL.
@@ -53,7 +58,7 @@ export function SlackConnectionCard() {
     window.history.replaceState({}, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [qc]);
 
-  async function handleConnect(options?: { team?: string | null }) {
+  async function handleConnect(options?: { team?: string | null; projectId?: string | null }) {
     setError(null);
     setBusy("connect");
     try {
@@ -93,6 +98,9 @@ export function SlackConnectionCard() {
   }
 
   const data = status.data;
+  const allProjects = projects.data ?? [];
+  const activeProjects = allProjects.filter((project) => !project.archived);
+  const existingAssignmentsComplete = data?.connections?.every((connection) => connection.projectId) ?? true;
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-4">
@@ -107,9 +115,9 @@ export function SlackConnectionCard() {
         )}
       </div>
       <p className="text-xs text-stone-400">
-        Connect every Slack workspace this organization needs. Each Nox service can
-        then choose its workspace and channel independently. The bot must be added
-        to private channels before it can post there.
+        One Slack workspace can serve the whole organization. To add another,
+        assign the current workspace and the new workspace to projects first.
+        The bot must be added to private channels before it can post there.
       </p>
 
       {data?.connections?.length ? (
@@ -119,6 +127,8 @@ export function SlackConnectionCard() {
               key={connection.id}
               connection={connection}
               disconnecting={busy === "disconnect"}
+              projects={allProjects}
+              projectRequired={Boolean(data.projectAssignmentRequired)}
               onDisconnect={handleDisconnect}
               onError={setError}
             />
@@ -154,7 +164,7 @@ export function SlackConnectionCard() {
       {!data?.connected ? (
         <button
           type="button"
-          onClick={() => handleConnect()}
+          onClick={() => handleConnect({ team: null })}
           disabled={busy === "connect" || !data?.canConfigure || !data?.appConfigured}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 disabled:opacity-50 cursor-pointer"
         >
@@ -172,17 +182,35 @@ export function SlackConnectionCard() {
             />
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
+          <div className="space-y-2 border-t border-stone-100 pt-3">
+            <label className="block text-xs font-medium text-stone-600">
+              Project for new workspace
+              <select
+                value={newProjectId}
+                onChange={(event) => setNewProjectId(event.target.value)}
+                className="mt-1.5 block w-full max-w-sm rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-700"
+              >
+                <option value="">Choose project</option>
+                {activeProjects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
+            </label>
+            {!existingAssignmentsComplete ? (
+              <p className="text-xs text-amber-700">Assign every connected workspace to a project before adding another.</p>
+            ) : null}
+            <div className="flex items-center gap-3 flex-wrap">
             <button
               type="button"
-              onClick={() => handleConnect()}
-              disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
+              onClick={() => handleConnect({ team: null, projectId: newProjectId })}
+              disabled={busy === "connect" || !data.canConfigure || !data.appConfigured || !newProjectId || !existingAssignmentsComplete}
               className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
             >
               {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
               Add Slack workspace
             </button>
             {(data.health === "degraded" || data.needsReconnect) ? <span className="text-xs text-amber-700">Reconnect by adding the affected workspace again.</span> : null}
+            </div>
           </div>
         </>
       )}
@@ -194,11 +222,15 @@ export function SlackConnectionCard() {
 function SlackConnectionRow({
   connection,
   disconnecting,
+  projects,
+  projectRequired,
   onDisconnect,
   onError,
 }: {
   connection: SlackConnection;
   disconnecting: boolean;
+  projects: FeedProject[];
+  projectRequired: boolean;
   onDisconnect: (connectionId: string) => Promise<void>;
   onError: (message: string | null) => void;
 }) {
@@ -206,6 +238,23 @@ function SlackConnectionRow({
   const { channels, status } = useSlackChannels(connection.id);
   const [channelId, setChannelId] = useState("");
   const [testing, setTesting] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+
+  async function handleProjectChange(projectId: string) {
+    onError(null);
+    setSavingProject(true);
+    try {
+      await updateSlackConnectionProject(connection.id, projectId || null);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["slack-status"] }),
+        qc.invalidateQueries({ queryKey: ["integrations-status"] }),
+      ]);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingProject(false);
+    }
+  }
 
   async function handleTest() {
     if (!channelId) return;
@@ -248,6 +297,20 @@ function SlackConnectionRow({
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={connection.projectId ?? ""}
+          onChange={(event) => void handleProjectChange(event.target.value)}
+          disabled={savingProject}
+          aria-label={`Project for ${connection.teamName}`}
+          className="min-w-44 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600 disabled:opacity-50"
+        >
+          <option value="" disabled={projectRequired}>{projectRequired ? "Choose project" : "Organization-wide"}</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id} disabled={Boolean(project.archived)}>
+              {project.name}{project.archived ? " (archived)" : ""}
+            </option>
+          ))}
+        </select>
         <select
           value={channelId}
           onChange={(event) => setChannelId(event.target.value)}

@@ -31,7 +31,7 @@ export async function stageSlackDelivery(db, { orgId, source, sourceId, siteId, 
   ).bind(id, orgId, source, sourceId, siteId ?? null, connectionId || null, channelId, JSON.stringify(payload)).first();
 }
 
-export async function queueOutboxDelivery(env, deliveryId, ownerId = null) {
+export async function queueOutboxDelivery(env, deliveryId, ownerId = /** @type {string | null} */ (null)) {
   if (!env?.TASK_QUEUE) {
     await noteQueueFailure(env?.DB, deliveryId, "queue_binding_missing", "TASK_QUEUE binding is unavailable");
     return false;

@@ -103,7 +103,7 @@ npx wrangler secret put ENCRYPTION_KEY       --name noxconnect-cron
 
 ### Provision the NoxConnect Slack app
 
-The versioned [`slack-app-manifest.json`](./slack-app-manifest.json) is the single source of truth for NoxConnect, the shared Slack app for NoxAlert, NoxFeed, NoxKey, and NoxTicket. It configures the centralized OAuth callbacks, least-privilege bot scopes, Events API endpoint, and `app.unticket.ai` link unfurls. Generate a temporary **app configuration token** under [Your Apps](https://api.slack.com/apps), then create the shared app—or use `slack:push` with the existing app ID to rename and migrate that installation without creating a duplicate app:
+The versioned [`slack-app-manifest.json`](./slack-app-manifest.json) is the single source of truth for NoxConnect, the shared Slack app for NoxCue, NoxFeed, NoxKey, and NoxTicket. It configures the centralized OAuth callbacks, least-privilege bot scopes, Events API endpoint, and `app.unticket.ai` link unfurls. Generate a temporary **app configuration token** under [Your Apps](https://api.slack.com/apps), then create the shared app—or use `slack:push` with the existing app ID to rename and migrate that installation without creating a duplicate app:
 
 ```bash
 SLACK_CONFIG_TOKEN=xoxe.xoxp-... npm run slack:validate
@@ -122,7 +122,7 @@ For customer installs, open **Manage Distribution** in the Slack app dashboard,
 complete Slack's checklist, and activate unlisted public distribution. Do not
 publish a second Slack app per product: admins start OAuth from NoxConnect's
 **Setup** tab, and the resulting encrypted workspace token is shared by
-NoxAlert, NoxFeed, NoxKey, NoxSpot, and NoxTicket for that Nox organization.
+NoxCue, NoxFeed, NoxKey, NoxSpot, and NoxTicket for that Nox organization.
 The organization can connect multiple Slack workspaces and stores a workspace +
 channel for its fallback and each service-specific route. NoxFeed has separate
 Posts and Release Notes routes; NoxSpot can override the fallback per site. Private
@@ -157,14 +157,14 @@ The staged migration and rollback gates are documented in
 read-only validation and require an explicit `--apply` to write remote state.
 
 Pages and the cron Worker require three private, versioned response bindings:
-`NOXSPOT_RESPONSE` targets `noxspot-api`, `NOXALERT_RESPONSE` targets
-`noxalert`, and `NOXFEED_RESPONSE` targets `noxfeed-response`. Deploy compatible
+`NOXSPOT_RESPONSE` targets `noxspot-api`, `NOXCUE_RESPONSE` targets
+`noxcue`, and `NOXFEED_RESPONSE` targets `noxfeed-response`. Deploy compatible
 product Workers before deploying Pages or cron. The renderers receive only
 bounded product data and public references; GitHub credentials, Slack tokens,
 connection IDs, and delivery state never cross these bindings. NoxFeed's
 response Worker is built from the NoxFeed repository's `service/` directory.
 
-The safe manual order is NoxSpot API, NoxAlert, NoxFeed response, Pages, then
+The safe manual order is NoxSpot API, NoxCue, NoxFeed response, Pages, then
 cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 
 > **Migrations run before code** — the deploy workflow applies D1 migrations before `pages deploy` for this reason. If you deploy manually, run `d1 migrations apply` first.

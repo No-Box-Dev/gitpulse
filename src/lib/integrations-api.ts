@@ -13,7 +13,7 @@ export interface IntegrationsStatus {
   features: {
     feed: FeatureReadiness;
     noxSpot: FeatureReadiness;
-    noxAlert: FeatureReadiness & { prerequisitesReady: boolean };
+    noxCue: FeatureReadiness & { prerequisitesReady: boolean };
   };
   github: {
     connected: boolean;
@@ -36,7 +36,7 @@ export interface IntegrationsStatus {
     defaultChannelId: string | null;
     channels: {
       fallback: string | null;
-      noxAlert: string | null;
+      noxCue: string | null;
       noxticket: string | null;
       noxFeed: string | null;
       noxFeedPosts: string | null;
@@ -106,6 +106,8 @@ export interface ConnectionStartOptions {
    * the server default to the org's current workspace.
    */
   team?: string | null;
+  /** Project assignment required when adding a second Slack workspace. */
+  projectId?: string | null;
 }
 
 export function startIntegrationConnection(
@@ -114,6 +116,7 @@ export function startIntegrationConnection(
 ): Promise<ConnectionStart> {
   const body: Record<string, unknown> = {};
   if (options.team !== undefined) body.team = options.team;
+  if (options.projectId !== undefined) body.projectId = options.projectId;
   return apiPost<ConnectionStart>(`/api/integrations/connections/${provider}/start`, body);
 }
 

@@ -42,7 +42,7 @@ Content-Type: application/json
 {
   "routes": {
     "fallback": "C0123456789",
-    "noxalert": "C0123456789",
+    "noxcue": "C0123456789",
     "noxticket": "C0234567890",
     "noxfeed_posts": "C0345678901",
     "noxfeed_release_notes": "C0456789012"
@@ -68,7 +68,7 @@ An optional `channelId` tests a candidate channel before saving it.
 After connections and organization routes are ready, feature-specific resources remain API-first:
 
 - NoxSpot sites: `GET`/`POST /api/spots/sites` and `PATCH /api/spots/sites/{siteId}`.
-- NoxAlert projects: `GET /api/alerts/projects`, `PUT /api/alerts/projects/{projectId}`, and `POST /api/alerts/projects/{projectId}/keys`. A newly created ingest key is returned only once; transfer it securely and never log it.
+- NoxCue sources: `GET/POST /api/cues/sources`, project metrics: `GET/PUT /api/cues/projects/{projectId}/metrics`, and keys: `POST /api/cues/sources/{sourceId}/keys`. A newly created ingest key is returned only once; transfer it securely and never log it.
 - NoxFeed uses the separate `noxfeed_posts` and `noxfeed_release_notes` routes.
 - NoxTicket uses the `noxticket` route.
 

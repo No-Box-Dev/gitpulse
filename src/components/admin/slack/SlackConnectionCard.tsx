@@ -99,7 +99,7 @@ export function SlackConnectionCard() {
 
   const data = status.data;
   const allProjects = projects.data ?? [];
-  const activeProjects = allProjects.filter((project) => !project.archived);
+  const activeProjects = allProjects.filter((project) => !project.archived && project.routing_enabled === 1);
   const existingAssignmentsComplete = data?.connections?.every((connection) => connection.projectId) ?? true;
 
   return (
@@ -127,7 +127,7 @@ export function SlackConnectionCard() {
               key={connection.id}
               connection={connection}
               disconnecting={busy === "disconnect"}
-              projects={allProjects}
+              projects={activeProjects}
               projectRequired={Boolean(data.projectAssignmentRequired)}
               onDisconnect={handleDisconnect}
               onError={setError}

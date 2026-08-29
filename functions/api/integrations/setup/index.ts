@@ -43,9 +43,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     return typeof value === "string" && Boolean(value.trim());
   }).length;
   const hasRoute = (field: string) => Boolean(resolveSavedSlackChannel(slack, field));
-  const [spotCount, cueCount] = await Promise.all([
+  const [spotCount, cueCount, projectRouteCount] = await Promise.all([
     countRows(context.env.DB, "SELECT COUNT(*) AS count FROM spot_sites WHERE org_id = ?", orgId),
     countRows(context.env.DB, "SELECT COUNT(*) AS count FROM cue_sources WHERE org_id = ? AND enabled = 1", orgId),
+    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM project_routing_settings WHERE org_id = ? AND enabled = 1", orgId),
   ]);
 
   const steps = {
@@ -75,6 +76,16 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         ? apiAction("PATCH", "/api/integrations/slack/routing", SLACK_ROUTING_BODY_SCHEMA)
         : null,
       discover: slackComplete && isAdmin ? apiAction("GET", "/api/slack/channels") : null,
+    },
+    configure_project_routing: {
+      title: "Group repositories and configure project routes",
+      required: false,
+      dependsOn: ["connect_github"],
+      state: !githubComplete || !isAdmin ? "blocked" : (Number(projectRouteCount?.count || 0) > 0 ? "complete" : "available"),
+      automatable: true,
+      action: githubComplete && isAdmin ? apiAction("PUT", "/api/projects/routing/{projectId}") : null,
+      discover: githubComplete && isAdmin ? apiAction("GET", "/api/projects/routing") : null,
+      instructions: "Explicitly enable the NoxConnect projects you use, assign one or more repositories, and optionally set NoxFeed or NoxCue destinations.",
     },
     configure_noxfeed: {
       title: "Configure NoxFeed delivery",

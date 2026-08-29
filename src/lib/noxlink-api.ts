@@ -21,6 +21,7 @@ export interface FeedProject {
   repo: string | null;
   description: string | null;
   narrator_enabled: 0 | 1;
+  routing_enabled: 0 | 1;
   archived: 0 | 1;
   archived_at: string | null;
   updated_at: string | null;

@@ -8,4 +8,4 @@ NoxConnect provides one organization-level API for connecting GitHub and Slack a
 
 Authentication uses a GitHub OAuth access token as `Authorization: Bearer <token>` plus the GitHub organization login in `X-Org`. Setup mutations require an organization admin.
 
-An agent may initiate GitHub or Slack OAuth. The returned `userAction.url` must be opened by a human in a browser; poll `/api/integrations/setup` after approval. All channel discovery, routing, verification, and disconnect operations are API-callable.
+An agent may initiate GitHub or Slack OAuth. The returned `userAction.url` must be opened by a human in a browser; poll `/api/integrations/setup` after approval. All channel discovery, organization routing, project/repository routing, verification, and disconnect operations are API-callable. Discover shared project routing at `/api/projects/routing`.

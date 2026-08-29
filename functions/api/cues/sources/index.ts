@@ -1,8 +1,8 @@
 import { getCtx, errorResponse, jsonResponse } from "../../../lib/db";
 import { getNoxDb, type NoxDatabaseEnv } from "../../../lib/nox-db";
 import { cueSourceInputSchema } from "../../../lib/noxcue-settings";
+import { validateProjectSlackDestination } from "../../../lib/project-routing";
 import { validate } from "../../../lib/validate";
-import { getSlackChannel, resolveSlackInstall } from "../../../lib/slack.js";
 
 interface Ctx {
   env: NoxDatabaseEnv;
@@ -57,9 +57,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
          FROM cue_source_keys WHERE org_id = ? ORDER BY created_at DESC`,
     ).bind(orgId).all<KeyRow>(),
     db.prepare(
-      `SELECT id, name, repo FROM projects
-        WHERE owner_id = ? AND COALESCE(archived, 0) = 0 ORDER BY name`,
-    ).bind(orgLogin).all<{ id: string; name: string; repo: string | null }>(),
+      `SELECT project.id, project.name, project.repo FROM projects project
+        JOIN project_routing_settings routing ON routing.project_id = project.id
+       WHERE routing.org_id = ? AND routing.enabled = 1
+         AND project.owner_id = ? AND COALESCE(project.archived, 0) = 0
+       ORDER BY project.name`,
+    ).bind(orgId, orgLogin).all<{ id: string; name: string; repo: string | null }>(),
   ]);
 
   const keysBySource = new Map<string, KeyRow[]>();
@@ -106,23 +109,22 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
 
   if (parsed.data.projectId) {
     const project = await db.prepare(
-      "SELECT id FROM projects WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0",
-    ).bind(parsed.data.projectId, orgLogin).first();
+      `SELECT project.id FROM projects project
+        JOIN project_routing_settings routing ON routing.project_id = project.id
+       WHERE project.id = ? AND project.owner_id = ? AND routing.org_id = ?
+         AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0`,
+    ).bind(parsed.data.projectId, orgLogin, orgId).first();
     if (!project) return errorResponse("Active project not found in this organization", 404);
   }
 
   let slackConnectionId: string | null = null;
-  if (parsed.data.slackChannelId) {
-    const install = await resolveSlackInstall(context.env, orgId, parsed.data.slackConnectionId);
-    if (!install) return errorResponse("Connect the selected Slack workspace first", 409);
-    try {
-      const channel = await getSlackChannel(install.botToken, parsed.data.slackChannelId);
-      if (!channel || channel.is_archived) return errorResponse("Slack channel is archived or unavailable", 409);
-      if (channel.is_private && !channel.is_member) return errorResponse("Invite the Nox bot to this private channel first", 409);
-    } catch (error) {
-      return errorResponse(error instanceof Error ? error.message : "Slack channel is unavailable", 409);
-    }
-    slackConnectionId = install.id;
+  try {
+    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, parsed.data.projectId, {
+      connectionId: parsed.data.slackConnectionId,
+      channelId: parsed.data.slackChannelId,
+    });
+  } catch (error) {
+    return errorResponse(error instanceof Error ? error.message : "Slack channel is unavailable", 409);
   }
 
   const id = crypto.randomUUID();
@@ -140,4 +142,3 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   ).run();
   return jsonResponse({ id }, 201);
 }
-

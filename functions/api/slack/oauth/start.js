@@ -50,10 +50,12 @@ export async function onRequestPost(context) {
 
   if (projectId) {
     const project = await context.env.DB.prepare(
-      `SELECT id FROM projects
-        WHERE id = ? AND owner_id = ? AND COALESCE(archived, 0) = 0`,
-    ).bind(projectId, orgLogin).first();
-    if (!project) return errorResponse("Project not found", 404);
+      `SELECT project.id FROM projects project
+        JOIN project_routing_settings routing ON routing.project_id = project.id
+       WHERE project.id = ? AND project.owner_id = ? AND routing.org_id = ?
+         AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0`,
+    ).bind(projectId, orgLogin, orgId).first();
+    if (!project) return errorResponse("Enabled NoxConnect project not found", 404);
   }
 
   const connectionSummary = await context.env.DB.prepare(

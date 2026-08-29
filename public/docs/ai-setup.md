@@ -52,6 +52,14 @@ Content-Type: application/json
 
 Use `null` to clear a route. Service routes fall back to `fallback`; NoxSpot first uses its per-site channel and then the organization fallback. For private Slack channels, invite the Nox bot before assigning the channel.
 
+Project routing is owned by NoxConnect. Discover project candidates, their explicit enabled state, installed repositories, and current named destinations with:
+
+```http
+GET /api/projects/routing
+```
+
+Update one project atomically with `PUT /api/projects/routing/{projectId}`. The body sets `enabled`, assigns its `repositories`, and supplies the `noxfeedPosts`, `noxfeedReleaseNotes`, and `noxCue` workspace/channel pairs. Repository mirror rows never participate until explicitly enabled. A repository belongs to one enabled project; assigning it here moves future traffic from its previous project. Empty destination pairs use the corresponding organization route. A project-assigned Slack workspace cannot be used by another project.
+
 Verify a saved route:
 
 ```http
@@ -68,8 +76,8 @@ An optional `channelId` tests a candidate channel before saving it.
 After connections and organization routes are ready, feature-specific resources remain API-first:
 
 - NoxSpot sites: `GET`/`POST /api/spots/sites` and `PATCH /api/spots/sites/{siteId}`.
-- NoxCue sources: `GET/POST /api/cues/sources`, project metrics: `GET/PUT /api/cues/projects/{projectId}/metrics`, and keys: `POST /api/cues/sources/{sourceId}/keys`. A newly created ingest key is returned only once; transfer it securely and never log it.
-- NoxFeed uses the separate `noxfeed_posts` and `noxfeed_release_notes` routes.
+- NoxCue sources: `GET/POST /api/cues/sources`, project metrics: `GET/PUT /api/cues/projects/{projectId}/metrics`, and keys: `POST /api/cues/sources/{sourceId}/keys`. A source destination overrides its linked project's `noxCue` route; otherwise the organization route is used. A newly created ingest key is returned only once; transfer it securely and never log it.
+- NoxFeed resolves each GitHub repository through NoxConnect project routing before using the organization `noxfeed_posts` or `noxfeed_release_notes` route.
 - NoxTicket uses the `noxticket` route.
 
 Read the live endpoint response before acting; action links and state in `/api/integrations/setup` take precedence over this narrative guide.

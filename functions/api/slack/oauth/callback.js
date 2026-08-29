@@ -53,7 +53,10 @@ export async function onRequestGet(context) {
     const ownedProject = await context.env.DB.prepare(
       `SELECT project.id FROM projects project
        JOIN orgs org ON org.github_login = project.owner_id
-       WHERE project.id = ? AND org.id = ? AND COALESCE(project.archived, 0) = 0`,
+       JOIN project_routing_settings routing
+         ON routing.project_id = project.id AND routing.org_id = org.id
+       WHERE project.id = ? AND org.id = ? AND routing.enabled = 1
+         AND COALESCE(project.archived, 0) = 0`,
     ).bind(projectId, orgId).first();
     if (!ownedProject) return redirectHome(url, "project-not-found");
   }

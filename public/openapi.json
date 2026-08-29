@@ -75,6 +75,22 @@
         "responses": { "200": { "description": "Projects" } }
       }
     },
+    "/api/projects/routing": {
+      "get": {
+        "operationId": "getProjectRouting",
+        "summary": "List NoxConnect projects, repository assignments, and product destinations",
+        "responses": { "200": { "description": "Project routing model" }, "403": { "description": "Admin required" } }
+      }
+    },
+    "/api/projects/routing/{projectId}": {
+      "put": {
+        "operationId": "updateProjectRouting",
+        "summary": "Atomically update one project's repositories and named Slack destinations",
+        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectRoutingInput" } } } },
+        "responses": { "200": { "description": "Project routing updated" }, "403": { "description": "Admin required" }, "409": { "description": "Workspace belongs to another project or channel is unavailable" } }
+      }
+    },
     "/api/spots/sites": {
       "get": {
         "operationId": "listNoxSpotSites",
@@ -387,6 +403,34 @@
           "digestTimeLocal": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$" },
           "slackChannelId": { "type": ["string", "null"] },
           "slackConnectionId": { "type": ["string", "null"] }
+        }
+      },
+      "ProjectDestination": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["connectionId", "channelId"],
+        "properties": {
+          "connectionId": { "type": "string", "maxLength": 120 },
+          "channelId": { "type": "string", "maxLength": 80 }
+        }
+      },
+      "ProjectRoutingInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled", "repositories", "routes"],
+        "properties": {
+          "enabled": { "type": "boolean", "description": "Whether this repository-mirror row is explicitly enabled as a NoxConnect routing project" },
+          "repositories": { "type": "array", "maxItems": 500, "uniqueItems": true, "items": { "type": "string", "maxLength": 240 } },
+          "routes": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["noxfeedPosts", "noxfeedReleaseNotes", "noxCue"],
+            "properties": {
+              "noxfeedPosts": { "$ref": "#/components/schemas/ProjectDestination" },
+              "noxfeedReleaseNotes": { "$ref": "#/components/schemas/ProjectDestination" },
+              "noxCue": { "$ref": "#/components/schemas/ProjectDestination" }
+            }
+          }
         }
       },
       "NoxCueProjectMetricSelection": {

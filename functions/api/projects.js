@@ -24,6 +24,7 @@ export async function onRequestGet(context) {
   const rows = await db.prepare(
     `SELECT project.id, project.name, project.slug, project.org, project.repo,
             project.description, project.narrator_enabled,
+            COALESCE(routing.enabled, 0) AS routing_enabled,
             CASE
               WHEN project.archived = 1
                 OR repo.archived_at IS NOT NULL
@@ -34,9 +35,11 @@ export async function onRequestGet(context) {
             project.updated_at
      FROM projects project
      LEFT JOIN repos repo ON repo.org_id = ? AND repo.name = project.repo
+     LEFT JOIN project_routing_settings routing
+       ON routing.org_id = ? AND routing.project_id = project.id
      WHERE project.owner_id = ?
      ORDER BY archived, COALESCE(project.org, ''), project.name`
-  ).bind(orgId, orgLogin).all();
+  ).bind(orgId, orgId, orgLogin).all();
 
   return jsonResponse({ projects: rows.results ?? [] });
 }

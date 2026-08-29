@@ -29,8 +29,10 @@ async function findProject(context: Ctx) {
     `SELECT project.id, project.name
        FROM projects project
        JOIN orgs org ON lower(org.github_login) = lower(project.owner_id)
+       JOIN project_routing_settings routing
+         ON routing.project_id = project.id AND routing.org_id = org.id
       WHERE project.id = ? AND project.owner_id = ? AND org.id = ?
-        AND COALESCE(project.archived, 0) = 0`,
+        AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0`,
   ).bind(context.params.projectId, orgLogin, orgId).first<{ id: string; name: string }>();
 }
 

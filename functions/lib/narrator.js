@@ -700,6 +700,7 @@ async function maybePostToSlack(env, args) {
         summary,
         prUrl,
         prNumber,
+        interactionId: String(triggerEventId),
       });
     } else {
       const avatarUrl = await fetchActorAvatar(env.DB, actor.id, ownerId);
@@ -724,6 +725,12 @@ async function maybePostToSlack(env, args) {
           ...response.message,
           client_msg_id: `noxconnect-${kind}-${triggerEventId}`,
         },
+        ...(kind === "release_notes" ? { releaseNote: {
+          summary,
+          projectName: projectDestination?.projectName ?? project?.name ?? rawEvent.repo,
+          prUrl,
+          prNumber,
+        } } : {}),
       },
     });
     if (delivery?.id && delivery.status !== "delivered") {

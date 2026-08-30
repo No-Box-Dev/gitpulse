@@ -593,6 +593,7 @@ describe("narrateReleaseNotes — Slack mirror", () => {
     await narrateReleaseNotes(ENV(db), 1);
     expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
       source: "release_notes", sourceId: "1:release_notes", channelId: "C2",
+      payload: expect.objectContaining({ releaseNote: expect.objectContaining({ summary: expect.any(String) }) }),
     }));
   });
 

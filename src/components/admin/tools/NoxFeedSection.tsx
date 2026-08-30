@@ -7,6 +7,7 @@ import { ReleaseNotesPromptSection } from "@/components/admin/ReleaseNotesPrompt
 import { PostsBackfillSection } from "@/components/admin/PostsBackfillSection";
 import { LlmSettingsSection } from "@/components/admin/LlmSettingsSection";
 import { ToolSectionNav } from "@/components/admin/ToolSectionNav";
+import { NoxFeedProjectDelivery } from "@/components/admin/tools/NoxFeedProjectDelivery";
 
 const SECTIONS = [
   { id: "feed-delivery", label: "Delivery" },
@@ -45,8 +46,15 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
               </div>
               {noxConnect.slack.connected ? (
                 <div className="space-y-3 border-t border-stone-100 pt-4">
-                  <p className="text-xs text-stone-500">Default routes for repositories without a project-specific destination.</p>
-                  <p className="text-xs text-stone-400">Project-specific destinations are managed under NoxConnect → Repositories → Projects and routing.</p>
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-semibold text-stone-700">Project channel</h3>
+                    <p className="text-xs text-stone-400">Choose an enabled NoxConnect project and one channel for its posts and release notes.</p>
+                  </div>
+                  <NoxFeedProjectDelivery />
+                  <div className="space-y-1 border-t border-stone-100 pt-4">
+                    <h3 className="text-xs font-semibold text-stone-700">Organization defaults</h3>
+                    <p className="text-xs text-stone-400">Used for repositories without a project channel.</p>
+                  </div>
                   <div className="grid gap-4 lg:grid-cols-2">
                     <SlackRouteField label="Default posts" helpText="Narrated pull request activity." kind="noxfeed_posts" routeKey="postsChannelId" />
                     <SlackRouteField label="Default release notes" helpText="Summaries generated from merged work." kind="noxfeed_release_notes" routeKey="releaseNotesChannelId" />

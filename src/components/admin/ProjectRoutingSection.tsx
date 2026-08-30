@@ -1,14 +1,10 @@
 import { useMemo, useState } from "react";
-import { Check, Loader2, Send } from "lucide-react";
-import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
-import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { Check, Loader2 } from "lucide-react";
+import { ProjectSlackRouteField } from "@/components/admin/slack/ProjectSlackRouteField";
 import { useProjectRouting, useSaveProjectRouting } from "@/hooks/useProjectRouting";
-import { apiPost } from "@/lib/api";
-import type { ProjectDestination, ProjectRouting } from "@/lib/project-routing-api";
+import type { ProjectRouting } from "@/lib/project-routing-api";
 
 const ROUTES = [
-  { field: "noxfeedPosts", label: "NoxFeed posts", kind: "noxfeed_posts" },
-  { field: "noxfeedReleaseNotes", label: "Release notes", kind: "noxfeed_release_notes" },
   { field: "noxCue", label: "NoxCue digest", kind: "noxcue" },
 ] as const;
 
@@ -25,7 +21,7 @@ export function ProjectRoutingSection() {
       <h3 className="text-sm font-semibold text-stone-900">Projects and routing</h3>
       <p className="mt-1 text-xs leading-5 text-stone-500">
         Enable only the NoxConnect projects you actually use. A repository stays a repository until you assign it
-        to an enabled project; each enabled project can own several repositories and optional product destinations.
+        to an enabled project; each enabled project can own several repositories. Product channels are configured in their product tabs.
       </p>
     </div>
     {projects.length > 0 ? projects.map((project) => (
@@ -98,7 +94,7 @@ function ProjectCard({
       </div>
     </fieldset>
     <div className="grid gap-4 border-t border-stone-100 pt-4 lg:grid-cols-3">
-      {ROUTES.map(({ field, label, kind }) => <DestinationField
+      {ROUTES.map(({ field, label, kind }) => <ProjectSlackRouteField
         key={field}
         projectId={project.id}
         label={label}
@@ -110,49 +106,6 @@ function ProjectCard({
     </> : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">This repository mirror is not treated as a project by NoxFeed, NoxCue, or Slack routing.</p>}
     {save.isError ? <p className="text-xs text-red-500">{save.error instanceof Error ? save.error.message : "Project routing could not be saved."}</p> : null}
   </Panel>;
-}
-
-function DestinationField({
-  projectId,
-  label,
-  kind,
-  value,
-  onChange,
-}: {
-  projectId: string;
-  label: string;
-  kind: "noxfeed_posts" | "noxfeed_release_notes" | "noxcue";
-  value: ProjectDestination;
-  onChange: (value: ProjectDestination) => void;
-}) {
-  const allWorkspaces = useSlackChannels();
-  const selectedWorkspace = useSlackChannels(value.connectionId || undefined);
-  const [testing, setTesting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const workspaceOptions = (allWorkspaces.status.data?.connections ?? [])
-    .filter((connection) => !connection.projectId || connection.projectId === projectId)
-    .map((connection) => ({ value: connection.id, label: connection.teamName }));
-
-  async function test() {
-    if (!value.connectionId || !value.channelId) return;
-    setTesting(true);
-    setMessage(null);
-    try {
-      await apiPost("/api/slack/test", { connectionId: value.connectionId, channelId: value.channelId, kind });
-      setMessage("Test message posted.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  return <div className="space-y-2">
-    <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-stone-700">{label}</span><button type="button" onClick={() => void test()} disabled={testing || !value.channelId} className="inline-flex cursor-pointer items-center gap-1 text-xs text-accent disabled:opacity-40">{testing ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Test</button></div>
-    <SearchableSelect value={value.connectionId} onChange={(connectionId) => onChange({ connectionId, channelId: "" })} options={[{ value: "", label: "Use organization default" }, ...workspaceOptions]} placeholder="Select workspace" className="w-full" />
-    <SearchableSelect value={value.channelId} onChange={(channelId) => onChange({ ...value, channelId })} options={selectedWorkspace.channelOptions} placeholder={selectedWorkspace.channels.isLoading ? "Loading channels…" : "Use organization default"} className="w-full" />
-    {message ? <p className="text-[11px] text-stone-500">{message}</p> : null}
-  </div>;
 }
 
 function routingKey(project: ProjectRouting) {

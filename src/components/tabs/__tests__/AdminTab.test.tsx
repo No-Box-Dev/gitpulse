@@ -293,7 +293,7 @@ describe("AdminTab", () => {
     expect(await screen.findByTestId("admin-repositories")).toHaveTextContent("api");
   });
 
-  it("keeps organization NoxFeed defaults in the product section", () => {
+  it("shows project channels and organization defaults in the NoxFeed section", () => {
     mIsAdmin.mockReturnValue(true);
     mSettings.mockReturnValue({ data: { slack: { noxFeedChannelId: "C1" } } });
     render(
@@ -303,7 +303,8 @@ describe("AdminTab", () => {
     );
     fireEvent.click(screen.getByRole("tab", { name: "NoxFeed" }));
     expect(screen.getAllByText("NoxFeed").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Project-specific destinations are managed under NoxConnect/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose an enabled NoxConnect project and one channel/i)).toBeInTheDocument();
+    expect(screen.getByText(/Enable a project under NoxConnect/i)).toBeInTheDocument();
     expect(screen.getByText("Default posts")).toBeInTheDocument();
     expect(screen.getByText("Default release notes")).toBeInTheDocument();
     expect(screen.queryByText("AI Provider")).not.toBeInTheDocument();

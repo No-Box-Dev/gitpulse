@@ -58,11 +58,33 @@ describe("Slack route tests", () => {
   it("sends the NoxCue-specific payload to the selected channel", async () => {
     const response = await onRequestPost(context({ kind: "noxcue", channelId: "C-ALERT" }));
     expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      connectionId: "conn-2",
+      channelId: "C-ALERT",
+      messageTs: "1.2",
+    });
     expect(postSlackMessage).toHaveBeenCalledWith(
       "xoxb-test",
       "C-ALERT",
       expect.objectContaining({ text: "NoxCue delivery test for acme" }),
     );
+  });
+
+  it("marks a bad receipt as an issue and the next accepted message as verified", async () => {
+    vi.mocked(postSlackMessage)
+      .mockResolvedValueOnce({ ok: true, channel: "C-WRONG", ts: "1.1" })
+      .mockResolvedValueOnce({ ok: true, channel: "C-ALERT", ts: "1.2" });
+
+    const failed = context({ kind: "noxcue", channelId: "C-ALERT" });
+    expect((await onRequestPost(failed)).status).toBe(502);
+    expect(failed.calls.some((call) => call.sql.includes("INSERT INTO slack_channel_status")
+      && call.sql.includes("'issue'"))).toBe(true);
+
+    const recovered = context({ kind: "noxcue", channelId: "C-ALERT" });
+    expect((await onRequestPost(recovered)).status).toBe(200);
+    expect(recovered.calls.some((call) => call.sql.includes("INSERT INTO slack_channel_status")
+      && call.sql.includes("'verified'"))).toBe(true);
   });
 
   it("does not silently reinterpret an unknown test as NoxFeed", async () => {
@@ -89,6 +111,7 @@ describe("Slack route tests", () => {
     ["noxfeed_posts", "NoxFeed posts delivery test for acme"],
     ["noxfeed_release_notes", "NoxFeed release notes delivery test for acme"],
   ])("sends a distinct %s test payload", async (kind, text) => {
+    vi.mocked(postSlackMessage).mockResolvedValueOnce({ ok: true, channel: "C-FEED", ts: "1.2" });
     const response = await onRequestPost(context({ kind, channelId: "C-FEED" }));
     expect(response.status).toBe(200);
     expect(postSlackMessage).toHaveBeenCalledWith(

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, RefreshCw, Server, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, RefreshCw, Send, Server, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
@@ -16,7 +16,9 @@ import {
   useSaveNoxCueProjectMetrics,
 } from "@/hooks/useNoxCue";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
+import { apiPost } from "@/lib/api";
 import type { NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
+import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 
 const EMPTY_SOURCE: NoxCueSourceInput = {
   name: "",
@@ -155,6 +157,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
       </form>
 
       {!creating && selected ? <SetupProgress
+        key={selected.id}
         source={selected}
         slackConnected={noxConnect.slack.connected}
         checking={checkingEvents || sources.isFetching}
@@ -187,9 +190,43 @@ export function SetupProgress({
 }) {
   const destination = useSlackChannels(source.effectiveSlackConnectionId || undefined);
   const channel = destination.channels.data?.find((candidate) => candidate.id === source.effectiveSlackChannelId);
+  const channelStatus = findSlackChannelStatus(
+    destination.status.data?.channelStatuses,
+    source.effectiveSlackConnectionId ?? "",
+    source.effectiveSlackChannelId ?? "",
+  );
+  const [testingDelivery, setTestingDelivery] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const activeKeys = source.keys.filter((key) => !key.revokedAt);
   const eventAt = lastUserEventAt(source);
   const destinationReady = Boolean(slackConnected && source.digestEnabled && source.effectiveSlackChannelId);
+  const deliveryHealthy = channelStatus?.status === "verified";
+  const deliveryIssue = channelStatus?.status === "issue";
+  const testDelivery = async () => {
+    if (!source.effectiveSlackChannelId || !source.effectiveSlackConnectionId) return;
+    setTestingDelivery(true);
+    setTestFeedback(null);
+    try {
+      await apiPost("/api/slack/test", {
+        kind: "noxcue",
+        connectionId: source.effectiveSlackConnectionId,
+        channelId: source.effectiveSlackChannelId,
+      });
+      await destination.status.refetch();
+      setTestFeedback({
+        ok: true,
+        message: `Test message posted${channel ? ` to #${channel.name}` : ""}. Confirm it in Slack.`,
+      });
+    } catch (error) {
+      await destination.status.refetch();
+      setTestFeedback({
+        ok: false,
+        message: error instanceof Error ? error.message : "Slack delivery failed",
+      });
+    } finally {
+      setTestingDelivery(false);
+    }
+  };
   const steps = [
     {
       label: "App configured",
@@ -217,6 +254,14 @@ export function SetupProgress({
         : "Waiting for user.registered or user.active",
       complete: Boolean(eventAt),
     },
+    {
+      label: "Slack delivery",
+      detail: deliveryHealthy
+        ? `Healthy${channelStatus?.lastDeliveredAt ? ` · posted ${new Date(channelStatus.lastDeliveredAt).toLocaleString()}` : ""}`
+        : deliveryIssue ? `Issue · ${channelStatus?.lastError ?? "A message could not be posted"}` : "Send a real test message and verify it in Slack",
+      complete: deliveryHealthy,
+      issue: deliveryIssue,
+    },
   ];
   const completed = steps.filter((step) => step.complete).length;
 
@@ -231,9 +276,9 @@ export function SetupProgress({
       </span>
     </div>
     <ol className="grid gap-3 sm:grid-cols-2">
-      {steps.map((step, index) => <li key={step.label} className={`flex items-start gap-3 rounded-lg border p-3 ${step.complete ? "border-green-200 bg-green-50/60" : "border-stone-200 bg-stone-50"}`}>
-        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${step.complete ? "bg-green-600 text-white" : "border border-stone-300 bg-white text-stone-500"}`}>
-          {step.complete ? <Check size={12} /> : index + 1}
+      {steps.map((step, index) => <li key={step.label} className={`flex items-start gap-3 rounded-lg border p-3 ${step.complete ? "border-green-200 bg-green-50/60" : step.issue ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-stone-50"}`}>
+        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${step.complete ? "bg-green-600 text-white" : step.issue ? "bg-amber-500 text-white" : "border border-stone-300 bg-white text-stone-500"}`}>
+          {step.complete ? <Check size={12} /> : step.issue ? <AlertTriangle size={12} /> : index + 1}
         </span>
         <span className="min-w-0">
           <span className="block text-xs font-medium text-stone-800">{step.label}</span>
@@ -241,7 +286,34 @@ export function SetupProgress({
         </span>
       </li>)}
     </ol>
-    {eventAt ? <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-4">
+    {destinationReady ? <div className={`rounded-lg border p-4 ${deliveryHealthy ? "border-green-200 bg-green-50" : deliveryIssue ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          {deliveryHealthy
+            ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-700" />
+            : deliveryIssue
+              ? <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-700" />
+              : <Send size={16} className="mt-0.5 shrink-0 text-blue-700" />}
+          <div>
+            <p className={`text-sm font-semibold ${deliveryHealthy ? "text-green-900" : deliveryIssue ? "text-amber-900" : "text-blue-900"}`}>
+              {deliveryHealthy ? "Slack delivery healthy" : deliveryIssue ? "Slack delivery issue" : "Verify Slack delivery"}
+            </p>
+            <p className={`mt-1 text-xs leading-5 ${deliveryHealthy ? "text-green-800" : deliveryIssue ? "text-amber-800" : "text-blue-700"}`}>
+              {deliveryHealthy
+                ? `Slack accepted the last message${channel ? ` in #${channel.name}` : ""}. Future successful posts keep this healthy.`
+                : deliveryIssue
+                  ? `${channelStatus?.lastError ?? "Slack did not accept the message."} The next successful post automatically restores healthy status.`
+                  : `Post a real NoxCue test message${channel ? ` to #${channel.name}` : ""}. Slack must return a delivery receipt before setup is complete.`}
+            </p>
+          </div>
+        </div>
+        <button type="button" onClick={() => void testDelivery()} disabled={testingDelivery} className={`inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-xs font-medium disabled:opacity-50 ${deliveryIssue ? "border-amber-200 text-amber-800" : deliveryHealthy ? "border-green-200 text-green-800" : "border-blue-200 text-blue-800"}`}>
+          {testingDelivery ? <Spinner size="sm" /> : <Send size={13} />} {deliveryHealthy ? "Send another test" : deliveryIssue ? "Retry test" : "Send test message"}
+        </button>
+      </div>
+      {testFeedback ? <p role="status" className={`mt-2 text-xs ${testFeedback.ok ? "text-green-700" : "text-amber-800"}`}>{testFeedback.message}</p> : null}
+    </div> : null}
+    {completed === steps.length ? <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-4">
       <div className="flex items-start gap-2">
         <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-700" />
         <div>

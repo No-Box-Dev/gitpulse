@@ -219,6 +219,29 @@ describe("PUT /api/config/settings — boardStages validation", () => {
 });
 
 describe("PUT /api/config/settings — app toggles", () => {
+  it("migrates a retired alert toggle before validating and saving settings", async () => {
+    const db = makeDb();
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: {
+        apps: { noxalert: false, noxfeed: true },
+        slack: {
+          noxalertChannelId: "",
+          releaseNotesChannelId: "",
+        },
+        savedSiteName: "Keep unrelated settings",
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    const saved = JSON.parse(db._calls.batch[0]._binds[2]);
+    expect(saved.apps).toEqual({ noxfeed: true, noxcue: false });
+    expect(saved.slack).toEqual({ noxCueChannelId: "", releaseNotesChannelId: "" });
+    expect(saved.savedSiteName).toBe("Keep unrelated settings");
+  });
+
   it("persists optional app booleans", async () => {
     const db = makeDb();
     const body = {

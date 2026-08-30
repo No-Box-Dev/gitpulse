@@ -4,7 +4,7 @@
   },
   "display_information": {
     "name": "NoxConnect",
-    "description": "Connects NoxAlert, NoxFeed, NoxKey, NoxSpot, and NoxTicket to Slack.",
+    "description": "Connects NoxCue, NoxFeed, NoxKey, NoxSpot, and NoxTicket to Slack.",
     "background_color": "#4A315F"
   },
   "features": {

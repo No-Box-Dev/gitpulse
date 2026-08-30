@@ -1,12 +1,6 @@
-// Provider-agnostic LLM client. Branches between two request/response shapes:
-//   - Anthropic Messages API (default; also used by Zhipu's compat endpoint)
-//   - OpenAI chat-completions (any OpenAI-compatible endpoint, including
-//     LiteLLM proxies, Ollama, vLLM, etc.)
-//
-// Configs come from llm-config.js — never call this with a raw env key; the
-// resolver handles default fallback so test mocks stay simple.
+// Bounded, retrying client for NoxConnect's managed Anthropic service.
 
-import { PROVIDER_ANTHROPIC, PROVIDER_OPENAI_COMPATIBLE } from "./llm-config";
+import { MANAGED_LLM } from "./llm-config";
 import { sleep } from "./pacing";
 
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -38,38 +32,13 @@ function backoffDelay(attempt) {
   return Math.floor(Math.random() * ceiling);
 }
 
-// Cap the response body we'll buffer from a user-supplied LLM endpoint.
-// max_tokens caps the *content*, but a hostile endpoint could send a giant
-// JSON blob and OOM the worker (128 MB limit). 64 KB is ~10× the longest
-// legitimate response we expect (matcher uses max_tokens=800).
+// Bound provider responses to protect Worker memory.
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
-// Historical names kept so test mocks and callers that just want a label
-// don't need a config lookup.
-export const NARRATOR_MODEL = "glm-5";
-export const ZHIPU_MODEL = "glm-5";
+export const NARRATOR_MODEL = MANAGED_LLM.model;
 
 function buildRequest(config, { system, user, maxTokens }) {
   const base = stripTrailingSlash(config.baseUrl);
-  if (config.provider === PROVIDER_OPENAI_COMPATIBLE) {
-    return {
-      url: `${base}/v1/chat/completions`,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        max_tokens: maxTokens,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-      extract: (json) => json?.choices?.[0]?.message?.content ?? null,
-    };
-  }
-  // Default = Anthropic shape (covers Zhipu's compat endpoint too).
   return {
     url: `${base}/v1/messages`,
     headers: {

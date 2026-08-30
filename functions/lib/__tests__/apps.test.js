@@ -9,12 +9,12 @@ import {
 
 describe("server app state", () => {
   it("keeps optional apps enabled when settings are absent or old", () => {
-    expect(parseAppSettings(null)).toEqual({ noxticket: true, noxfeed: true, noxspot: true, noxalert: true });
+    expect(parseAppSettings(null)).toEqual({ noxticket: true, noxfeed: true, noxspot: true, noxcue: true });
     expect(parseAppSettings('{"apps":{"noxspot":false}}')).toEqual({
       noxticket: true,
       noxfeed: true,
       noxspot: false,
-      noxalert: true,
+      noxcue: true,
     });
   });
 
@@ -34,12 +34,14 @@ describe("server app state", () => {
     expect(appForApiPath("/api/features/12")).toBe("noxticket");
     expect(appForApiPath("/api/v1/feed")).toBe("noxfeed");
     expect(appForApiPath("/api/spots/sites")).toBe("noxspot");
-    expect(appForApiPath("/api/alerts/projects")).toBe("noxalert");
+    expect(appForApiPath("/api/cues/sources")).toBe("noxcue");
     expect(appForApiPath("/api/repos")).toBeNull();
     expect(appForDeliverySource("release_notes")).toBe("noxfeed");
     expect(appForDeliverySource("noxticket")).toBe("noxticket");
+    expect(appForDeliverySource("noxcue")).toBe("noxcue");
     expect(appForDeliverySource(["un", "ticket"].join(""))).toBe("noxticket");
     expect(appForSlackKind("noxticket")).toBe("noxticket");
     expect(appForSlackKind("noxspot")).toBe("noxspot");
+    expect(appForSlackKind("noxcue")).toBe("noxcue");
   });
 });

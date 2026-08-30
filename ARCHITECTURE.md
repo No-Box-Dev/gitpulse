@@ -28,7 +28,12 @@ A high-level map of how noxconnect fits together. For maintainer-level detail (e
 
 ## Multi-tenancy
 
-NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `llm_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
+NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
+
+Slack installations are organization-scoped connections. One workspace may be
+organization-wide; when an organization connects two or more, every workspace
+must reference a project. The OAuth start API, assignment API, and D1 triggers
+all enforce that invariant.
 
 ## Auth
 
@@ -51,7 +56,7 @@ Slow webhook follow-up (LLM narration, install bootstrap, repo backfill) is enqu
 
 ## AI narration
 
-A bounded LLM integration narrates pull-request merges. It's paced, disable-able per project, and supports per-org Bring-Your-Own-Key (Anthropic-compatible or OpenAI-compatible providers). The default backend is Zhipu's GLM endpoint. Keys are encrypted at rest and never returned to the browser.
+A bounded Anthropic integration narrates pull-request merges. It is paced, disable-able per project or organization, and uses a server-owned Claude Haiku API key stored only as a Cloudflare secret.
 
 ## Where to look
 

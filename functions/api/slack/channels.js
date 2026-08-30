@@ -1,5 +1,5 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
-import { resolveSlackInstall, listSlackChannels } from "../../lib/slack";
+import { actionableSlackError, resolveSlackInstall, listSlackChannels } from "../../lib/slack";
 
 // GET /api/slack/channels
 //
@@ -9,16 +9,16 @@ import { resolveSlackInstall, listSlackChannels } from "../../lib/slack";
 export async function onRequestGet(context) {
   const { orgId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin) return errorResponse("Only an organization admin can view Slack channels. Ask an admin to configure this route.", 403);
 
   const connectionId = new URL(context.request.url).searchParams.get("connectionId");
   const install = await resolveSlackInstall(context.env, orgId, connectionId);
-  if (!install) return errorResponse("Slack not connected", 404);
+  if (!install) return errorResponse("This Slack workspace is not connected or its authorization cannot be read. Reconnect it, then load channels again.", 404);
 
   try {
     const channels = await listSlackChannels(install.botToken);
     return jsonResponse({ connectionId: install.id, channels });
   } catch (err) {
-    return errorResponse(err instanceof Error ? err.message : String(err), 502);
+    return errorResponse(actionableSlackError(err, "Slack channels could not be loaded. Reconnect the affected workspace, then try again."), 502);
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { getNoxAlertResolvedResponse, getNoxAlertTestResponse } from "../noxalert-response.js";
-import { getNoxFeedPrompt, getNoxFeedSlackResponse } from "../noxfeed-response.js";
+import { getNoxCueDigestResponse, getNoxCueTestResponse } from "../noxcue-response.js";
+import { getNoxFeedDefaultPrompt, getNoxFeedPrompt, getNoxFeedSlackResponse } from "../noxfeed-response.js";
 import { buildNoxTicketActivityResponse, buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
 describe("product response boundaries", () => {
@@ -9,30 +9,41 @@ describe("product response boundaries", () => {
     const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
     expect(read("../slack.js")).not.toMatch(/buildPostsBlocks|buildReleaseNotesBlocks/);
     expect(read("../narrator.js")).not.toMatch(/ACTOR_SYSTEM|PR_OPENED_SYSTEM|RELEASE_NOTES_SYSTEM/);
-    expect(read("../noxalert.js")).not.toContain("NoxAlert resolved");
     expect(read("../noxspot.js")).not.toMatch(/api\.github\.com|Authorization:\s*`Bearer/);
-    expect(read("../../api/slack/test.js")).not.toMatch(/Nox(Alert|Spot|Feed|Ticket) delivery test/);
+    expect(read("../../api/slack/test.js")).not.toMatch(/Nox(Cue|Spot|Feed|Ticket) delivery test/);
     expect(read("../../../src/lib/github.ts")).not.toMatch(/@octokit|api\.github\.com|\.rest\.(issues|pulls)/);
     expect(read("../github-issues.js")).toContain("NoxConnect's GitHub issue transport");
   });
 
-  it("validates NoxAlert's versioned service response", async () => {
+  it("validates NoxCue's versioned service response", async () => {
     const service = {
-      buildResolvedResponse: vi.fn(async () => ({ contract: "noxalert.response", version: 1, message: { text: "Resolved", blocks: [{ type: "section" }] } })),
-      buildTestResponse: vi.fn(async () => ({ contract: "noxalert.response", version: 1, message: { text: "Test", blocks: [{ type: "section" }] } })),
+      buildTestResponse: vi.fn(async () => ({ contract: "noxcue.response", version: 1, message: { text: "Test", blocks: [{ type: "section" }] } })),
     };
-    expect((await getNoxAlertResolvedResponse({ NOXALERT_RESPONSE: service }, { issueNumber: 1 })).message.text).toBe("Resolved");
-    expect((await getNoxAlertTestResponse({ NOXALERT_RESPONSE: service }, "Acme")).message.text).toBe("Test");
-    await expect(getNoxAlertTestResponse({}, "Acme")).rejects.toThrow("service binding is unavailable");
+    expect((await getNoxCueTestResponse({ NOXCUE_RESPONSE: service }, "Acme")).message.text).toBe("Test");
+    await expect(getNoxCueTestResponse({}, "Acme")).rejects.toThrow("service binding is unavailable");
+  });
+
+  it("validates NoxCue's daily digest response", async () => {
+    const service = {
+      buildDigestResponse: vi.fn(async () => ({
+        contract: "noxcue.response", version: 1, kind: "daily_digest",
+        message: { text: "Daily", blocks: [{ type: "section" }] },
+      })),
+    };
+    expect((await getNoxCueDigestResponse(
+      { NOXCUE_RESPONSE: service }, "Acme", "2026-08-29", { "users.new": 4 },
+    )).message.text).toBe("Daily");
   });
 
   it("validates NoxFeed prompts and Slack responses", async () => {
     const service = {
       buildPrompt: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, prompt: { system: "system", user: "user" } })),
+      getDefaultPrompt: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, prompt: { system: "default system" } })),
       buildSlackResponse: vi.fn(async () => ({ contract: "noxfeed.response", version: 1, message: { text: "Post", blocks: [{ type: "section" }] } })),
       buildTestResponse: vi.fn(),
     };
     expect(await getNoxFeedPrompt({ NOXFEED_RESPONSE: service }, "actor", {})).toEqual({ system: "system", user: "user" });
+    expect(await getNoxFeedDefaultPrompt({ NOXFEED_RESPONSE: service }, "release_notes")).toBe("default system");
     expect((await getNoxFeedSlackResponse({ NOXFEED_RESPONSE: service }, "posts", {})).message.text).toBe("Post");
   });
 

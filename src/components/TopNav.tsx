@@ -6,7 +6,7 @@ import { getDefaultEnabledTab, type NoxAppId } from "@/lib/apps";
 import { cn } from "@/lib/cn";
 import type { TabId } from "@/lib/types";
 
-const ALL_APP_IDS: readonly NoxAppId[] = ["noxconnect", "noxticket", "noxfeed", "noxspot", "noxalert"];
+const ALL_APP_IDS: readonly NoxAppId[] = ["noxconnect", "noxticket", "noxfeed", "noxspot", "noxcue"];
 
 const NAV_ITEMS: readonly { id: TabId; label: string; appId: NoxAppId }[] = [
   { id: "current", label: "Current", appId: "noxfeed" },

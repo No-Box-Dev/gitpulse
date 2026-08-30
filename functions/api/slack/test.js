@@ -1,14 +1,15 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
-import { checkSlackOrgHealth, resolveSlackInstall, postSlackMessage } from "../../lib/slack";
+import { actionableSlackError, checkSlackOrgHealth, resolveSlackInstall, postSlackMessage, updateSlackMessage } from "../../lib/slack";
 import { markSlackChannelIssue, markSlackChannelVerified } from "../../lib/slack-channel-status";
 import { appForSlackKind, isAppEnabled, serviceDisabledResponse } from "../../lib/apps.js";
-import { getNoxAlertTestResponse } from "../../lib/noxalert-response.js";
+import { getNoxCueDigestResponse, getNoxCueTestResponse } from "../../lib/noxcue-response.js";
+import { completedPeriodAt, loadNoxCueDigestData } from "../../lib/noxcue-digest-data.js";
 import { getNoxSpotTestResponse } from "../../lib/noxspot-response.js";
 import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
 import { buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
 // POST /api/slack/test
-// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxalert" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes" }
+// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxcue" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes", sourceId?: string, messageTs?: string }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -16,7 +17,7 @@ import { buildNoxTicketTestResponse } from "../../products/noxticket/response.js
 export async function onRequestPost(context) {
   const { orgId, orgLogin, isAdmin } = getCtx(context);
   if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin) return errorResponse("Only an organization admin can test Slack delivery. Ask an admin to send this test.", 403);
 
   let body;
   try { body = await context.request.json(); }
@@ -24,34 +25,62 @@ export async function onRequestPost(context) {
 
   const connectionId = typeof body?.connectionId === "string" ? body.connectionId.trim() : null;
   const channelId = typeof body?.channelId === "string" ? body.channelId.trim() : "";
+  const sourceId = typeof body?.sourceId === "string" ? body.sourceId.trim() : "";
+  const messageTs = typeof body?.messageTs === "string" ? body.messageTs.trim() : "";
+  if (messageTs && !/^\d+\.\d+$/.test(messageTs)) return errorResponse("The saved Slack message reference is invalid. Send a new test message instead.", 400);
+  if (messageTs && (!sourceId || body?.kind !== "noxcue")) {
+    return errorResponse("Choose a NoxCue source before updating its Slack test message.", 400);
+  }
   const legacyKinds = { narrative: "noxfeed_posts", release_notes: "noxfeed_release_notes" };
   const allowedKinds = new Set([
-    "connection", "fallback", "noxalert", "noxspot", "noxticket", "noxfeed",
+    "connection", "fallback", "noxcue", "noxspot", "noxticket", "noxfeed",
     "noxfeed_posts", "noxfeed_release_notes",
   ]);
   const kind = legacyKinds[body?.kind] ?? (allowedKinds.has(body?.kind) ? body.kind : null);
-  if (!kind) return errorResponse("Invalid Slack test kind", 400);
+  if (!kind) return errorResponse("This Slack test type is not supported. Refresh NoxConnect and run the test again.", 400);
   const appId = appForSlackKind(kind);
   if (appId && !(await isAppEnabled(context.env.DB, orgId, appId))) {
     return serviceDisabledResponse(appId);
   }
   if (kind === "connection") {
-    if (!connectionId) return errorResponse("connectionId required", 400);
-    if (!channelId) return errorResponse("channelId required", 400);
+    if (!connectionId) return errorResponse("Choose a Slack workspace before sending a connection test.", 400);
+    if (!channelId) return errorResponse("Choose a Slack channel before sending a connection test.", 400);
     const health = await checkSlackOrgHealth(context.env, orgId, connectionId);
     if (health.status !== "ok") {
-      const message = health.error instanceof Error ? health.error.message : "Slack connection verification failed";
+      const message = actionableSlackError(health.error, "Slack connection verification failed. Reconnect the affected workspace, then send the test again.");
       return errorResponse(message, 502);
     }
   }
-  if (!channelId) return errorResponse("channelId required", 400);
+  if (!channelId) return errorResponse("Choose a Slack channel before sending a test message.", 400);
 
   const install = await resolveSlackInstall(context.env, orgId, connectionId);
-  if (!install) return errorResponse("Slack not connected", 404);
+  if (!install) return errorResponse("This Slack workspace is not connected or its authorization cannot be read. Reconnect it, then send the test again.", 404);
 
   let payload;
-  if (kind === "noxalert") {
-    payload = (await getNoxAlertTestResponse(context.env, orgLogin)).message;
+  if (kind === "noxcue") {
+    if (sourceId) {
+      const source = await context.env.DB.prepare(
+        `SELECT source.name, source.timezone FROM cue_sources source
+        WHERE source.id = ? AND source.org_id = ?`,
+      ).bind(sourceId, orgId).first();
+      if (!source) return errorResponse("This NoxCue source no longer exists. Refresh the source list and choose an existing source.", 404);
+      const period = completedPeriodAt(source.timezone);
+      const { metrics, comparisons, hasData } = await loadNoxCueDigestData(
+        context.env.DB,
+        sourceId,
+        period,
+      );
+      if (!hasData) return errorResponse("This NoxCue source has no completed daily user statistics yet. Send user events for the source, wait until its first day is complete, then test again.", 404);
+      payload = (await getNoxCueDigestResponse(
+        context.env,
+        source.name,
+        period,
+        metrics,
+        comparisons,
+      )).message;
+    } else {
+      payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
+    }
   } else if (kind === "noxspot") {
     payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
   } else if (kind === "noxticket") {
@@ -73,7 +102,8 @@ export async function onRequestPost(context) {
     : null;
 
   try {
-    await postSlackMessage(install.botToken, channelId, payload);
+    if (messageTs) await updateSlackMessage(install.botToken, channelId, messageTs, payload);
+    else await postSlackMessage(install.botToken, channelId, payload);
     await Promise.all([
       context.env.DB.prepare(
         `UPDATE slack_connections SET health_status = 'ok', last_error = NULL,
@@ -90,6 +120,6 @@ export async function onRequestPost(context) {
       ).bind(err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000), orgId, install.id).run(),
       markSlackChannelIssue(context.env.DB, orgId, install.id, channelId, err),
     ]);
-    return errorResponse(err instanceof Error ? err.message : String(err), 502);
+    return errorResponse(actionableSlackError(err), 502);
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 vi.mock("@/hooks/useNoxlink", () => ({
   useFeedActors: vi.fn(),
@@ -35,6 +35,11 @@ function renderTab() {
       <PostsTab />
     </MemoryRouter>,
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}</div>;
 }
 
 describe("PostsTab", () => {
@@ -201,5 +206,35 @@ describe("PostsTab", () => {
     });
     renderTab();
     expect(screen.getByText(/LLM unavailable — generic summary/)).toBeInTheDocument();
+  });
+
+  it("opens the PR detail view when a feed post is clicked", () => {
+    mActors.mockReturnValue({ data: [], isLoading: false });
+    mProjects.mockReturnValue({ data: [{ id: "p1", name: "API", repo: "api", slug: "api", archived: false }], isLoading: false });
+    mPosts.mockReturnValue({
+      data: { pages: [{ events: [{
+        id: 1,
+        actor_id: null,
+        project_id: "p1",
+        summary: "I fixed the crash.",
+        technical_summary: null,
+        payload_json: JSON.stringify({ pr_number: 42 }),
+        created_at: new Date().toISOString(),
+        org: "acme",
+        repo: "api",
+      }] }] },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+    });
+    render(
+      <MemoryRouter>
+        <PostsTab />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Open PR #42" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/prs/api/42");
   });
 });

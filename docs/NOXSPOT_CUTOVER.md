@@ -149,7 +149,7 @@ route/version-pointer change rather than an overwrite.
   malformed/oversized/nested input, screenshot and Queue failure cleanup, rate
   limiting, CORS, task-size limits, and scheduled retention.
 - Delivery: task and response versions, response-service unavailability,
-  malformed response rejection, GitHub installation failure, NoxAlert routing,
+  malformed response rejection, GitHub installation failure, NoxSpot routing,
   Slack fallback/private channel, retry, and DLQ.
 - Lifecycle: full Admin create/configure/install/capture/delete flow, audit
   records, screenshot-prefix removal, and preserved GitHub issues.

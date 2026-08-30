@@ -14,7 +14,7 @@
 //     Summary / Breaking Changes / Affected Areas" structure). One extra
 //     LLM call per merge is worth the format guarantee.
 //
-// All three share the org's LLM config (BYOK setting applies to all). Runs at
+// All three share the organization's managed-AI setting. Runs at
 // every trigger point: webhook, cron queue handler, reconcile loop —
 // see the trigger-point list in CLAUDE.md ("Narration" / "Live Activity events").
 
@@ -35,7 +35,7 @@ const MAX_TECHNICAL_OUTPUT_LENGTH = 1200;
 // Release notes are inherently more verbose than chat posts (structured
 // sections + recommendations). Give them a bigger budget so multi-line
 // notes don't get truncated mid-sentence.
-const RELEASE_NOTES_MAX_OUTPUT_LENGTH = 2400;
+const RELEASE_NOTES_MAX_OUTPUT_LENGTH = 6000;
 
 // Merge-time narration gate — narrateEvent + narrateReleaseNotes. Keep in
 // sync with POST_TRIGGER_TYPES in src/hooks/useNoxlink.ts (the client-side
@@ -115,14 +115,18 @@ export async function narrateEvent(env, eventId) {
       projectName: project.name,
       event: {
         type: row.type,
+        org: row.org,
+        repo: row.repo,
         summary: row.summary,
         payload: triggerPayload,
         created_at: row.created_at,
       },
     });
-    // Per-org override (BYOK) wins; default falls back to env.ZHIPU_API_KEY.
+    // Resolve the organization's managed/disabled setting.
     const llmConfig = await resolveLlmConfig(env, orgId);
-    const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
+    const text = llmConfig.status === "ready"
+      ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+      : null;
     source = "narrator";
 
     if (text) {
@@ -138,7 +142,7 @@ export async function narrateEvent(env, eventId) {
       // LLM unavailable (no key, timeout, HTTP error, model rejected the
       // request). Keep the feed populated with the raw summary so the trigger
       // event is visible, AND record a row in op_failures so admins see *why*
-      // the narrator skipped — important for BYOK debugging (bad key, wrong
+      // the narrator skipped — important for managed-provider diagnostics
       // model name) rather than failing silently and forever.
       if (!row.summary) return;
       summary = row.summary;
@@ -148,12 +152,16 @@ export async function narrateEvent(env, eventId) {
         payload: triggerPayload,
       });
       model = "fallback";
-      await recordFailure(env.DB, {
-        ownerId: row.owner_id,
-        op: "narrateEvent",
-        deliveryId: `event-${row.id}`,
-        error: `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`,
-      });
+      if (llmConfig.status !== "disabled") {
+        await recordFailure(env.DB, {
+          ownerId: row.owner_id,
+          op: "narrateEvent",
+          deliveryId: `event-${row.id}`,
+          error: llmConfig.status === "ready"
+            ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
+            : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+        });
+      }
     }
   }
 
@@ -267,6 +275,9 @@ export async function narrateReleaseNotes(env, eventId) {
       projectName: project.name,
       event: {
         type: row.type,
+        org: row.org,
+        repo: row.repo,
+        environment: typeof triggerPayload.environment === "string" ? triggerPayload.environment : undefined,
         summary: row.summary,
         payload: triggerPayload,
         created_at: row.created_at,
@@ -278,7 +289,9 @@ export async function narrateReleaseNotes(env, eventId) {
       resolveReleaseNotesPrompt(env.DB, orgId),
     ]);
     const prompt = await getNoxFeedPrompt(env, "release_notes", promptInput, systemOverride);
-    const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
+    const text = llmConfig.status === "ready"
+      ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+      : null;
 
     if (text) {
       const trimmed = text.trim();
@@ -290,12 +303,16 @@ export async function narrateReleaseNotes(env, eventId) {
       if (!row.summary) return;
       summary = row.summary;
       model = "fallback";
-      await recordFailure(env.DB, {
-        ownerId: row.owner_id,
-        op: "narrateReleaseNotes",
-        deliveryId: `event-${row.id}`,
-        error: `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`,
-      });
+      if (llmConfig.status !== "disabled") {
+        await recordFailure(env.DB, {
+          ownerId: row.owner_id,
+          op: "narrateReleaseNotes",
+          deliveryId: `event-${row.id}`,
+          error: llmConfig.status === "ready"
+            ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
+            : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+        });
+      }
     }
   }
 
@@ -400,7 +417,9 @@ export async function narratePrOpened(env, eventId) {
 
   const orgId = await resolveOrgId(env.DB, row.owner_id);
   const llmConfig = await resolveLlmConfig(env, orgId);
-  const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
+  const text = llmConfig.status === "ready"
+    ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+    : null;
 
   let summary;
   let technicalSummary;
@@ -423,12 +442,16 @@ export async function narratePrOpened(env, eventId) {
       payload: triggerPayload,
     });
     model = "fallback";
-    await recordFailure(env.DB, {
-      ownerId: row.owner_id,
-      op: "narratePrOpened",
-      deliveryId: `event-${row.id}`,
-      error: `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`,
-    });
+    if (llmConfig.status !== "disabled") {
+      await recordFailure(env.DB, {
+        ownerId: row.owner_id,
+        op: "narratePrOpened",
+        deliveryId: `event-${row.id}`,
+        error: llmConfig.status === "ready"
+          ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
+          : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+      });
+    }
   }
 
   const insertResult = await env.DB.prepare(
@@ -579,6 +602,9 @@ async function maybePostToSlack(env, args) {
   const { kind, orgId, ownerId, triggerEventId, actor, project, summary, rawEvent } = args;
   try {
     const channels = await resolveSlackChannels(env.DB, orgId);
+    // NoxFeed remains organization-wide in the app. This optional scope only
+    // controls which project's generated cards are mirrored into Slack.
+    if (channels.noxFeedProjectId && channels.noxFeedProjectId !== rawEvent.project_id) return;
     const service = kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts";
     const channelId = resolveSlackRoute(channels, service);
     const connectionId = resolveSlackConnectionId(channels, service);

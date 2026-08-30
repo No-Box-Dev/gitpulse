@@ -1,9 +1,16 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Check, Loader2 } from "lucide-react";
 import { useSettings, useSaveSettings } from "@/hooks/useConfigRepo";
+import { fetchReleaseNotesPromptDefault } from "@/lib/noxfeed-settings";
 
 export function ReleaseNotesPromptSection() {
   const { data: settings } = useSettings();
+  const defaultPrompt = useQuery({
+    queryKey: ["noxfeed", "release-notes-prompt-default"],
+    queryFn: fetchReleaseNotesPromptDefault,
+    staleTime: 5 * 60_000,
+  });
   const saveSettings = useSaveSettings();
   // `draftOverride` is null while the textarea mirrors the persisted value
   // (the common "haven't edited yet" state), so we don't need an effect to
@@ -11,19 +18,25 @@ export function ReleaseNotesPromptSection() {
   // types, draftOverride holds the local edit; saving clears it back to null
   // so the field re-syncs to whatever the server returns.
   const persisted = settings?.releaseNotesPrompt ?? "";
+  const builtIn = defaultPrompt.data?.prompt ?? "";
+  const baseline = persisted || builtIn;
   const [draftOverride, setDraftOverride] = useState<string | null>(null);
-  const draft = draftOverride ?? persisted;
+  const draft = draftOverride ?? baseline;
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isDirty = draftOverride !== null && draftOverride !== persisted;
+  const isDirty = draftOverride !== null && draftOverride !== baseline;
   const usingDefault = !persisted.trim();
 
   async function handleSave() {
-    if (!settings) return;
+    if (settings === undefined) return;
     setError(null);
+    if (!draft.trim()) {
+      setError("Prompt cannot be empty. Use Reset to base instead.");
+      return;
+    }
     try {
-      const next = { ...settings, releaseNotesPrompt: draft.trim() ? draft : undefined };
+      const next = { ...(settings ?? {}), releaseNotesPrompt: draft };
       await saveSettings.mutateAsync(next);
       setDraftOverride(null);
       setSavedAt(Date.now());
@@ -32,8 +45,18 @@ export function ReleaseNotesPromptSection() {
     }
   }
 
-  function handleResetToDefault() {
-    setDraftOverride("");
+  async function handleResetToDefault() {
+    if (settings === undefined || usingDefault) return;
+    setError(null);
+    try {
+      const next = { ...(settings ?? {}) };
+      delete next.releaseNotesPrompt;
+      await saveSettings.mutateAsync(next);
+      setDraftOverride(null);
+      setSavedAt(Date.now());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   return (
@@ -47,17 +70,18 @@ export function ReleaseNotesPromptSection() {
         )}
       </div>
       <p className="text-xs text-stone-400">
-        System prompt for the Release notes feed. Runs alongside the Posts
-        narrator on every merged PR — same LLM, same trigger, different voice.
-        Leave empty to use the bundled default. Changes apply to new merges and
-        any future re-narration via Posts Backfill.
+        What you save is used as the complete prompt for future release notes.
+        Reset removes the organization prompt and restores the built-in base.
       </p>
+      {defaultPrompt.isError && (
+        <p className="text-xs text-amber-600">The built-in prompt could not be loaded. Refresh before editing the default.</p>
+      )}
       <textarea
         value={draft}
         onChange={(e) => setDraftOverride(e.target.value)}
-        disabled={saveSettings.isPending}
-        rows={12}
-        placeholder="Leave empty to use the built-in release-notes prompt. Override here to change tone, sections, or formatting — for example, drop the emoji header or add a required 'Rollback steps' section."
+        disabled={saveSettings.isPending || defaultPrompt.isLoading}
+        rows={20}
+        placeholder="Loading the built-in release-notes prompt…"
         spellCheck={false}
         className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-stone-200 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent resize-y"
       />
@@ -74,10 +98,10 @@ export function ReleaseNotesPromptSection() {
         <button
           type="button"
           onClick={handleResetToDefault}
-          disabled={!draft || saveSettings.isPending}
+          disabled={usingDefault || saveSettings.isPending}
           className="text-xs text-stone-500 hover:text-stone-700 disabled:opacity-50 cursor-pointer"
         >
-          Reset to default
+          Reset to base
         </button>
         {savedAt && !isDirty && !error && (
           <span className="inline-flex items-center gap-1 text-xs text-green-600">

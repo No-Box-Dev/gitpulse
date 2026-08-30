@@ -13,6 +13,20 @@ export async function getNoxFeedPrompt(env, kind, input, systemOverride) {
   return response.prompt;
 }
 
+export async function getNoxFeedDefaultPrompt(env, kind) {
+  const service = requireService(env);
+  if (typeof service.getDefaultPrompt !== "function") {
+    throw new Error("NoxFeed default prompt service is unavailable");
+  }
+  const response = await service.getDefaultPrompt(kind);
+  requireContract(response);
+  const system = response?.prompt?.system;
+  if (typeof system !== "string" || !system || system.length > 20_000) {
+    throw new Error("Invalid NoxFeed default prompt response");
+  }
+  return system;
+}
+
 export async function getNoxFeedSlackResponse(env, kind, input) {
   const service = requireService(env);
   return validateSlack(await service.buildSlackResponse(kind, input));

@@ -37,15 +37,15 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   let slack: Record<string, unknown>;
   try { slack = (await readSlackSettings(context.env.DB, orgId)).slack; }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
-  const routeFields = ["fallbackChannelId", "noxAlertChannelId", "noxTicketChannelId", "postsChannelId", "releaseNotesChannelId"];
+  const routeFields = ["fallbackChannelId", "noxCueChannelId", "noxTicketChannelId", "postsChannelId", "releaseNotesChannelId"];
   const configuredRouteCount = routeFields.filter((field) => {
     const value = slack[field];
     return typeof value === "string" && Boolean(value.trim());
   }).length;
   const hasRoute = (field: string) => Boolean(resolveSavedSlackChannel(slack, field));
-  const [spotCount, alertCount] = await Promise.all([
+  const [spotCount, cueCount] = await Promise.all([
     countRows(context.env.DB, "SELECT COUNT(*) AS count FROM spot_sites WHERE org_id = ?", orgId),
-    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM alert_project_settings WHERE org_id = ? AND enabled = 1", orgId),
+    countRows(context.env.DB, "SELECT COUNT(*) AS count FROM cue_sources WHERE org_id = ? AND enabled = 1", orgId),
   ]);
 
   const steps = {
@@ -95,14 +95,15 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       automatable: true,
       action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing") : null,
     },
-    configure_noxalert: {
-      title: "Configure NoxAlert",
+    configure_noxcue: {
+      title: "Configure NoxCue",
       required: false,
       dependsOn: ["connect_slack"],
-      state: !slackComplete || !hasRoute("noxAlertChannelId") || !isAdmin ? "blocked" : (Number(alertCount?.count || 0) > 0 ? "complete" : "available"),
+      state: !slackComplete || !isAdmin ? "blocked" : (Number(cueCount?.count || 0) > 0 ? "complete" : "available"),
       automatable: true,
-      action: slackComplete && isAdmin ? apiAction("GET", "/api/alerts/projects") : null,
-      instructions: "Select a route, PUT project alert settings, then POST an ingest key and return its one-time value securely to the user.",
+      action: slackComplete && isAdmin ? apiAction("POST", "/api/cues/sources") : null,
+      discover: isAdmin ? apiAction("GET", "/api/cues/sources") : null,
+      instructions: "Create a daily registration source, select its Slack channel and local delivery time, then create a one-time secret server ingest key.",
     },
     configure_noxspot: {
       title: "Configure NoxSpot",

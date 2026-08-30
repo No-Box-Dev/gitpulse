@@ -40,6 +40,16 @@
         "responses": { "200": { "description": "Disconnected" }, "409": { "description": "Provider-managed disconnect" } }
       }
     },
+    "/api/slack/connections/{connectionId}": {
+      "patch": {
+        "operationId": "assignSlackConnectionProject",
+        "summary": "Assign a Slack workspace to a project",
+        "description": "One workspace may be organization-wide. With multiple workspaces, every connection requires a project.",
+        "parameters": [{ "$ref": "#/components/parameters/connectionId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SlackProjectAssignment" } } } },
+        "responses": { "200": { "description": "Assignment saved" }, "409": { "description": "Project is required while multiple workspaces exist" } }
+      }
+    },
     "/api/slack/channels": {
       "get": {
         "operationId": "listSlackChannels",
@@ -152,38 +162,80 @@
         }
       }
     },
-    "/api/alerts/projects": {
+    "/api/cues/sources": {
       "get": {
-        "operationId": "listNoxAlertProjects",
-        "summary": "List NoxAlert project settings, rules, and keys",
-        "responses": { "200": { "description": "Projects" } }
-      }
-    },
-    "/api/alerts/projects/{projectId}": {
-      "put": {
-        "operationId": "configureNoxAlertProject",
-        "summary": "Configure a NoxAlert project and error rule",
-        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxAlertProjectUpdate" } } } },
-        "responses": { "200": { "description": "Project configured" } }
-      }
-    },
-    "/api/alerts/projects/{projectId}/keys": {
+        "operationId": "listNoxCueSources",
+        "summary": "List NoxCue sources and ingest keys",
+        "responses": { "200": { "description": "Sources" } }
+      },
       "post": {
-        "operationId": "createNoxAlertKey",
-        "summary": "Create a one-time NoxAlert ingest key",
+        "operationId": "createNoxCueSource",
+        "summary": "Create a NoxCue event source",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueSourceInput" } } } },
+        "responses": { "201": { "description": "Source created" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}": {
+      "put": {
+        "operationId": "updateNoxCueSource",
+        "summary": "Update a NoxCue event source",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueSourceInput" } } } },
+        "responses": { "200": { "description": "Source updated" } }
+      },
+      "delete": {
+        "operationId": "deleteNoxCueSource",
+        "summary": "Delete a NoxCue source and revoke its keys",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "responses": { "200": { "description": "Source deleted" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}/keys": {
+      "post": {
+        "operationId": "createNoxCueKey",
+        "summary": "Create a one-time NoxCue ingest key",
         "description": "The key value is returned once. Do not log it.",
-        "parameters": [{ "$ref": "#/components/parameters/projectId" }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } } } } },
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "kind"], "properties": { "name": { "type": "string" }, "kind": { "const": "secret" } } } } } },
         "responses": { "201": { "description": "Key created" } }
       }
     },
-    "/api/alerts/projects/{projectId}/keys/{keyId}": {
+    "/api/cues/sources/{sourceId}/keys/{keyId}": {
       "delete": {
-        "operationId": "revokeNoxAlertKey",
-        "summary": "Revoke a NoxAlert ingest key",
-        "parameters": [{ "$ref": "#/components/parameters/projectId" }, { "$ref": "#/components/parameters/keyId" }],
+        "operationId": "revokeNoxCueKey",
+        "summary": "Revoke a NoxCue ingest key",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/keyId" }],
         "responses": { "200": { "description": "Key revoked" } }
+      }
+    },
+    "/api/cues/events": {
+      "get": {
+        "operationId": "listNoxCueEvents",
+        "summary": "List recent NoxCue events and Slack delivery state",
+        "responses": { "200": { "description": "Recent events" } }
+      }
+    },
+    "/api/cues/metrics": {
+      "get": {
+        "operationId": "getNoxCueDailyHealth",
+        "summary": "Get NoxCue-derived daily user statistics and digest state",
+        "parameters": [{ "name": "sourceId", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "NoxCue daily health" } }
+      }
+    },
+    "/v1/events": {
+      "post": {
+        "operationId": "ingestNoxCueEvent",
+        "summary": "Submit one standardized NoxCue event",
+        "servers": [{ "url": "https://noxcue.jasper-414.workers.dev" }],
+        "security": [{ "noxCueKey": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/NoxCueUserEvent" }, { "$ref": "#/components/schemas/NoxCueError" }] } } } },
+        "responses": {
+          "202": { "description": "Event accepted and deduplicated" },
+          "400": { "description": "Invalid bounded event" },
+          "401": { "description": "Invalid ingest key" },
+          "429": { "description": "Rate limited" }
+        }
       }
     }
   },
@@ -191,10 +243,13 @@
     "securitySchemes": {
       "bearerAuth": { "type": "http", "scheme": "bearer", "description": "GitHub OAuth access token" },
       "organization": { "type": "apiKey", "in": "header", "name": "X-Org" }
+      ,"noxCueKey": { "type": "apiKey", "in": "header", "name": "X-Nox-Ingest-Key" }
     },
     "parameters": {
       "provider": { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "enum": ["github", "slack"] } },
+      "connectionId": { "name": "connectionId", "in": "path", "required": true, "schema": { "type": "string" } },
       "projectId": { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "sourceId": { "name": "sourceId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "siteId": { "name": "siteId", "in": "path", "required": true, "schema": { "type": "string" } },
       "keyId": { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string" } }
     },
@@ -239,6 +294,21 @@
           "team": {
             "type": ["string", "null"],
             "description": "Slack only: team (workspace) ID like T08B8C3E91N that pins Slack's authorize page to one workspace. An empty string or null leaves the workspace choice to Slack's picker. Omitted pins the organization's currently connected workspace so reconnects can't hop."
+          },
+          "projectId": {
+            "type": ["string", "null"],
+            "description": "Slack only: project assigned to a new workspace. Required when adding a second or later workspace."
+          }
+        }
+      },
+      "SlackProjectAssignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["projectId"],
+        "properties": {
+          "projectId": {
+            "type": ["string", "null"],
+            "description": "Project to own this workspace. Null is allowed only while it is the organization's sole workspace."
           }
         }
       },
@@ -251,7 +321,7 @@
             "additionalProperties": false,
             "properties": {
               "fallback": { "type": ["string", "null"] },
-              "noxalert": { "type": ["string", "null"] },
+              "noxcue": { "type": ["string", "null"] },
               "noxticket": { "type": ["string", "null"] },
               "noxfeed_posts": { "type": ["string", "null"] },
               "noxfeed_release_notes": { "type": ["string", "null"] }
@@ -263,7 +333,7 @@
         "type": "object",
         "required": ["route"],
         "properties": {
-          "route": { "type": "string", "enum": ["fallback", "noxalert", "noxticket", "noxfeed_posts", "noxfeed_release_notes"] },
+          "route": { "type": "string", "enum": ["fallback", "noxcue", "noxticket", "noxfeed_posts", "noxfeed_release_notes"] },
           "channelId": { "type": "string", "maxLength": 80, "description": "Optional candidate channel; otherwise uses saved routing and fallback." }
         }
       },
@@ -338,46 +408,56 @@
           "rating": { "type": ["integer", "null"], "minimum": 1, "maximum": 5 }
         }
       },
-      "NoxAlertProjectUpdate": {
+      "NoxCueSourceInput": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["enabled", "allowedOrigins", "rule"],
+        "required": ["name", "enabled", "projectId", "timezone", "digestEnabled", "digestTimeLocal", "slackChannelId", "slackConnectionId"],
         "properties": {
+          "name": { "type": "string", "maxLength": 120 },
           "enabled": { "type": "boolean" },
-          "allowedOrigins": { "type": "array", "maxItems": 20, "items": { "type": "string", "format": "uri", "description": "Exact origin without a path." } },
-          "rule": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["name", "filters", "notifyAfterCount", "windowSeconds", "repeatAfterSeconds"],
+          "projectId": { "type": ["string", "null"] },
+          "timezone": { "type": "string", "description": "IANA timezone used for daily periods." },
+          "digestEnabled": { "type": "boolean" },
+          "digestTimeLocal": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$" },
+          "slackChannelId": { "type": ["string", "null"], "description": "Source-specific Slack channel; null uses the organization fallback." },
+          "slackConnectionId": { "type": ["string", "null"], "description": "Slack workspace connection for the selected channel." }
+        }
+      },
+      "NoxCueError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "title"],
+        "properties": {
+          "version": { "const": 1, "default": 1 },
+          "type": { "const": "error.occurred" },
+          "title": { "type": "string", "maxLength": 200 },
+          "message": { "type": "string", "maxLength": 2000 },
+          "idempotencyKey": { "type": "string", "maxLength": 200 },
+          "occurredAt": { "type": "string", "format": "date-time" },
+          "url": { "type": "string", "format": "uri" },
+          "data": {
+            "type": "object", "additionalProperties": false,
             "properties": {
-              "name": { "type": "string", "maxLength": 120 },
-              "filters": { "$ref": "#/components/schemas/NoxAlertFilters" },
-              "notifyAfterCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
-              "windowSeconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
-              "repeatAfterSeconds": { "type": "integer", "minimum": 60, "maximum": 604800 }
+              "errorCode": { "type": "string", "maxLength": 120 },
+              "fingerprint": { "type": "string", "maxLength": 200 },
+              "component": { "type": "string", "maxLength": 120 },
+              "environment": { "type": "string", "maxLength": 80 },
+              "affectedUser": { "type": "string", "maxLength": 200, "description": "Opaque identifier; NoxCue stores only its SHA-256 hash." },
+              "fatal": { "type": "boolean", "default": false },
+              "unhandled": { "type": "boolean", "default": false }
             }
           }
         }
       },
-      "NoxAlertFilters": {
+      "NoxCueUserEvent": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["environments", "services", "include", "exclude"],
+        "required": ["type", "userId"],
         "properties": {
-          "environments": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 64 } },
-          "services": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 120 } },
-          "include": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/NoxAlertCondition" } },
-          "exclude": { "type": "array", "maxItems": 20, "items": { "$ref": "#/components/schemas/NoxAlertCondition" } }
-        }
-      },
-      "NoxAlertCondition": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["field", "operator", "value"],
-        "properties": {
-          "field": { "type": "string", "enum": ["service", "environment", "release", "error.type", "error.message", "page.url", "page.route"] },
-          "operator": { "type": "string", "enum": ["equals", "starts_with", "contains"] },
-          "value": { "type": "string", "maxLength": 256 }
+          "version": { "const": 1, "default": 1 },
+          "type": { "type": "string", "enum": ["user.registered", "user.active"] },
+          "userId": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Stable app identifier; NoxCue stores only a source-scoped SHA-256 hash." },
+          "occurredAt": { "type": "string", "format": "date-time" }
         }
       }
     }

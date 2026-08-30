@@ -111,7 +111,7 @@ const noxConnectData = {
   features: {
     feed: { state: "ready" as const, requirements: ["github"] },
     noxSpot: { state: "ready" as const, requirements: ["github"] },
-    noxAlert: { state: "ready" as const, requirements: ["github", "slack"], prerequisitesReady: true },
+    noxCue: { state: "ready" as const, requirements: ["slack"], prerequisitesReady: true },
   },
 };
 
@@ -328,6 +328,6 @@ describe("AdminTab", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("tab", { name: "NoxFeed" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("AI Provider")).toBeInTheDocument();
+    expect(screen.getByText("AI service")).toBeInTheDocument();
   });
 });

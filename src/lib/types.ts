@@ -241,14 +241,13 @@ export interface OrgSettings {
     noxticket?: boolean;
     noxfeed?: boolean;
     noxspot?: boolean;
-    noxalert?: boolean;
+    noxcue?: boolean;
   };
   excludedMembers?: string[];
   noxTicketRepo?: string;
   boardStages?: BoardStage[];
   // Admin-editable system prompt for the Release-notes feed. Empty/missing
-  // falls back to the bundled default (RELEASE_NOTES_SYSTEM in
-  // functions/lib/prompt.js). The LLM provider/model is NOT configurable
+  // falls back to the product-owned NoxFeed response-service default. The LLM provider/model is NOT configurable
   // per-feed — both Posts and Release notes share the org's LLM config.
   releaseNotesPrompt?: string;
   // Service-specific Slack routing. The bot install (token + team metadata)
@@ -256,14 +255,16 @@ export interface OrgSettings {
   slack?: {
     fallbackChannelId?: string;
     fallbackConnectionId?: string;
-    noxAlertChannelId?: string;
-    noxAlertConnectionId?: string;
+    noxCueChannelId?: string;
+    noxCueConnectionId?: string;
     noxTicketChannelId?: string;
     noxTicketConnectionId?: string;
     postsChannelId?: string;
     postsConnectionId?: string;
     releaseNotesChannelId?: string;
     releaseNotesConnectionId?: string;
+    /** Empty/missing mirrors every project; otherwise only this project posts to Slack. */
+    noxFeedProjectId?: string;
     /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
     noxFeedChannelId?: string;
   };

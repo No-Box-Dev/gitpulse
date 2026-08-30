@@ -25,6 +25,12 @@ Obtain the bearer token through Nox's normal GitHub sign-in flow. An agent must 
 
 GitHub and Slack consent are intentionally human actions. The Slack URL is a signed first-party browser handoff: opening it sets the OAuth CSRF cookie and redirects to Slack. This works even when the agent initiated the API request on a different machine. The URL expires after 10 minutes (600 seconds); an expired link returns an invalid-or-expired authorization error, after which the agent must restart the Slack connection step to obtain a fresh URL.
 
+One Slack workspace may serve the organization without a project assignment.
+To add a second workspace, first assign the existing connection with
+`PATCH /api/slack/connections/{connectionId}`, then start Slack OAuth with the
+new workspace's `projectId`. When two or more workspaces exist, every connection
+must retain a project assignment.
+
 ## Slack routing
 
 Discover channels:
@@ -42,7 +48,7 @@ Content-Type: application/json
 {
   "routes": {
     "fallback": "C0123456789",
-    "noxalert": "C0123456789",
+    "noxcue": "C0123456789",
     "noxticket": "C0234567890",
     "noxfeed_posts": "C0345678901",
     "noxfeed_release_notes": "C0456789012"
@@ -68,7 +74,7 @@ An optional `channelId` tests a candidate channel before saving it.
 After connections and organization routes are ready, feature-specific resources remain API-first:
 
 - NoxSpot sites: `GET`/`POST /api/spots/sites` and `PATCH /api/spots/sites/{siteId}`.
-- NoxAlert projects: `GET /api/alerts/projects`, `PUT /api/alerts/projects/{projectId}`, and `POST /api/alerts/projects/{projectId}/keys`. A newly created ingest key is returned only once; transfer it securely and never log it.
+- NoxCue sources: `GET/POST /api/cues/sources`, `PUT /api/cues/sources/{sourceId}`, and `POST /api/cues/sources/{sourceId}/keys`. Configure each source’s Slack workspace/channel, IANA timezone, and local delivery time. A newly created server key is returned only once. Submit closed `user.registered` and `user.active` events; NoxCue derives totals and rolling uniques available through `GET /api/cues/metrics?sourceId=...`.
 - NoxFeed uses the separate `noxfeed_posts` and `noxfeed_release_notes` routes.
 - NoxTicket uses the `noxticket` route.
 

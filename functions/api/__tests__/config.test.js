@@ -27,7 +27,7 @@ function makeCtx({ db, params, method = "GET", body, headers = {} } = {}) {
   const req = body !== undefined
     ? new Request("http://x/api/config", { method, headers: { "Content-Type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) })
     : new Request("http://x/api/config", { method, headers });
-  return { request: req, env: { DB: db }, data: { orgId: 1 }, params };
+  return { request: req, env: { DB: db }, data: { orgId: 1, orgLogin: "acme" }, params };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -56,16 +56,29 @@ describe("GET /api/config/:key", () => {
     expect(await res.json()).toEqual([{ title: "X" }]);
   });
 
-  it("returns canonical NoxTicket settings for pre-rename stored fields", async () => {
+  it("returns canonical settings for retired product fields", async () => {
     const prefix = ["un", "ticket"].join("");
+    const alert = ["nox", "alert"].join("");
     const db = makeDb({ firstResult: { data: JSON.stringify({
       [`${prefix}Repo`]: "legacy-config",
-      slack: { [`${prefix}ChannelId`]: "C1", [`${prefix}ConnectionId`]: "conn-1" },
+      apps: { [alert]: false },
+      slack: {
+        [`${prefix}ChannelId`]: "C1",
+        [`${prefix}ConnectionId`]: "conn-1",
+        [`${alert}ChannelId`]: "C2",
+        [`${alert}ConnectionId`]: "conn-2",
+      },
     }) } });
     const res = await onRequestGet(makeCtx({ db, params: { key: "settings" } }));
     expect(await res.json()).toEqual({
       noxTicketRepo: "legacy-config",
-      slack: { noxTicketChannelId: "C1", noxTicketConnectionId: "conn-1" },
+      apps: { noxcue: false },
+      slack: {
+        noxTicketChannelId: "C1",
+        noxTicketConnectionId: "conn-1",
+        noxCueChannelId: "C2",
+        noxCueConnectionId: "conn-2",
+      },
     });
   });
 
@@ -126,6 +139,25 @@ describe("PUT /api/config/:key", () => {
     expect(db._calls.run[0].binds[0]).toBe(1);
     expect(db._calls.run[0].binds[1]).toBe("features");
     expect(db._calls.run[0].binds[2]).toBe(JSON.stringify([{ title: "Login" }]));
+  });
+
+  it("validates and preserves the organization release-notes prompt", async () => {
+    const invalidType = await onRequestPut(makeCtx({
+      db: makeDb(), params: { key: "settings" }, method: "PUT", body: { releaseNotesPrompt: 42 },
+    }));
+    expect(invalidType.status).toBe(422);
+
+    const tooLong = await onRequestPut(makeCtx({
+      db: makeDb(), params: { key: "settings" }, method: "PUT", body: { releaseNotesPrompt: "x".repeat(20_001) },
+    }));
+    expect(tooLong.status).toBe(422);
+
+    const db = makeDb();
+    const valid = await onRequestPut(makeCtx({
+      db, params: { key: "settings" }, method: "PUT", body: { releaseNotesPrompt: "  Custom prompt  " },
+    }));
+    expect(valid.status).toBe(200);
+    expect(JSON.parse(db._calls.run[0].binds[2]).releaseNotesPrompt).toBe("  Custom prompt  ");
   });
 });
 
@@ -220,10 +252,28 @@ describe("PUT /api/config/settings — boardStages validation", () => {
 });
 
 describe("PUT /api/config/settings — app toggles", () => {
+  it("migrates the retired alert toggle and Slack route while saving current settings", async () => {
+    const db = makeDb();
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: {
+        apps: { noxalert: false, noxfeed: true },
+        savedSiteName: "Keep unrelated settings",
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    const saved = JSON.parse(db._calls.batch[0]._binds[2]);
+    expect(saved.apps).toEqual({ noxfeed: true, noxcue: false });
+    expect(saved.savedSiteName).toBe("Keep unrelated settings");
+  });
+
   it("persists optional app booleans", async () => {
     const db = makeDb();
     const body = {
-      apps: { noxfeed: false, noxticket: true, noxspot: false, noxalert: true },
+      apps: { noxfeed: false, noxticket: true, noxspot: false, noxcue: true },
       slack: undefined,
       savedSiteName: "Keep this setup",
     };
@@ -239,7 +289,7 @@ describe("PUT /api/config/settings — app toggles", () => {
     expect(db._calls.batch[3]._sql).toContain("blocked_service_disabled");
     expect(db._calls.batch[3]._binds).toContain("noxspot");
     expect(db._calls.batch[4]._sql).toContain("status = 'pending'");
-    expect(db._calls.batch[4]._binds).toContain("noxalert");
+    expect(db._calls.batch[4]._binds).toContain("noxcue");
   });
 
   it("rejects NoxConnect and non-boolean app values", async () => {
@@ -249,5 +299,52 @@ describe("PUT /api/config/settings — app toggles", () => {
       }));
       expect(res.status).toBe(422);
     }
+  });
+});
+
+describe("PUT /api/config/settings — NoxFeed Slack project scope", () => {
+  it("rejects a non-string project scope", async () => {
+    const res = await onRequestPut(makeCtx({
+      db: makeDb(),
+      params: { key: "settings" },
+      method: "PUT",
+      body: { slack: { noxFeedProjectId: ["proj-1"] } },
+    }));
+    expect(res.status).toBe(422);
+  });
+
+  it("rejects a project outside the organization", async () => {
+    const res = await onRequestPut(makeCtx({
+      db: makeDb({ firstResult: null }),
+      params: { key: "settings" },
+      method: "PUT",
+      body: { slack: { noxFeedProjectId: "proj-other" } },
+    }));
+    expect(res.status).toBe(422);
+  });
+
+  it("persists a project belonging to the organization", async () => {
+    const db = makeDb({ firstResult: { exists: 1 } });
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: { slack: { noxFeedProjectId: " proj-1 " } },
+    }));
+    expect(res.status).toBe(200);
+    expect(db._calls.first[0].binds).toEqual(["proj-1", "acme"]);
+    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify({ slack: { noxFeedProjectId: "proj-1" } }));
+  });
+
+  it("uses a missing project scope as all projects", async () => {
+    const db = makeDb();
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: { slack: { noxFeedProjectId: "  " } },
+    }));
+    expect(res.status).toBe(200);
+    expect(db._calls.batch[0]._binds[2]).toBe(JSON.stringify({ slack: {} }));
   });
 });

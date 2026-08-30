@@ -17,6 +17,7 @@ import { fetchIntegrationsStatus } from "@/lib/integrations-api";
 import type { NoxSpotSite } from "@/lib/types";
 import { NoxSpotWidgetConfiguration } from "@/components/admin/tools/NoxSpotWidgetConfiguration";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
+import { actionableSlackFeedback } from "@/lib/slack-feedback";
 
 function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof useNoxSpotSites>["data"]>; loading: boolean }) {
   const { data: projects = [] } = useFeedProjects();
@@ -222,7 +223,7 @@ function SiteCard({
             onClick={() => testSlack.mutate(site.slackChannelId || fallbackChannelId)}
             className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50 disabled:opacity-50"
           >
-            {testSlack.isPending ? <Spinner size="sm" /> : <Send size={12} />} {testSlack.isSuccess ? "Sent" : "Test"}
+            {testSlack.isPending ? <Spinner size="sm" /> : <Send size={12} />} {testSlack.isSuccess ? "Delivered" : "Send test"}
           </button>
         ) : null}
         {site.slackBlockedCount > 0 ? (
@@ -238,10 +239,13 @@ function SiteCard({
       </div>
       {site.slackEffectiveChannelId ? (
         <div className="mt-2 space-y-1 text-xs">
-          {site.slackPendingCount > 0 ? <p className="text-blue-600">{site.slackPendingCount} notification{site.slackPendingCount === 1 ? "" : "s"} pending delivery.</p> : null}
+          {testSlack.isSuccess ? <p className="text-green-600">Test delivered. This site’s Slack route is ready.</p> : null}
+          {retryDeliveries.isSuccess ? <p className="text-green-600">Retry queued. Refresh shortly to confirm the blocked count falls.</p> : null}
+          {site.slackPendingCount > 0 ? <p className="text-blue-600">{site.slackPendingCount} notification{site.slackPendingCount === 1 ? " is" : "s are"} queued. No action is needed unless this count remains after a few minutes.</p> : null}
           {site.slackLastDeliveredAt ? <p className="text-stone-400">Last delivered {new Date(site.slackLastDeliveredAt).toLocaleString()}.</p> : null}
-          {site.slackLastError ? <p className="flex items-start gap-1 text-amber-700"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{site.slackLastError}</p> : null}
-          {testSlack.isError ? <p className="text-red-600">{testSlack.error instanceof Error ? testSlack.error.message : "Slack test failed"}</p> : null}
+          {site.slackLastError ? <p className="flex items-start gap-1 text-amber-700"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{actionableSlackFeedback(site.slackLastError, "Correct this site’s workspace or channel, then send a test and retry blocked notifications.")}</p> : null}
+          {testSlack.isError ? <p className="text-red-600">{actionableSlackFeedback(testSlack.error, "Correct this site’s workspace or channel, then send the test again.")}</p> : null}
+          {retryDeliveries.isError ? <p className="text-red-600">{actionableSlackFeedback(retryDeliveries.error, "Configure a working site or fallback channel, then retry the blocked notifications again.")}</p> : null}
         </div>
       ) : null}
       </details>

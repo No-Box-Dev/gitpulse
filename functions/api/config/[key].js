@@ -1,14 +1,14 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { validateBoardStages } from "../../lib/board-stages.js";
 import { extractStatusFromLabels } from "../../lib/feature-issues.js";
-import { getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
+import { actionableSlackError, getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
 import { recoverOutboxDeliveries } from "../../lib/delivery-outbox.js";
 import { LEGACY_NOXTICKET_SOURCE, normalizeNoxSettings } from "../../lib/naming-compat.js";
 
 const VALID_KEYS = ["features", "people", "settings"];
 const SLACK_CHANNEL_KEYS = [
   "fallbackChannelId",
-  "noxAlertChannelId",
+  "noxCueChannelId",
   "noxTicketChannelId",
   "noxFeedChannelId",
   // Accepted during the compatibility window for older clients.
@@ -17,18 +17,18 @@ const SLACK_CHANNEL_KEYS = [
 ];
 const SLACK_ROUTES = [
   ["fallbackChannelId", "fallbackConnectionId"],
-  ["noxAlertChannelId", "noxAlertConnectionId"],
+  ["noxCueChannelId", "noxCueConnectionId"],
   ["noxTicketChannelId", "noxTicketConnectionId"],
   ["postsChannelId", "postsConnectionId"],
   ["releaseNotesChannelId", "releaseNotesConnectionId"],
   ["noxFeedChannelId", null],
 ];
-const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxalert"];
+const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxcue"];
 const APP_DELIVERY_SOURCES = {
   noxticket: ["noxticket", LEGACY_NOXTICKET_SOURCE],
   noxfeed: ["posts", "release_notes"],
   noxspot: ["noxspot"],
-  noxalert: ["noxalert"],
+  noxcue: ["noxcue"],
 };
 
 const DEFAULTS = {
@@ -81,12 +81,22 @@ export async function onRequestPut(context) {
     return errorResponse("Config payload too large (max 256KB)", 413);
   }
 
-  const { orgId } = getCtx(context);
+  const { orgId, orgLogin } = getCtx(context);
   let body;
   try { body = await context.request.json(); } catch {
     return errorResponse("Invalid JSON body", 400);
   }
   if (key === "settings") body = normalizeNoxSettings(body);
+
+  if (key === "settings" && body && typeof body === "object" && body.releaseNotesPrompt !== undefined) {
+    if (typeof body.releaseNotesPrompt !== "string") {
+      return errorResponse("releaseNotesPrompt must be a string", 422);
+    }
+    if (body.releaseNotesPrompt.length > 20_000) {
+      return errorResponse("releaseNotesPrompt must be at most 20,000 characters", 422);
+    }
+    if (!body.releaseNotesPrompt.trim()) delete body.releaseNotesPrompt;
+  }
 
   const slackWasSupplied = key === "settings"
     && body
@@ -105,6 +115,22 @@ export async function onRequestPut(context) {
       if (!OPTIONAL_APP_KEYS.includes(appId) || typeof enabled !== "boolean") {
         return errorResponse(`Invalid app setting: ${appId}`, 422);
       }
+    }
+  }
+
+  if (slackWasSupplied && body.slack?.noxFeedProjectId !== undefined) {
+    if (typeof body.slack.noxFeedProjectId !== "string") {
+      return errorResponse("noxFeedProjectId must be a string", 422);
+    }
+    const projectId = body.slack.noxFeedProjectId.trim();
+    if (projectId) {
+      const project = await context.env.DB.prepare(
+        "SELECT 1 FROM projects WHERE id = ? AND owner_id = ? LIMIT 1",
+      ).bind(projectId, orgLogin).first();
+      if (!project) return errorResponse("Choose a project from this organization", 422);
+      body.slack.noxFeedProjectId = projectId;
+    } else {
+      delete body.slack.noxFeedProjectId;
     }
   }
 
@@ -155,11 +181,11 @@ export async function onRequestPut(context) {
           const install = await resolveSlackInstall(context.env, orgId, connectionId);
           if (!install) return errorResponse("Connect the selected Slack workspace before choosing a channel", 409);
           const channel = await getSlackChannel(install.botToken, channelId);
-          if (!channel || channel.is_archived) return errorResponse("Slack channel is archived or unavailable", 409);
-          if (channel.is_private && !channel.is_member) return errorResponse("Invite the Nox bot to this private channel first", 409);
+          if (!channel || channel.is_archived) return errorResponse("This Slack channel is archived or unavailable. Choose an active channel, then save again.", 409);
+          if (channel.is_private && !channel.is_member) return errorResponse("NoxConnect is not in this private channel. Invite @NoxConnect in Slack, then save again.", 409);
         }
       } catch (error) {
-        return errorResponse(error instanceof Error ? error.message : "Slack channel is unavailable", 409);
+        return errorResponse(actionableSlackError(error, "Slack could not verify this channel. Review the workspace and channel, then save again."), 409);
       }
     }
   }
@@ -208,7 +234,7 @@ export async function onRequestPut(context) {
     const routes = [
       { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.postsConnectionId) || fallbackConnectionId },
       { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || fallbackConnectionId },
-      { sources: ["noxalert"], channelId: clean(slack.noxAlertChannelId) || fallbackChannelId, connectionId: clean(slack.noxAlertConnectionId) || fallbackConnectionId },
+      { sources: ["noxcue"], channelId: clean(slack.noxCueChannelId) || fallbackChannelId, connectionId: clean(slack.noxCueConnectionId) || fallbackConnectionId },
       { sources: ["noxticket", LEGACY_NOXTICKET_SOURCE], channelId: clean(slack.noxTicketChannelId) || fallbackChannelId, connectionId: clean(slack.noxTicketConnectionId) || fallbackConnectionId },
     ];
     for (const { sources, channelId, connectionId } of routes) {

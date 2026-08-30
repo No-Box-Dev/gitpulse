@@ -1,0 +1,68 @@
+import { describe, expect, it, vi } from "vitest";
+import { localDateTime, previousPeriod, runNoxCueDigests } from "../noxcue-digests.js";
+
+describe("NoxCue daily digest periods", () => {
+  it("uses the source timezone and the previous completed local day", () => {
+    const instant = Date.parse("2026-08-29T16:45:00Z");
+    expect(localDateTime(instant, "Asia/Kuala_Lumpur")).toEqual({
+      period: "2026-08-30",
+      minutes: 45,
+    });
+    expect(previousPeriod("2026-08-30")).toBe("2026-08-29");
+  });
+
+  it("handles month boundaries", () => {
+    expect(previousPeriod("2026-03-01")).toBe("2026-02-28");
+  });
+
+  it("stages and queues one digest for a completed source day", async () => {
+    const statements = [];
+    const prepare = (sql) => {
+      const statement = {
+        args: [],
+        bind(...args) { this.args = args; return this; },
+        async all() {
+          if (sql.includes("FROM cue_sources source")) return { results: [{
+            id: "source-1", org_id: 7, owner_id: "acme", name: "Checkout",
+            timezone: "Asia/Kuala_Lumpur", digest_time_local: "00:30",
+            channel_id: "C123", connection_id: "connection-1",
+          }] };
+          if (sql.includes("FROM cue_daily_metrics")) return { results: [
+            { period: "2026-07-30", metric_key: "users.new", value: 70, origin: "reported" },
+            { period: "2026-08-28", metric_key: "users.new", value: 80, origin: "reported" },
+            { period: "2026-08-29", metric_key: "users.new", value: 86, origin: "reported" },
+            { period: "2026-08-29", metric_key: "users.total", value: 4210, origin: "reported" },
+          ] };
+          return { results: [] };
+        },
+        async first() {
+          if (sql.includes("FROM cue_digest_runs")) return null;
+          if (sql.includes("INSERT INTO delivery_outbox")) return { id: "delivery-1", status: "pending" };
+          return null;
+        },
+        async run() { return { success: true, meta: { changes: 1 } }; },
+      };
+      statements.push({ sql, statement });
+      return statement;
+    };
+    const queue = { send: vi.fn(async () => undefined) };
+    const service = { buildDigestResponse: vi.fn(async () => ({
+      contract: "noxcue.response", version: 1, kind: "daily_digest",
+      message: { text: "Daily health", blocks: [{ type: "section" }] },
+    })) };
+    const env = { DB: { prepare, batch: async () => [] }, TASK_QUEUE: queue, NOXCUE_RESPONSE: service };
+    const result = await runNoxCueDigests(env, Date.parse("2026-08-29T16:45:00Z"));
+    expect(result).toEqual({ created: 1, skipped: 0, failed: 0 });
+    expect(service.buildDigestResponse).toHaveBeenCalledWith(
+      "Checkout",
+      "2026-08-29",
+      { "users.new": 86, "users.total": 4210 },
+      {
+        "users.new": { yesterday: 80, average30d: 75, sampleDays: 2 },
+        "users.total": { yesterday: null, average30d: null, sampleDays: 0 },
+      },
+    );
+    expect(queue.send).toHaveBeenCalledWith(expect.objectContaining({ type: "deliver_slack", outboxId: "delivery-1" }));
+    expect(statements.some(({ sql }) => sql.includes("INSERT OR IGNORE INTO cue_digest_runs"))).toBe(true);
+  });
+});

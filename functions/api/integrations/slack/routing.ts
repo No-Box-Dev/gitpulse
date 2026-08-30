@@ -13,7 +13,7 @@ interface Ctx {
 
 const ROUTES: Record<string, string> = {
   fallback: "fallbackChannelId",
-  noxalert: "noxAlertChannelId",
+  noxcue: "noxCueChannelId",
   noxticket: "noxTicketChannelId",
   noxfeed_posts: "postsChannelId",
   noxfeed_release_notes: "releaseNotesChannelId",
@@ -31,7 +31,7 @@ function routingResponse(settings: Record<string, unknown>) {
   return {
     routes,
     resolution: {
-      noxalert: ["noxalert", "fallback"],
+      noxcue: ["noxcue", "fallback"],
       noxticket: ["noxticket", "fallback"],
       noxfeed_posts: ["noxfeed_posts", "fallback"],
       noxfeed_release_notes: ["noxfeed_release_notes", "fallback"],
@@ -50,7 +50,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 }
 
 // PATCH /api/integrations/slack/routing
-// Body: { routes: { fallback?: string|null, noxalert?: string|null, ... } }
+// Body: { routes: { fallback?: string|null, noxcue?: string|null, ... } }
 // Partial updates are merged so an agent cannot accidentally erase unrelated
 // organization settings by writing the generic config document.
 export async function onRequestPatch(context: Ctx): Promise<Response> {

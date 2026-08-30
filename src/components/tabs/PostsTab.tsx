@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ExternalLink, GitPullRequest } from "lucide-react";
 import {
   useInfinitePosts,
@@ -247,6 +247,7 @@ interface PostCardProps {
 }
 
 function PostCard({ event, actor, project, summaryStyle }: PostCardProps) {
+  const navigate = useNavigate();
   const meta = parsePayload(event.payload_json);
   const actorLabel = actor?.name || actor?.github_login || event.actor_id || "unknown";
   const projectKey = (project?.repo || project?.slug || project?.name || "").toLowerCase();
@@ -257,16 +258,33 @@ function PostCard({ event, actor, project, summaryStyle }: PostCardProps) {
   const trigger = formatTrigger(typeof meta.trigger_type === "string" ? meta.trigger_type : null);
   const model = typeof meta.model === "string" ? meta.model : null;
   const triggerEventId = typeof meta.trigger_event_id === "number" ? meta.trigger_event_id : null;
+  const prNumber = payloadPrNumber(meta);
+  const detailRepo = event.repo || project?.repo || null;
+  const detailPath = detailRepo && prNumber != null ? `/prs/${encodeURIComponent(detailRepo)}/${prNumber}` : null;
   const [expanded, setExpanded] = useState(false);
   const expandable = triggerEventId != null;
   const displayedSummary = summaryStyle === "technical"
     ? (event.technical_summary || buildLegacyTechnicalSummary(event, project))
     : (event.summary || "(no summary)");
 
+  const activate = () => {
+    if (detailPath) navigate(detailPath);
+    else if (expandable) setExpanded((value) => !value);
+  };
+
   return (
     <article
-      onClick={expandable ? () => setExpanded((v) => !v) : undefined}
-      className={`render-lazy bg-white border border-stone-200 rounded-xl px-6 py-5 ${expandable ? "cursor-pointer hover:border-stone-300 transition-colors" : ""}`}
+      onClick={detailPath || expandable ? activate : undefined}
+      onKeyDown={detailPath || expandable ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          activate();
+        }
+      } : undefined}
+      role={detailPath ? "link" : expandable ? "button" : undefined}
+      tabIndex={detailPath || expandable ? 0 : undefined}
+      aria-label={detailPath && prNumber != null ? `Open PR #${prNumber}` : undefined}
+      className={`render-lazy bg-white border border-stone-200 rounded-xl px-6 py-5 ${detailPath || expandable ? "cursor-pointer hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors" : ""}`}
     >
       <header className="flex items-center gap-3">
         <Avatar actor={actor} label={actorLabel} />
@@ -302,7 +320,7 @@ function PostCard({ event, actor, project, summaryStyle }: PostCardProps) {
         {displayedSummary}
       </div>
 
-      {expanded && triggerEventId != null && (
+      {!detailPath && expanded && triggerEventId != null && (
         <PrDetails triggerEventId={triggerEventId} fallbackOrg={event.org} fallbackRepo={event.repo} />
       )}
 
@@ -319,6 +337,16 @@ function PostCard({ event, actor, project, summaryStyle }: PostCardProps) {
       ) : null}
     </article>
   );
+}
+
+function payloadPrNumber(payload: Record<string, unknown>): number | null {
+  const direct = typeof payload.pr_number === "number" ? payload.pr_number : Number(payload.pr_number);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+  const pr = payload.pr && typeof payload.pr === "object" && !Array.isArray(payload.pr)
+    ? payload.pr as Record<string, unknown>
+    : null;
+  const nested = typeof pr?.number === "number" ? pr.number : Number(pr?.number);
+  return Number.isInteger(nested) && nested > 0 ? nested : null;
 }
 
 function buildLegacyTechnicalSummary(event: FeedEvent, project: FeedProject | null): string {

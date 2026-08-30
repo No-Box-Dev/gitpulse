@@ -4,6 +4,7 @@ import { Loader2, MessageSquare } from "lucide-react";
 import {
   startSlackOAuth,
   disconnectSlack,
+  updateSlackConnectionProject,
   type SlackConnection,
 } from "@/lib/slack-api";
 import { apiPost } from "@/lib/api";
@@ -11,6 +12,9 @@ import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { SlackRouteField } from "@/components/admin/slack/SlackRouteField";
 import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelStatusBadge";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
+import { useFeedProjects } from "@/hooks/useNoxlink";
+import type { FeedProject } from "@/lib/noxlink-api";
+import { actionableSlackFeedback, slackOAuthFeedback } from "@/lib/slack-feedback";
 
 // The NoxConnect-section Slack card: connection lifecycle (connect / reconnect /
 // disconnect), health stats, and the organization fallback channel. Per-tool
@@ -18,13 +22,15 @@ import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 export function SlackConnectionCard() {
   const qc = useQueryClient();
   const { status } = useSlackChannels();
+  const projects = useFeedProjects();
+  const [newProjectId, setNewProjectId] = useState("");
 
   // Seed the OAuth-failure banner from the ?slack= param at first render —
   // the callback redirects back with the failure reason in the URL.
   const [error, setError] = useState<string | null>(() => {
     const flag = new URLSearchParams(window.location.search).get("slack");
     return flag && flag !== "ok" && flag !== "cancelled"
-      ? `Slack connection failed: ${flag}`
+      ? slackOAuthFeedback(flag)
       : null;
   });
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
@@ -53,14 +59,14 @@ export function SlackConnectionCard() {
     window.history.replaceState({}, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [qc]);
 
-  async function handleConnect(options?: { team?: string | null }) {
+  async function handleConnect(options?: { team?: string | null; projectId?: string | null }) {
     setError(null);
     setBusy("connect");
     try {
       const { url } = await startSlackOAuth(options);
       window.location.href = url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(actionableSlackFeedback(err, "Refresh the page and start Connect Slack again."));
       setBusy(null);
     }
   }
@@ -78,7 +84,7 @@ export function SlackConnectionCard() {
         qc.invalidateQueries({ queryKey: ["settings"] }),
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(actionableSlackFeedback(err, "Refresh the page, confirm the workspace is still connected, then try disconnecting again."));
     } finally {
       setBusy(null);
     }
@@ -92,7 +98,18 @@ export function SlackConnectionCard() {
     );
   }
 
+  if (status.isError) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-xs text-red-700">
+        {actionableSlackFeedback(status.error, "Refresh the page. If the status still cannot load, ask an operator to check the NoxConnect API.")}
+      </div>
+    );
+  }
+
   const data = status.data;
+  const allProjects = projects.data ?? [];
+  const activeProjects = allProjects.filter((project) => !project.archived);
+  const existingAssignmentsComplete = data?.connections?.every((connection) => connection.projectId) ?? true;
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-5 space-y-4">
@@ -107,9 +124,9 @@ export function SlackConnectionCard() {
         )}
       </div>
       <p className="text-xs text-stone-400">
-        Connect every Slack workspace this organization needs. Each Nox service can
-        then choose its workspace and channel independently. The bot must be added
-        to private channels before it can post there.
+        One Slack workspace can serve the whole organization. To add another,
+        assign the current workspace and the new workspace to projects first.
+        The bot must be added to private channels before it can post there.
       </p>
 
       {data?.connections?.length ? (
@@ -119,6 +136,8 @@ export function SlackConnectionCard() {
               key={connection.id}
               connection={connection}
               disconnecting={busy === "disconnect"}
+              projects={allProjects}
+              projectRequired={Boolean(data.projectAssignmentRequired)}
               onDisconnect={handleDisconnect}
               onError={setError}
             />
@@ -131,7 +150,9 @@ export function SlackConnectionCard() {
           <div><span className="text-stone-400">Pending</span><p className="mt-0.5 font-medium text-stone-700">{data.pendingDeliveries}</p></div>
           <div><span className="text-stone-400">Blocked</span><p className={`mt-0.5 font-medium ${data.blockedDeliveries > 0 ? "text-amber-700" : "text-stone-700"}`}>{data.blockedDeliveries}</p></div>
           <div><span className="text-stone-400">Last delivered</span><p className="mt-0.5 font-medium text-stone-700">{data.lastDeliveredAt ? new Date(data.lastDeliveredAt).toLocaleString() : "No deliveries yet"}</p></div>
-          {data.lastError ? <p className="sm:col-span-3 text-amber-700">{data.lastError}</p> : null}
+          {data.pendingDeliveries > 0 ? <p className="sm:col-span-3 text-stone-500">Pending messages are queued. No action is needed unless this number does not fall after a few minutes.</p> : null}
+          {data.blockedDeliveries > 0 ? <p className="sm:col-span-3 text-amber-700">Blocked messages need attention. Fix the affected workspace or channel below, then send a test; blocked deliveries will be retried after the configuration is saved.</p> : null}
+          {data.lastError ? <p className="sm:col-span-3 text-amber-700">{actionableSlackFeedback(data.lastError, "Review the affected workspace and channel, then send a test message.")}</p> : null}
         </div>
       )}
 
@@ -152,7 +173,7 @@ export function SlackConnectionCard() {
       )}
 
       {!data?.connected ? (
-        <button
+        <><button
           type="button"
           onClick={() => handleConnect({ team: null })}
           disabled={busy === "connect" || !data?.canConfigure || !data?.appConfigured}
@@ -161,6 +182,7 @@ export function SlackConnectionCard() {
           {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
           Connect Slack
         </button>
+        {!data?.canConfigure ? <p className="text-xs text-stone-500">Only an organization admin can connect Slack. Ask an admin to complete this step.</p> : null}</>
       ) : (
         <>
           <div className="border-t border-stone-100 pt-4">
@@ -172,17 +194,35 @@ export function SlackConnectionCard() {
             />
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap border-t border-stone-100 pt-3">
+          <div className="space-y-2 border-t border-stone-100 pt-3">
+            <label className="block text-xs font-medium text-stone-600">
+              Project for new workspace
+              <select
+                value={newProjectId}
+                onChange={(event) => setNewProjectId(event.target.value)}
+                className="mt-1.5 block w-full max-w-sm rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-700"
+              >
+                <option value="">Choose project</option>
+                {activeProjects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
+            </label>
+            {!existingAssignmentsComplete ? (
+              <p className="text-xs text-amber-700">Assign every connected workspace to a project before adding another.</p>
+            ) : null}
+            <div className="flex items-center gap-3 flex-wrap">
             <button
               type="button"
-              onClick={() => handleConnect({ team: null })}
-              disabled={busy === "connect" || !data.canConfigure || !data.appConfigured}
+              onClick={() => handleConnect({ team: null, projectId: newProjectId })}
+              disabled={busy === "connect" || !data.canConfigure || !data.appConfigured || !newProjectId || !existingAssignmentsComplete}
               className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
             >
               {busy === "connect" && <Loader2 size={12} className="animate-spin" />}
               Add Slack workspace
             </button>
             {(data.health === "degraded" || data.needsReconnect) ? <span className="text-xs text-amber-700">Reconnect by adding the affected workspace again.</span> : null}
+            </div>
           </div>
         </>
       )}
@@ -194,11 +234,15 @@ export function SlackConnectionCard() {
 function SlackConnectionRow({
   connection,
   disconnecting,
+  projects,
+  projectRequired,
   onDisconnect,
   onError,
 }: {
   connection: SlackConnection;
   disconnecting: boolean;
+  projects: FeedProject[];
+  projectRequired: boolean;
   onDisconnect: (connectionId: string) => Promise<void>;
   onError: (message: string | null) => void;
 }) {
@@ -206,10 +250,34 @@ function SlackConnectionRow({
   const { channels, status } = useSlackChannels(connection.id);
   const [channelId, setChannelId] = useState("");
   const [testing, setTesting] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function handleProjectChange(projectId: string) {
+    onError(null);
+    setFeedback(null);
+    setSavingProject(true);
+    try {
+      await updateSlackConnectionProject(connection.id, projectId || null);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["slack-status"] }),
+        qc.invalidateQueries({ queryKey: ["integrations-status"] }),
+      ]);
+      const projectName = projects.find((project) => project.id === projectId)?.name;
+      setFeedback({ ok: true, message: projectName
+        ? `Saved. ${connection.teamName} will serve ${projectName}.`
+        : `Saved. ${connection.teamName} is organization-wide.` });
+    } catch (err) {
+      setFeedback({ ok: false, message: actionableSlackFeedback(err, "Choose an active project, then save the workspace assignment again.") });
+    } finally {
+      setSavingProject(false);
+    }
+  }
 
   async function handleTest() {
     if (!channelId) return;
     onError(null);
+    setFeedback(null);
     setTesting(true);
     try {
       await apiPost("/api/slack/test", {
@@ -221,19 +289,23 @@ function SlackConnectionRow({
         status.refetch(),
         qc.invalidateQueries({ queryKey: ["integrations-status"] }),
       ]);
+      const selectedChannel = (channels.data ?? []).find((channel) => channel.id === channelId);
+      setFeedback({ ok: true, message: `Test delivered to ${selectedChannel ? `#${selectedChannel.name}` : "the selected channel"}. This workspace and channel are ready.` });
     } catch (err) {
       await status.refetch();
-      onError(err instanceof Error ? err.message : String(err));
+      setFeedback({ ok: false, message: actionableSlackFeedback(err, "Review this workspace and channel, then send the test again.") });
     } finally {
       setTesting(false);
     }
   }
 
   const statusText = connection.needsReconnect
-    ? "Reconnect required"
+    ? "Reconnect this workspace, then send a test message."
     : connection.health === "degraded"
-      ? connection.lastError ?? "Needs attention"
-      : "Connected";
+      ? actionableSlackFeedback(connection.lastError, "Reconnect this workspace, then send a test message.")
+      : connection.health === "unknown"
+        ? "Not verified yet. Choose a channel and send a test message."
+        : "Connected and authorized.";
   const channelStatus = findSlackChannelStatus(status.data?.channelStatuses, connection.id, channelId);
 
   return (
@@ -248,6 +320,20 @@ function SlackConnectionRow({
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={connection.projectId ?? ""}
+          onChange={(event) => void handleProjectChange(event.target.value)}
+          disabled={savingProject}
+          aria-label={`Project for ${connection.teamName}`}
+          className="min-w-44 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600 disabled:opacity-50"
+        >
+          <option value="" disabled={projectRequired}>{projectRequired ? "Choose project" : "Organization-wide"}</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id} disabled={Boolean(project.archived)}>
+              {project.name}{project.archived ? " (archived)" : ""}
+            </option>
+          ))}
+        </select>
         <select
           value={channelId}
           onChange={(event) => setChannelId(event.target.value)}
@@ -279,6 +365,10 @@ function SlackConnectionRow({
           Disconnect
         </button>
       </div>
+      {channels.isError ? (
+        <p className="w-full text-xs text-red-500">{actionableSlackFeedback(channels.error, "Reconnect this workspace, then reload its channels.")}</p>
+      ) : null}
+      {feedback ? <p className={`w-full text-xs ${feedback.ok ? "text-green-600" : "text-red-500"}`}>{feedback.message}</p> : null}
     </div>
   );
 }

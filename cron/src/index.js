@@ -20,6 +20,7 @@ import { runDatabaseRecoveryStep } from "./database-recovery.js";
 import { createNoxSpotGitHubIssue } from "../../functions/lib/noxspot.js";
 import { deliverSlackOutbox, markOutboxFailed, recoverOutboxDeliveries, requeueBlockedForOrg } from "../../functions/lib/delivery-outbox.js";
 import { checkSlackOrgHealth } from "../../functions/lib/slack.js";
+import { runNoxCueDigests } from "./noxcue-digests.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -32,7 +33,7 @@ const MAX_DELIVERIES = 5;
 
 export default {
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runTick(env));
+    ctx.waitUntil(runTick(env, event.scheduledTime));
     // Daily event-table archival/retention — gated to the 03:00 UTC ticks so it
     // runs roughly once a day rather than every 30 min. Idempotent, so the two
     // 03:xx ticks just drain any backlog left by the per-run cap.
@@ -73,24 +74,6 @@ export default {
       }
     }
   },
-
-  // Manual trigger for `wrangler dev --test-scheduled` and curl /__scheduled.
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    if (url.pathname === "/__scheduled") {
-      ctx.waitUntil(runTick(env));
-      return new Response("ok\n");
-    }
-    if (url.pathname === "/__archive-events") {
-      const result = await archiveOldEvents(env, Date.now());
-      return new Response(`${JSON.stringify(result)}\n`);
-    }
-    if (url.pathname === "/__recover") {
-      const result = await runDatabaseRecoveryStep(env);
-      return Response.json(result);
-    }
-    return new Response("not found", { status: 404 });
-  },
 };
 
 // Dispatch a queued task to the same helpers the webhook used to call inline.
@@ -117,12 +100,18 @@ async function handleTask(env, body) {
   }
 }
 
-async function runTick(env) {
+async function runTick(env, nowMs = Date.now()) {
   const db = env.DB;
 
   await recoverOutboxDeliveries(env);
   await runSlackHealthSweep(env);
   await healOrgInstallationLinks(db);
+
+  try {
+    await runNoxCueDigests(env, nowMs);
+  } catch (err) {
+    console.error("[noxconnect-cron] NoxCue digest sweep failed:", err?.message ?? err);
+  }
 
   // Process at most one explicitly-requested source-of-truth audit per tick.
   // Each request is bounded to 120 monthly GitHub Search calls and is durable

@@ -1,6 +1,6 @@
 import type { OrgSettings, TabId } from "./types";
 
-export type OptionalNoxAppId = "noxticket" | "noxfeed" | "noxspot" | "noxalert";
+export type OptionalNoxAppId = "noxticket" | "noxfeed" | "noxspot" | "noxcue";
 export type NoxAppId = "noxconnect" | OptionalNoxAppId;
 
 export interface NoxAppDefinition {
@@ -17,7 +17,7 @@ export const OPTIONAL_NOX_APP_IDS: readonly OptionalNoxAppId[] = [
   "noxticket",
   "noxfeed",
   "noxspot",
-  "noxalert",
+  "noxcue",
 ];
 
 export const ADMIN_INTRO = "Use one tab for each Nox app. Turn an app off to pause it. Your saved data and setup stay here.";
@@ -26,7 +26,7 @@ export const SERVICE_OFF_TEXT: Record<OptionalNoxAppId, string> = {
   noxticket: "Feature and spec tools are paused. API calls and Slack posts are blocked.",
   noxfeed: "Feed views, new posts, notes, history backfills, and Slack posts are paused.",
   noxspot: "Widgets, site setup, reports, screenshots, and Slack posts are blocked.",
-  noxalert: "Alert setup, error intake, rules, keys, and Slack posts are blocked.",
+  noxcue: "Daily registration totals, saved history, keys, and Slack delivery are blocked.",
 };
 
 export const NOX_APPS: readonly NoxAppDefinition[] = [
@@ -74,11 +74,11 @@ export const NOX_APPS: readonly NoxAppDefinition[] = [
     defaultTab: "admin",
   },
   {
-    id: "noxalert",
-    name: "NoxAlert",
-    shortName: "Alert",
-    description: "Turn site errors into clear alerts.",
-    includes: "OpenTelemetry intake, rules, keys, and Slack posts",
+    id: "noxcue",
+    name: "NoxCue",
+    shortName: "Cue",
+    description: "Know how your app did today—and immediately when it did not.",
+    includes: "Daily health, immediate errors, history, keys, and Slack delivery",
     tabs: [],
     defaultTab: "admin",
   },

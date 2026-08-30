@@ -42,8 +42,21 @@ export async function onRequestGet(context) {
   // against a client managing to craft a matching state+cookie pair.
   const verified = await verifyOAuthState(clientSecret, state);
   if (!verified) return redirectHome(url, "bad-state");
-  const { orgId, userLogin: rawUser } = verified;
+  const { orgId, userLogin: rawUser, projectId: rawProject } = verified;
   const userLogin = rawUser ? decodeURIComponent(rawUser) : "";
+  const projectId = rawProject ? decodeURIComponent(rawProject) : null;
+
+  if (projectId) {
+    // OAuth state carries the organization id but projects use the GitHub
+    // organization login as owner. Resolve that server-side before accepting
+    // the assignment; never trust a project id from the browser alone.
+    const ownedProject = await context.env.DB.prepare(
+      `SELECT project.id FROM projects project
+       JOIN orgs org ON org.github_login = project.owner_id
+       WHERE project.id = ? AND org.id = ? AND COALESCE(project.archived, 0) = 0`,
+    ).bind(projectId, orgId).first();
+    if (!ownedProject) return redirectHome(url, "project-not-found");
+  }
 
   let install;
   try {
@@ -59,7 +72,12 @@ export async function onRequestGet(context) {
   }
 
   try {
-    const connectionId = await saveSlackInstall(context.env, orgId, { ...install, installedBy: userLogin });
+    const connectionId = await saveSlackInstall(
+      context.env,
+      orgId,
+      { ...install, installedBy: userLogin },
+      projectId,
+    );
     // Validate the new token immediately. The redirect target can now render
     // authoritative health instead of the previous install's cached result.
     const health = await checkSlackOrgHealth(context.env, orgId, connectionId);

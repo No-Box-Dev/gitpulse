@@ -38,6 +38,7 @@ export async function onRequestPost(context) {
       body = {};
     }
     const days = Math.max(1, Math.min(30, Number(body?.days) || 3));
+    const limit = Math.max(1, Math.min(BACKFILL_MAX_PRS, Number(body?.limit) || BACKFILL_MAX_PRS));
     const rewriteOtherModels = body?.rewriteOtherModels === true;
 
     const db = context.env.DB;
@@ -86,7 +87,7 @@ export async function onRequestPost(context) {
 
     const todo = prs
       .filter((pr) => !seen.has(`backfill:${project.id}:pr-${pr.number}`))
-      .slice(0, BACKFILL_MAX_PRS);
+      .slice(0, limit);
 
     // Sweep up narratives that need re-narration:
     //   - Always: `model='fallback'` (LLM was down when they ran).
@@ -103,7 +104,7 @@ export async function onRequestPost(context) {
     }
     const fallbackIds = (
       await findRenarrateTargets(db, orgLogin, project.id, currentModel)
-    ).slice(0, BACKFILL_MAX_FALLBACKS);
+    ).slice(0, Math.min(limit, BACKFILL_MAX_FALLBACKS));
 
     if (todo.length === 0 && fallbackIds.length === 0) {
       return jsonResponse({

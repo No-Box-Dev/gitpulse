@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 
 vi.mock("@/hooks/useGitHub", () => ({
@@ -7,6 +7,7 @@ vi.mock("@/hooks/useGitHub", () => ({
   usePrBody: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: vi.fn() }));
+vi.mock("@/hooks/useNoxlink", () => ({ usePrTimeline: vi.fn() }));
 vi.mock("react-markdown", () => ({
   default: ({ children }: { children: string }) => <div data-testid="md">{children}</div>,
 }));
@@ -14,20 +15,24 @@ vi.mock("react-markdown", () => ({
 import { PrDetailPage } from "../PrDetailPage";
 import { usePrDetail, usePrBody } from "@/hooks/useGitHub";
 import { useAuth } from "@/lib/auth";
+import { usePrTimeline } from "@/hooks/useNoxlink";
 
 const mDetail = usePrDetail as unknown as ReturnType<typeof vi.fn>;
 const mBody = usePrBody as unknown as ReturnType<typeof vi.fn>;
 const mAuth = useAuth as unknown as ReturnType<typeof vi.fn>;
+const mTimeline = usePrTimeline as unknown as ReturnType<typeof vi.fn>;
 
 function LocationProbe() {
   const loc = useLocation();
-  return <div data-testid="loc">{loc.pathname}</div>;
+  return <div data-testid="loc">{loc.pathname}{loc.search}</div>;
 }
 
 beforeEach(() => {
   mDetail.mockReset();
   mBody.mockReset();
   mAuth.mockReturnValue({ selectedOrg: "acme" });
+  mTimeline.mockReset();
+  mTimeline.mockReturnValue({ data: [], isLoading: false, isError: false });
 });
 
 function renderAt(url: string) {
@@ -100,5 +105,48 @@ describe("PrDetailPage", () => {
     expect(screen.getByText("bob")).toBeInTheDocument();
     expect(screen.getByText("bug")).toBeInTheDocument();
     expect(screen.getByTestId("md")).toHaveTextContent("Fixes it");
+    expect(screen.getByRole("tab", { name: "PR" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("switches to a chronological, URL-addressable timeline with full event copy", () => {
+    mDetail.mockReturnValue({
+      data: {
+        number: 7,
+        title: "Fix crash",
+        state: "closed",
+        merged_at: "2026-08-30T10:00:00Z",
+        repo: "api",
+        user: { login: "alice", avatar_url: "" },
+        created_at: "2026-08-29T08:00:00Z",
+        html_url: "https://github.com/acme/api/pull/7",
+      },
+      isLoading: false,
+      isError: false,
+    });
+    mBody.mockReturnValue({ data: null, isLoading: false, isError: false });
+    mTimeline.mockReturnValue({
+      data: [
+        { id: 3, type: "release_notes", summary: "Complete release note", technical_summary: null, actor_id: "alice", payload_json: "{}", created_at: "2026-08-30T10:02:00Z" },
+        { id: 1, type: "github:pr:opened", summary: "PR #7: Fix crash", technical_summary: null, actor_id: "alice", payload_json: "{}", created_at: "2026-08-29T08:00:00Z" },
+        { id: 2, type: "github:pr:review:approved", summary: "Review approved", technical_summary: null, actor_id: "bob", payload_json: JSON.stringify({ review: { author: "bob", body: "Looks good" } }), created_at: "2026-08-30T09:00:00Z" },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    const { container } = renderAt("/prs/api/7");
+    fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));
+
+    expect(screen.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-selected", "true");
+    expect(mTimeline).toHaveBeenLastCalledWith("api", 7, true);
+    expect(mBody).toHaveBeenLastCalledWith("api", undefined);
+    expect(screen.getByText("Pull request opened")).toBeInTheDocument();
+    expect(screen.getByText("Review approved")).toBeInTheDocument();
+    expect(screen.getByText("Looks good")).toBeInTheDocument();
+    expect(screen.getByText("Release note generated")).toBeInTheDocument();
+    expect(screen.getByText("Complete release note")).toBeInTheDocument();
+    const timelineText = container.querySelector('[aria-label="Pull request timeline"]')?.textContent ?? "";
+    expect(timelineText.indexOf("Pull request opened")).toBeLessThan(timelineText.indexOf("Review approved"));
+    expect(timelineText.indexOf("Review approved")).toBeLessThan(timelineText.indexOf("Release note generated"));
   });
 });

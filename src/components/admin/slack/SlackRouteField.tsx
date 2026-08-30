@@ -7,12 +7,13 @@ import type { OrgSettings } from "@/lib/types";
 import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelStatusBadge";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
+import { actionableSlackFeedback } from "@/lib/slack-feedback";
 
 // Slack test-message kinds understood by /api/slack/test. Kept in sync with
 // the server's kind validation.
 export type SlackKind =
   | "fallback"
-  | "noxalert"
+  | "noxcue"
   | "noxspot"
   | "noxticket"
   | "noxfeed_posts"
@@ -21,14 +22,14 @@ export type SlackKind =
 // OrgSettings.slack keys, one per routable service stream.
 export type SlackRouteKey =
   | "fallbackChannelId"
-  | "noxAlertChannelId"
+  | "noxCueChannelId"
   | "noxTicketChannelId"
   | "postsChannelId"
   | "releaseNotesChannelId";
 
 const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack"]>> = {
   fallbackChannelId: "fallbackConnectionId",
-  noxAlertChannelId: "noxAlertConnectionId",
+  noxCueChannelId: "noxCueConnectionId",
   noxTicketChannelId: "noxTicketConnectionId",
   postsChannelId: "postsConnectionId",
   releaseNotesChannelId: "releaseNotesConnectionId",
@@ -78,7 +79,7 @@ export function SlackRouteField({
   const isDirty = (draftOverride !== null && value.trim() !== persisted.trim())
     || (connectionOverride !== null && connectionId !== persistedConnectionId);
 
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -89,7 +90,7 @@ export function SlackRouteField({
     if (!settings || savingRef.current) return;
     savingRef.current = true;
     setError(null);
-    setSavedAt(null);
+    setSaveStatus(null);
     try {
       const slack = { ...(settings.slack ?? {}) };
       // Saving any dedicated route retires the combined feed selection.
@@ -117,9 +118,13 @@ export function SlackRouteField({
       await saveSettings.mutateAsync(next);
       setDraftOverride(null);
       setConnectionOverride(null);
-      setSavedAt(Date.now());
+      const workspaceName = workspaceOptions.find((option) => option.value === connectionId)?.label ?? "the selected workspace";
+      const channelName = options.find((option) => option.value === trimmed)?.label ?? "the selected channel";
+      setSaveStatus(trimmed
+        ? `Saved. New ${label.toLowerCase()} messages will go to ${channelName} in ${workspaceName}.`
+        : `Saved. ${label} will use the organization fallback route.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(actionableSlackFeedback(err, "Review the workspace and channel, then save again."));
     } finally {
       savingRef.current = false;
     }
@@ -128,7 +133,7 @@ export function SlackRouteField({
   async function handleTest() {
     const channelId = value.trim();
     if (!channelId) {
-      setTestStatus({ ok: false, msg: "Pick a channel first." });
+      setTestStatus({ ok: false, msg: "Choose a workspace and channel, then send the test again." });
       return;
     }
     setTesting(true);
@@ -136,10 +141,11 @@ export function SlackRouteField({
     try {
       await apiPost("/api/slack/test", { connectionId, channelId, kind });
       await statusQuery.status.refetch();
-      setTestStatus({ ok: true, msg: "Test message posted." });
+      const channelName = options.find((option) => option.value === channelId)?.label ?? "the selected channel";
+      setTestStatus({ ok: true, msg: `Test delivered to ${channelName}. This route is ready; click Save if you changed it.` });
     } catch (err) {
       await statusQuery.status.refetch();
-      setTestStatus({ ok: false, msg: err instanceof Error ? err.message : String(err) });
+      setTestStatus({ ok: false, msg: actionableSlackFeedback(err, "Review the workspace and channel, then send the test again.") });
     } finally {
       setTesting(false);
     }
@@ -197,12 +203,17 @@ export function SlackRouteField({
           {testing && <Loader2 size={12} className="animate-spin" />}
           Test
         </button>
-        {savedAt && !isDirty && !error && (
+        {saveStatus && !isDirty && !error && (
           <span className="inline-flex items-center gap-1 text-xs text-green-600">
-            <Check size={12} /> Saved
+            <Check size={12} /> {saveStatus}
           </span>
         )}
       </div>
+      {selectedWorkspace.channels.isError ? (
+        <p className="text-xs text-red-500">
+          {actionableSlackFeedback(selectedWorkspace.channels.error, "Reconnect this workspace, then reload its channels.")}
+        </p>
+      ) : null}
       {error && <p className="text-xs text-red-500">{error}</p>}
       {testStatus && (
         <p className={"text-xs " + (testStatus.ok ? "text-green-600" : "text-red-500")}>

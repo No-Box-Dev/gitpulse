@@ -1,6 +1,6 @@
 import { LEGACY_NOXTICKET_SOURCE } from "./naming-compat.js";
 
-export const OPTIONAL_APP_IDS = ["noxticket", "noxfeed", "noxspot", "noxalert"];
+export const OPTIONAL_APP_IDS = ["noxticket", "noxfeed", "noxspot", "noxcue"];
 
 const APP_SET = new Set(OPTIONAL_APP_IDS);
 
@@ -47,7 +47,7 @@ export function appForApiPath(pathname) {
     return "noxfeed";
   }
   if (/^\/api\/spots(?:\/|$)/.test(pathname)) return "noxspot";
-  if (/^\/api\/alerts(?:\/|$)/.test(pathname)) return "noxalert";
+  if (/^\/api\/cues(?:\/|$)/.test(pathname)) return "noxcue";
   return null;
 }
 
@@ -55,7 +55,7 @@ export function appForDeliverySource(source) {
   if (source === "noxticket" || source === LEGACY_NOXTICKET_SOURCE) return "noxticket";
   if (source === "posts" || source === "release_notes") return "noxfeed";
   if (source === "noxspot") return "noxspot";
-  if (source === "noxalert") return "noxalert";
+  if (source === "noxcue") return "noxcue";
   return null;
 }
 
@@ -65,13 +65,19 @@ export function appForSlackKind(kind) {
     return "noxfeed";
   }
   if (kind === "noxspot") return "noxspot";
-  if (kind === "noxalert") return "noxalert";
+  if (kind === "noxcue") return "noxcue";
   return null;
 }
 
 export function serviceDisabledResponse(appId) {
+  const displayName = {
+    noxticket: "NoxTicket",
+    noxfeed: "NoxFeed",
+    noxspot: "NoxSpot",
+    noxcue: "NoxCue",
+  }[appId] ?? appId;
   return new Response(JSON.stringify({
-    error: `${appId} is off for this organization`,
+    error: `${displayName} is turned off for this organization. Turn it on in Admin, then try again.`,
     code: "service_disabled",
     service: appId,
   }), {

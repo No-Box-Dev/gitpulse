@@ -12,7 +12,7 @@ interface Ctx {
 
 const ROUTES = {
   fallback: { field: "fallbackChannelId", kind: "fallback" },
-  noxalert: { field: "noxAlertChannelId", kind: "noxalert" },
+  noxcue: { field: "noxCueChannelId", kind: "noxcue" },
   noxticket: { field: "noxTicketChannelId", kind: "noxticket" },
   noxfeed_posts: { field: "postsChannelId", kind: "noxfeed_posts" },
   noxfeed_release_notes: { field: "releaseNotesChannelId", kind: "noxfeed_release_notes" },
@@ -31,7 +31,7 @@ const RouteTest = z.object({
 export async function onRequestPost(context: Ctx): Promise<Response> {
   const { orgId, isAdmin } = getCtx(context);
   if (!orgId) return errorResponse("Missing org context", 400);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin) return errorResponse("Only an organization admin can test Slack routes. Ask an admin to send this test.", 403);
   let raw: unknown;
   try { raw = await context.request.json(); }
   catch { return errorResponse("Invalid JSON body", 400); }
@@ -48,7 +48,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       return errorResponse(error instanceof Error ? error.message : String(error), 500);
     }
   }
-  if (!channelId) return errorResponse("No channel is configured for this route", 409);
+  if (!channelId) return errorResponse("No channel is configured for this route. Choose and save a service channel or organization fallback, then test again.", 409);
 
   const request = new Request(context.request.url, {
     method: "POST",

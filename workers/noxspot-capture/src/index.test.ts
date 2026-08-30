@@ -98,17 +98,17 @@ describe("public capture Worker", () => {
     }
   });
 
-  it("stops automatic error intake while NoxAlert is off", async () => {
+  it("keeps NoxSpot automatic error intake independent from NoxCue", async () => {
     await env.DB.prepare(
       "INSERT INTO config (org_id, key, data) VALUES (1, 'settings', ?) ON CONFLICT(org_id, key) DO UPDATE SET data = excluded.data",
-    ).bind('{"apps":{"noxalert":false}}').run();
+    ).bind('{"apps":{"noxcue":false}}').run();
     try {
       const response = await SELF.fetch("https://capture.test/errors", {
         method: "POST",
         headers: { Origin: "https://app.example.com", "Content-Type": "application/json" },
         body: JSON.stringify({ siteId: "site-1", errors: [{ message: "boom" }] }),
       });
-      expect(response.status).toBe(404);
+		expect(response.status).toBe(200);
     } finally {
       await env.DB.prepare("DELETE FROM config WHERE org_id = 1 AND key = 'settings'").run();
     }

@@ -2,6 +2,11 @@
 
 NoxConnect is the always-on integration layer. It owns organization identity, GitHub and Slack installations, encrypted tokens, channel routing, shared configuration, durable outbox state, retries, and final Slack delivery. It does not decide what a product says or renders.
 
+Slack workspace ownership is also NoxConnect policy: one workspace may be
+organization-wide, while two or more require a project assignment on every
+connection. Products select only eligible connection/channel IDs and never own
+OAuth credentials.
+
 GitHub is exclusively a NoxConnect capability. NoxConnect owns webhook receipt
 and normalization, installation-token minting, repository discovery, issue and
 pull-request synchronization, GitHub reads, and GitHub mutations. Product
@@ -16,12 +21,12 @@ the other NoxConnect APIs rather than Octokit or `api.github.com`.
 | NoxFeed | Narration prompts, release-note policy, Posts/Release Notes Slack blocks, delivery-test content | GitHub event intake, org/project data, LLM provider invocation, channel selection, outbox and delivery |
 | NoxSpot | Widget and capture runtime, issue rendering, feedback Slack blocks, delivery-test content | org/site administration, GitHub installation, destination selection, outbox and delivery |
 | NoxTicket | Feature/backlog behavior and ticket Slack content | GitHub issue transport, org/repository selection, destination selection, outbox and delivery |
-| NoxAlert | Browser/OTLP ingestion, rules, grouping, alert/resolution Slack content, delivery-test content | org/project administration, GitHub issue transport where required, destination selection, outbox and delivery |
+| NoxCue | Closed user-event validation, identity hashing, and Slack digest presentation | organization/source/key administration, event facts, daily aggregation, source-level channel and schedule settings, saved history, outbox, Queue, retries, and receipts |
 
 ## Runtime contracts
 
 - NoxSpot exposes `noxspot.response` version 1 through the private `NOXSPOT_RESPONSE` service binding.
-- NoxAlert exposes `noxalert.response` version 1 through the private `NOXALERT_RESPONSE` service binding.
+- NoxCue exposes `noxcue.response` version 1 through the private `NOXCUE_RESPONSE` service binding.
 - NoxFeed exposes `noxfeed.response` version 1 through the private `NOXFEED_RESPONSE` service binding. Its Worker lives with the NoxFeed product under `service/`.
 - NoxTicket currently has no independent service repository. Its response policy therefore lives under `functions/products/noxticket`, separated from `functions/lib` so extraction to a private binding is mechanical when that service is created.
 

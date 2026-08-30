@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../slack.js", () => ({
   resolveSlackInstall: vi.fn(),
   postSlackMessage: vi.fn(),
+  actionableSlackError: vi.fn(() => "Review the Slack connection, then try again."),
 }));
 
 import {

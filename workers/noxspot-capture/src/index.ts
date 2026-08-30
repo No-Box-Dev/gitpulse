@@ -171,7 +171,6 @@ async function submitErrors(context: AppContext) {
 
   const site = await siteForPublicRequest(context, body.siteId);
   if (site instanceof Response) return site;
-  if (site.noxalert_enabled === 0) return jsonError(context, "Automatic error logging is not enabled", 404);
   const config = parseWidgetConfig(site.widget_config);
   if (config.autoErrorLogging !== true) return jsonError(context, "Automatic error logging is not enabled", 404);
   const environment = environmentForOrigin(config, requestOrigin(context.req.raw))?.name ?? null;

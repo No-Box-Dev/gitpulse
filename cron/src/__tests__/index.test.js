@@ -78,7 +78,7 @@ describe("scheduled tick", () => {
     });
 
     const { ctx, drain } = makeCtx();
-    await worker.fetch(new Request("https://x/__scheduled"), { DB: db }, ctx);
+    await worker.scheduled({ scheduledTime: Date.now() }, { DB: db }, ctx);
     await drain();
 
     expect(db._state.orgs[0].installation_id).toBe(111);
@@ -99,7 +99,7 @@ describe("scheduled tick", () => {
     });
 
     const { ctx, drain } = makeCtx();
-    await worker.fetch(new Request("https://x/__scheduled"), { DB: db }, ctx);
+    await worker.scheduled({ scheduledTime: Date.now() }, { DB: db }, ctx);
     await drain();
 
     expect(db._state.orgs[0].installation_id).toBeNull();
@@ -118,7 +118,7 @@ describe("scheduled tick", () => {
     });
 
     const { ctx, drain } = makeCtx();
-    await worker.fetch(new Request("https://x/__scheduled"), { DB: db }, ctx);
+    await worker.scheduled({ scheduledTime: Date.now() }, { DB: db }, ctx);
     await drain();
 
     expect(db._state.orgs[0].installation_id).toBe(111);

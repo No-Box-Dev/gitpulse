@@ -5,7 +5,7 @@ const PR_OPENED_SYSTEM = "NOXFEED_PR_OPENED_SYSTEM ".repeat(3);
 
 vi.mock("../llm.js", () => ({
   completeNarrative: vi.fn(),
-  NARRATOR_MODEL: "glm-5",
+  NARRATOR_MODEL: "claude-haiku-4-5-20251001",
 }));
 vi.mock("../op-failures.js", () => ({
   recordFailure: vi.fn(async () => {}),
@@ -89,7 +89,7 @@ function makeDb({
   return { prepare, _calls: calls };
 }
 
-const ENV = (db) => ({ DB: db, ZHIPU_API_KEY: "z-key" });
+const ENV = (db) => ({ DB: db, ANTHROPIC_API_KEY: "managed-key" });
 
 const EVENT_ROW = {
   id: 1,
@@ -197,10 +197,10 @@ describe("narrateEvent — happy path", () => {
     const [config, systemPrompt, userMessage] = completeNarrative.mock.calls[0];
     expect(config).toMatchObject({
       provider: "anthropic",
-      baseUrl: "https://api.z.ai/api/anthropic",
-      apiKey: "z-key",
-      model: "glm-5",
-      source: "default",
+      baseUrl: "https://api.anthropic.com",
+      apiKey: "managed-key",
+      model: "claude-haiku-4-5-20251001",
+      source: "managed",
     });
     expect(typeof systemPrompt).toBe("string");
     expect(systemPrompt.length).toBeGreaterThan(50);
@@ -234,7 +234,7 @@ describe("narrateEvent — happy path", () => {
     expect(payload).toEqual({
       trigger_event_id: 1,
       trigger_type: "github:pr:merged",
-      model: "glm-5",
+      model: "claude-haiku-4-5-20251001",
       pr_number: 42,
     });
   });
@@ -288,9 +288,9 @@ describe("narrateEvent — fallback path", () => {
       op: "narrateEvent",
       deliveryId: "event-1",
     });
-    expect(args.error).toContain("default");
+    expect(args.error).toContain("managed");
     expect(args.error).toContain("anthropic");
-    expect(args.error).toContain("glm-5");
+    expect(args.error).toContain("claude-haiku-4-5-20251001");
   });
 
   it("does NOT insert when LLM returns null AND row.summary is missing", async () => {
@@ -502,6 +502,22 @@ describe("narrateEvent — Slack mirror", () => {
     expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
+  it("does not mirror a project excluded by the NoxFeed Slack scope", async () => {
+    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
+    completeNarrative.mockResolvedValue("I merged it.");
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", noxFeedProjectId: "proj-2" });
+    await narrateEvent(ENV(db), 1);
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
+  });
+
+  it("mirrors a project included by the NoxFeed Slack scope", async () => {
+    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
+    completeNarrative.mockResolvedValue("I merged it.");
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", noxFeedProjectId: "proj-1" });
+    await narrateEvent(ENV(db), 1);
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ source: "posts", channelId: "C1" }));
+  });
+
   it("posts to the Posts channel after inserting a narrative", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
@@ -626,7 +642,7 @@ describe("narratePrOpened — happy path", () => {
     const payload = JSON.parse(payloadJson);
     expect(payload.pr_number).toBe(42);
     expect(payload.trigger_type).toBe("github:pr:opened");
-    expect(payload.model).toBe("glm-5");
+    expect(payload.model).toBe("claude-haiku-4-5-20251001");
   });
 
   it("dedups by PR identity — skips when pr_narrative row already exists", async () => {

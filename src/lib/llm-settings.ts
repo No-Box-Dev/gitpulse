@@ -1,35 +1,11 @@
-import { apiDelete, apiGet, apiPut } from "./api";
+import { apiGet, apiPut } from "./api";
 
-export type LlmProvider = "anthropic" | "openai-compatible";
-
-export type LlmSettings =
-  | { configured: false }
-  | {
-      configured: true;
-      provider: LlmProvider;
-      baseUrl: string;
-      model: string;
-      keyMask: string;
-      updatedAt?: string;
-    };
-
-export type LlmSettingsInput = {
-  provider: LlmProvider;
-  baseUrl: string;
-  // Leave blank when editing an existing config (server reuses the stored
-  // key). Required when no row exists yet.
-  apiKey: string;
-  model: string;
+export type AiMode = "managed" | "disabled";
+export type LlmSettings = {
+  mode: AiMode;
+  managed: { provider: "anthropic"; model: string; available: boolean };
 };
 
-export async function fetchLlmSettings(): Promise<LlmSettings> {
-  return apiGet<LlmSettings>("/api/llm-settings");
-}
-
-export async function saveLlmSettings(input: LlmSettingsInput): Promise<LlmSettings> {
-  return apiPut<LlmSettings>("/api/llm-settings", input);
-}
-
-export async function clearLlmSettings(): Promise<LlmSettings> {
-  return apiDelete<LlmSettings>("/api/llm-settings");
-}
+export const fetchLlmSettings = () => apiGet<LlmSettings>("/api/llm-settings");
+export const setAiMode = (mode: AiMode) =>
+  apiPut<LlmSettings>("/api/llm-settings", { mode });

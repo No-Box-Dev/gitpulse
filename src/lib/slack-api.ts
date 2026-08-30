@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./api";
+import { apiGet, apiPatch, apiPost } from "./api";
 import { startIntegrationConnection } from "./integrations-api";
 
 export interface SlackStatus {
@@ -7,10 +7,11 @@ export interface SlackStatus {
   teamName: string | null;
   botUserId: string | null;
   defaultConnectionId: string | null;
+  projectAssignmentRequired: boolean;
   connections: SlackConnection[];
   channelStatuses: SlackChannelStatus[];
   fallbackChannelId: string;
-  noxAlertChannelId: string;
+  noxCueChannelId: string;
   noxTicketChannelId: string;
   /** @deprecated Combined route retained for clients from the first central-routing release. */
   noxFeedChannelId: string;
@@ -47,6 +48,8 @@ export interface SlackConnection {
   lastCheckedAt: string | null;
   lastError: string | null;
   needsReconnect: boolean;
+  projectId: string | null;
+  projectName: string | null;
 }
 
 export interface SlackChannel {
@@ -72,11 +75,18 @@ export function fetchSlackChannels(connectionId?: string): Promise<{ connectionI
 // workspace picker decide (switching workspaces); by default the server pins
 // the org's current workspace.
 export function startSlackOAuth(
-  options?: { team?: string | null },
+  options?: { team?: string | null; projectId?: string | null },
 ): Promise<{ provider: "slack"; mode: "redirect"; url: string }> {
   return startIntegrationConnection("slack", options) as Promise<
     { provider: "slack"; mode: "redirect"; url: string }
   >;
+}
+
+export function updateSlackConnectionProject(
+  connectionId: string,
+  projectId: string | null,
+): Promise<{ ok: true; connectionId: string; projectId: string | null; projectName: string | null }> {
+  return apiPatch(`/api/slack/connections/${encodeURIComponent(connectionId)}`, { projectId });
 }
 
 export function disconnectSlack(connectionId: string): Promise<{ ok: true; provider: "slack"; status: "disconnected" }> {

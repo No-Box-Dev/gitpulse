@@ -3,7 +3,7 @@ import { getDefaultEnabledTab, getEnabledNoxApps, getAppForTab, isNoxAppEnabled,
 
 describe("Nox app configuration", () => {
   it("keeps existing organizations fully enabled by default", () => {
-    expect(getEnabledNoxApps(null)).toEqual(["noxconnect", "noxticket", "noxfeed", "noxspot", "noxalert"]);
+    expect(getEnabledNoxApps(null)).toEqual(["noxconnect", "noxticket", "noxfeed", "noxspot", "noxcue"]);
   });
 
   it("never allows NoxConnect to be disabled", () => {

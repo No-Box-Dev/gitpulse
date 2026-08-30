@@ -27,7 +27,7 @@ import {
 import { NoxTicketSection } from "@/components/admin/tools/NoxTicketSection";
 import { NoxFeedSection } from "@/components/admin/tools/NoxFeedSection";
 import { NoxSpotSection } from "@/components/admin/tools/NoxSpotSection";
-import { NoxAlertSection } from "@/components/admin/tools/NoxAlertSection";
+import { NoxCueSection } from "@/components/admin/tools/NoxCueSection";
 import { ServiceActivationCard, ServiceToggle } from "@/components/admin/ServiceActivationCard";
 import { NewReposSection } from "@/components/admin/NewReposSection";
 import { TrackedReposSection } from "@/components/admin/TrackedReposSection";
@@ -41,7 +41,7 @@ const ADMIN_SECTIONS: AdminSectionDef[] = [
   { id: "admin-noxticket", label: "NoxTicket" },
   { id: "admin-noxfeed", label: "NoxFeed" },
   { id: "admin-noxspot", label: "NoxSpot" },
-  { id: "admin-noxalert", label: "NoxAlert" },
+  { id: "admin-noxcue", label: "NoxCue" },
 ];
 
 const NOXCONNECT_PANELS = [
@@ -133,7 +133,7 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
   const noxTicketEnabled = isNoxAppEnabled(settings, "noxticket");
   const noxFeedEnabled = isNoxAppEnabled(settings, "noxfeed");
   const noxSpotEnabled = isNoxAppEnabled(settings, "noxspot");
-  const noxAlertEnabled = isNoxAppEnabled(settings, "noxalert");
+  const noxCueEnabled = isNoxAppEnabled(settings, "noxcue");
   const connectionsLoading = (
     <div className="bg-white rounded-xl border border-stone-200 p-5 flex justify-center">
       <Spinner className="h-5 w-5 text-accent" />
@@ -370,21 +370,21 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
             </AdminGate> : null}
           </section> : null}
 
-          {activeSection === "admin-noxalert" ? <section className="space-y-6">
+          {activeSection === "admin-noxcue" ? <section className="space-y-6">
             <ServiceActivationCard
-              app={getNoxApp("noxalert")}
-              enabled={noxAlertEnabled}
+              app={getNoxApp("noxcue")}
+              enabled={noxCueEnabled}
               isAdmin={isAdmin}
               isSaving={!settingsReady || saveSettings.isPending}
               hasError={saveSettings.isError}
-              offText={SERVICE_OFF_TEXT.noxalert}
+              offText={SERVICE_OFF_TEXT.noxcue}
               onToggle={toggleApp}
             />
-            {settingsReady && noxAlertEnabled ? <AdminGate
-              title="NoxAlert settings"
-              description="Set up OpenTelemetry intake, alert rules, keys, and Slack."
+            {settingsReady && noxCueEnabled ? <AdminGate
+              title="NoxCue settings"
+              description="Set up daily registration sources, schedules, server keys, and Slack channels."
             >
-              {status ? <NoxAlertSection noxConnect={status} /> : connectionsLoading}
+              {status ? <NoxCueSection noxConnect={status} /> : connectionsLoading}
             </AdminGate> : null}
           </section> : null}
 

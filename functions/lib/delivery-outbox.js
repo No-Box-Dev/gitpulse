@@ -1,5 +1,5 @@
 import { TASK } from "./tasks.js";
-import { postSlackMessage, resolveSlackInstall } from "./slack.js";
+import { actionableSlackError, postSlackMessage, resolveSlackInstall } from "./slack.js";
 import { markSlackChannelVerified, markSlackDeliveryChannelIssue } from "./slack-channel-status.js";
 import { appForDeliverySource, isAppEnabled } from "./apps.js";
 
@@ -117,8 +117,8 @@ export async function deliverSlackOutbox(env, deliveryId) {
     ).bind(delivery.org_id, delivery.slack_connection_id, delivery.slack_connection_id).first();
     const code = configured ? "slack_credentials_invalid" : "slack_not_connected";
     await markOutboxBlocked(env.DB, deliveryId, code, configured
-      ? "Slack credentials could not be decrypted"
-      : "Slack is not connected for this organization");
+      ? actionableSlackError({ code: "invalid_auth" })
+      : actionableSlackError("Slack not connected"));
     return { blocked: code };
   }
   try {
@@ -136,7 +136,7 @@ export async function deliverSlackOutbox(env, deliveryId) {
   } catch (error) {
     const code = error?.code || "slack_delivery_failed";
     if (SLACK_CONFIGURATION_ERRORS.has(code)) {
-      await markOutboxBlocked(env.DB, deliveryId, code, error);
+      await markOutboxBlocked(env.DB, deliveryId, code, actionableSlackError(error));
       return { blocked: code };
     }
     await markOutboxRetrying(env.DB, deliveryId, code, error);

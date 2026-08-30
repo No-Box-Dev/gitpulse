@@ -29,6 +29,33 @@ export class SlackApiError extends Error {
   }
 }
 
+export function actionableSlackError(error, fallback = "Check the selected Slack workspace and channel, then try again.") {
+  const code = String(error?.code ?? "").toLowerCase();
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = `${code} ${raw}`.toLowerCase();
+
+  if (normalized.includes("channel_not_found")) return "Slack could not find this channel in the selected workspace. Choose a channel from that workspace, save the route, then try again.";
+  if (normalized.includes("not_in_channel")) return "NoxConnect is not a member of this channel. In Slack, invite @NoxConnect to the channel, then try again.";
+  if (normalized.includes("is_archived")) return "This Slack channel is archived. Choose an active channel, save the route, then try again.";
+  if (normalized.includes("invalid_auth") || normalized.includes("token_revoked") || normalized.includes("account_inactive") || normalized.includes("credentials could not be decrypted")) {
+    return "This Slack workspace authorization is no longer usable. Reconnect the affected workspace, then send a test message.";
+  }
+  if (normalized.includes("missing_scope")) return "NoxConnect is missing a required Slack permission. Reconnect the affected workspace to grant the current permissions, then try again.";
+  if (normalized.includes("no_permission")) return "NoxConnect does not have permission to post in this channel. Invite @NoxConnect if the channel is private, or choose another channel, then try again.";
+  if (normalized.includes("workspace_mismatch")) return "The saved Slack authorization belongs to a different workspace. Reconnect the affected workspace, reselect its channel, then send a test message.";
+  if (normalized.includes("app_mismatch")) return "This workspace uses an older Slack connection. Reconnect it with NoxConnect, then send a test message.";
+  if (normalized.includes("rate_limited") || error?.status === 429 || normalized.includes("http 429")) {
+    const retryAfter = Number(error?.retryAfter);
+    const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? ` Wait ${retryAfter} seconds` : " Wait a moment";
+    return `Slack is temporarily rate-limiting requests.${wait}, then try again.`;
+  }
+  if (normalized.includes("abort") || normalized.includes("timeout") || /^http_5\d\d$/.test(code) || /slack http 5\d\d/.test(normalized)) {
+    return "Slack is temporarily unavailable or took too long to respond. Wait a moment, then try again.";
+  }
+  if (normalized.includes("slack not connected")) return "Slack is not connected for this organization. Connect a workspace in NoxConnect, choose a channel, then try again.";
+  return fallback;
+}
+
 // ---------- Storage ----------
 
 /**

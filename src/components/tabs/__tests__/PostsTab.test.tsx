@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 vi.mock("@/hooks/useNoxlink", () => ({
   useFeedActors: vi.fn(),
@@ -35,6 +35,11 @@ function renderTab() {
       <PostsTab />
     </MemoryRouter>,
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}</output>;
 }
 
 describe("PostsTab", () => {
@@ -95,6 +100,37 @@ describe("PostsTab", () => {
     renderTab();
     expect(screen.getByText("Shipped a new feature")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
+  });
+
+  it("opens the related pull request when a post card is clicked", () => {
+    mActors.mockReturnValue({ data: [], isLoading: false });
+    mProjects.mockReturnValue({ data: [], isLoading: false });
+    mPosts.mockReturnValue({
+      data: { pages: [{ events: [{
+        id: 1,
+        actor_id: null,
+        project_id: null,
+        summary: "Shipped checkout",
+        technical_summary: "What it does: Ships checkout",
+        payload_json: JSON.stringify({ pr_number: 973 }),
+        created_at: new Date().toISOString(),
+        org: "n1healthcare",
+        repo: "react-frontend",
+      }] }] },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+    });
+
+    render(
+      <MemoryRouter>
+        <Routes>
+          <Route path="*" element={<><PostsTab /><LocationProbe /></>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Open PR #973" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/prs/react-frontend/973");
   });
 
   it("switches Opened and Merged cards between social and technical copy without refetching", () => {

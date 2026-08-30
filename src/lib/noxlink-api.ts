@@ -92,6 +92,8 @@ export interface EventQuery {
   projectId?: string;
   actorId?: string;
   triggerTypes?: string[];
+  repo?: string;
+  prNumber?: number;
 }
 
 export interface EventsPage {
@@ -110,6 +112,8 @@ function buildEventsUrl(q: EventQuery): string {
   if (q.projectId) params.set("project_id", q.projectId);
   if (q.actorId) params.set("actor_id", q.actorId);
   if (q.triggerTypes?.length) params.set("trigger_types", q.triggerTypes.join(","));
+  if (q.repo) params.set("repo", q.repo);
+  if (q.repo && q.prNumber != null) params.set("pr_number", String(q.prNumber));
   const qs = params.toString();
   return `/api/events${qs ? `?${qs}` : ""}`;
 }
@@ -119,3 +123,14 @@ export const fetchEvents = (q: EventQuery = {}) =>
 
 export const fetchEventsPage = (q: EventQuery = {}) =>
   apiGet<EventsPage>(buildEventsUrl(q));
+
+export async function fetchPrTimeline(repo: string, prNumber: number): Promise<FeedEvent[]> {
+  const events: FeedEvent[] = [];
+  let before: string | undefined;
+  do {
+    const page = await fetchEventsPage({ repo, prNumber, limit: 200, before });
+    events.push(...page.events);
+    before = page.events.length === 200 ? page.nextCursor ?? undefined : undefined;
+  } while (before);
+  return events;
+}

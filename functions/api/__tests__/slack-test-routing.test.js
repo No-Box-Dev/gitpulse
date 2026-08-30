@@ -4,6 +4,7 @@ vi.mock("../../lib/slack.js", () => ({
   checkSlackOrgHealth: vi.fn(async () => ({ status: "ok", recovered: false })),
   resolveSlackInstall: vi.fn(async () => ({ id: "conn-2", botToken: "xoxb-test" })),
   postSlackMessage: vi.fn(async () => ({ ok: true, channel: "C-ALERT", ts: "1.2" })),
+  actionableSlackError: vi.fn((_error, fallback) => fallback),
 }));
 
 import { onRequestPost } from "../slack/test.js";

@@ -14,6 +14,7 @@ import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelSt
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 import { useFeedProjects } from "@/hooks/useNoxlink";
 import type { FeedProject } from "@/lib/noxlink-api";
+import { actionableSlackFeedback, slackOAuthFeedback } from "@/lib/slack-feedback";
 
 // The NoxConnect-section Slack card: connection lifecycle (connect / reconnect /
 // disconnect), health stats, and the organization fallback channel. Per-tool
@@ -29,7 +30,7 @@ export function SlackConnectionCard() {
   const [error, setError] = useState<string | null>(() => {
     const flag = new URLSearchParams(window.location.search).get("slack");
     return flag && flag !== "ok" && flag !== "cancelled"
-      ? `Slack connection failed: ${flag}`
+      ? slackOAuthFeedback(flag)
       : null;
   });
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
@@ -65,7 +66,7 @@ export function SlackConnectionCard() {
       const { url } = await startSlackOAuth(options);
       window.location.href = url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(actionableSlackFeedback(err, "Start Connect Slack again; if it repeats, ask an operator to review the deployment."));
       setBusy(null);
     }
   }
@@ -83,7 +84,7 @@ export function SlackConnectionCard() {
         qc.invalidateQueries({ queryKey: ["settings"] }),
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(actionableSlackFeedback(err, "Refresh the connection list, then disconnect the workspace again."));
     } finally {
       setBusy(null);
     }
@@ -143,7 +144,7 @@ export function SlackConnectionCard() {
           <div><span className="text-stone-400">Pending</span><p className="mt-0.5 font-medium text-stone-700">{data.pendingDeliveries}</p></div>
           <div><span className="text-stone-400">Blocked</span><p className={`mt-0.5 font-medium ${data.blockedDeliveries > 0 ? "text-amber-700" : "text-stone-700"}`}>{data.blockedDeliveries}</p></div>
           <div><span className="text-stone-400">Last delivered</span><p className="mt-0.5 font-medium text-stone-700">{data.lastDeliveredAt ? new Date(data.lastDeliveredAt).toLocaleString() : "No deliveries yet"}</p></div>
-          {data.lastError ? <p className="sm:col-span-3 text-amber-700">{data.lastError}</p> : null}
+          {data.lastError ? <p className="sm:col-span-3 text-amber-700">{actionableSlackFeedback(data.lastError, "Reconnect the affected workspace, then send a test message.")}</p> : null}
         </div>
       )}
 
@@ -241,6 +242,7 @@ function SlackConnectionRow({
   const [channelId, setChannelId] = useState("");
   const [testing, setTesting] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function handleProjectChange(projectId: string) {
     onError(null);
@@ -252,7 +254,7 @@ function SlackConnectionRow({
         qc.invalidateQueries({ queryKey: ["integrations-status"] }),
       ]);
     } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
+      onError(actionableSlackFeedback(err, "Choose an active project assignment, then save again."));
     } finally {
       setSavingProject(false);
     }
@@ -261,6 +263,7 @@ function SlackConnectionRow({
   async function handleTest() {
     if (!channelId) return;
     onError(null);
+    setFeedback(null);
     setTesting(true);
     try {
       await apiPost("/api/slack/test", {
@@ -272,19 +275,23 @@ function SlackConnectionRow({
         status.refetch(),
         qc.invalidateQueries({ queryKey: ["integrations-status"] }),
       ]);
+      const selectedChannel = (channels.data ?? []).find((channel) => channel.id === channelId);
+      setFeedback({ ok: true, message: `Test delivered to ${selectedChannel ? `#${selectedChannel.name}` : "the selected channel"}. This workspace and channel are ready.` });
     } catch (err) {
       await status.refetch();
-      onError(err instanceof Error ? err.message : String(err));
+      setFeedback({ ok: false, message: actionableSlackFeedback(err, "Review this workspace and channel, then send the test again.") });
     } finally {
       setTesting(false);
     }
   }
 
   const statusText = connection.needsReconnect
-    ? "Reconnect required"
+    ? "Reconnect this workspace, then send a test message."
     : connection.health === "degraded"
-      ? connection.lastError ?? "Needs attention"
-      : "Connected";
+      ? actionableSlackFeedback(connection.lastError, "Reconnect this workspace, then send a test message.")
+      : connection.health === "unknown"
+        ? "Not verified yet. Choose a channel and send a test message."
+        : "Connected and authorized.";
   const channelStatus = findSlackChannelStatus(status.data?.channelStatuses, connection.id, channelId);
 
   return (
@@ -347,6 +354,10 @@ function SlackConnectionRow({
           Disconnect
         </button>
       </div>
+      {channels.isError ? (
+        <p className="w-full text-xs text-red-500">{actionableSlackFeedback(channels.error, "Reconnect this workspace, then reload its channels.")}</p>
+      ) : null}
+      {feedback ? <p className={`w-full text-xs ${feedback.ok ? "text-green-600" : "text-red-500"}`}>{feedback.message}</p> : null}
     </div>
   );
 }

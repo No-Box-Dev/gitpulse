@@ -29,6 +29,7 @@ vi.mock("../noxfeed-response.js", () => ({
 vi.mock("../delivery-outbox.js", () => ({
   stageSlackDelivery: vi.fn(async () => ({ id: "delivery-1", status: "pending" })),
   queueOutboxDelivery: vi.fn(async () => true),
+  markOutboxBlocked: vi.fn(async () => {}),
 }));
 vi.mock("../noxfeed-routing.js", () => ({
   resolveNoxFeedDestination: vi.fn(async () => null),
@@ -45,7 +46,7 @@ import {
 import { completeNarrative } from "../llm.js";
 import { recordFailure } from "../op-failures.js";
 import { resolveSlackChannels } from "../slack.js";
-import { queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
+import { markOutboxBlocked, queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { resolveNoxFeedDestination } from "../noxfeed-routing.js";
 
 // D1 stub: dispatch by SQL substring. Tests configure what each query returns
@@ -122,6 +123,7 @@ beforeEach(() => {
   stageSlackDelivery.mockResolvedValue({ id: "delivery-1", status: "pending" });
   queueOutboxDelivery.mockReset();
   queueOutboxDelivery.mockResolvedValue(true);
+  markOutboxBlocked.mockReset();
   resolveNoxFeedDestination.mockReset();
   resolveNoxFeedDestination.mockResolvedValue(null);
 });
@@ -527,14 +529,23 @@ describe("narrateEvent — Slack mirror", () => {
     expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ channelId: "C1", source: "posts" }));
   });
 
-  it("does NOT post when neither NoxFeed nor fallback is configured", async () => {
+  it("keeps an organization-default delivery recoverable when no channel is configured", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
     resolveSlackChannels.mockResolvedValue({
       noxFeedChannelId: "", fallbackChannelId: "", postsChannelId: "", releaseNotesChannelId: "",
     });
     await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
+      source: "posts", channelId: "",
+    }));
+    expect(markOutboxBlocked).toHaveBeenCalledWith(
+      db,
+      "delivery-1",
+      "alerts_disabled",
+      expect.stringContaining("Choose and save a channel"),
+    );
+    expect(queueOutboxDelivery).not.toHaveBeenCalled();
   });
 
   it("does not fall back when a project explicitly disables Posts delivery", async () => {

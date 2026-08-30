@@ -1,31 +1,44 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useParams, Link, Navigate } from "react-router-dom";
+import { useParams, Link, Navigate, useSearchParams } from "react-router-dom";
 import Markdown from "react-markdown";
 import { GitPullRequest, GitMerge, ExternalLink } from "lucide-react";
 import { usePrDetail, usePrBody } from "@/hooks/useGitHub";
+import { usePrTimeline } from "@/hooks/useNoxlink";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/Spinner";
 import { cn } from "@/lib/cn";
 import { daysAgo } from "@/lib/dates";
 import { PageShell } from "./PageShell";
 import { CopyLinkButton } from "@/components/ui/CopyLinkButton";
+import { PrTimeline } from "./PrTimeline";
 
 export function PrDetailPage() {
   const { repo, number: numberStr } = useParams<{ repo: string; number: string }>();
   const { selectedOrg } = useAuth();
   const number = numberStr ? parseInt(numberStr, 10) : NaN;
   const isValidNumber = Number.isFinite(number) && number > 0;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") === "timeline" ? "timeline" : "pr";
 
   const { data: pr, isLoading, isError } = usePrDetail(repo, isValidNumber ? number : undefined);
   const { data: body, isLoading: bodyLoading, isError: bodyError } = usePrBody(
     repo,
-    isValidNumber ? number : undefined,
+    isValidNumber && view === "pr" ? number : undefined,
   );
+  const timeline = usePrTimeline(repo, isValidNumber ? number : undefined, view === "timeline");
+
+  function selectView(next: "pr" | "timeline") {
+    const params = new URLSearchParams(searchParams);
+    if (next === "timeline") params.set("view", "timeline");
+    else params.delete("view");
+    setSearchParams(params, { replace: true });
+  }
 
   if (!isValidNumber) return <Navigate to="/" replace />;
 
   return (
     <PageShell backTo="/?tab=current" backLabel="Back to Current">
+      <DetailViewTabs view={view} onChange={selectView} />
       {isLoading && (
         <div className="flex items-center justify-center py-20">
           <Spinner className="w-6 h-6 text-accent" />
@@ -50,7 +63,7 @@ export function PrDetailPage() {
       )}
 
       {pr && (
-        <article className="space-y-6">
+        <article className="mt-6 space-y-6">
           <header className="space-y-3">
             <div className="flex items-center gap-2 text-xs text-stone-500">
               <span className="font-mono">#{pr.number}</span>
@@ -84,19 +97,24 @@ export function PrDetailPage() {
             </div>
           </header>
 
-          <MetadataRow pr={pr} body={body} />
-
-          <section className="rounded-lg border border-stone-200 bg-white px-5 py-4 prose prose-sm prose-stone max-w-none">
-            {bodyLoading ? (
-              <div className="text-xs text-stone-400">Loading description…</div>
-            ) : bodyError ? (
-              <div className="text-xs text-stone-400">Couldn't load description.</div>
-            ) : body?.body ? (
-              <Markdown>{body.body}</Markdown>
-            ) : (
-              <span className="text-sm text-stone-400">No description.</span>
-            )}
-          </section>
+          {view === "pr" ? (
+            <>
+              <MetadataRow pr={pr} body={body} />
+              <section className="rounded-lg border border-stone-200 bg-white px-5 py-4 prose prose-sm prose-stone max-w-none">
+                {bodyLoading ? (
+                  <div className="text-xs text-stone-400">Loading description…</div>
+                ) : bodyError ? (
+                  <div className="text-xs text-stone-400">Couldn't load description. Refresh this page or open the pull request on GitHub.</div>
+                ) : body?.body ? (
+                  <Markdown>{body.body}</Markdown>
+                ) : (
+                  <span className="text-sm text-stone-400">No description was added to this pull request.</span>
+                )}
+              </section>
+            </>
+          ) : (
+            <PrTimeline events={timeline.data ?? []} isLoading={timeline.isLoading} isError={timeline.isError} />
+          )}
 
           <footer className="flex items-center gap-3 text-xs text-stone-500">
             <a
@@ -112,7 +130,7 @@ export function PrDetailPage() {
               url={pr.html_url}
               label={`Copy GitHub link to PR #${pr.number}`}
             />
-            {body && body.comments + body.review_comments > 0 && (
+            {view === "pr" && body && body.comments + body.review_comments > 0 && (
               <span>
                 · {body.comments + body.review_comments} comment
                 {body.comments + body.review_comments === 1 ? "" : "s"}
@@ -122,6 +140,31 @@ export function PrDetailPage() {
         </article>
       )}
     </PageShell>
+  );
+}
+
+function DetailViewTabs({ view, onChange }: { view: "pr" | "timeline"; onChange: (view: "pr" | "timeline") => void }) {
+  return (
+    <div className="grid grid-cols-2 rounded-xl border border-stone-200 bg-white p-1" role="tablist" aria-label="Pull request detail view">
+      {(["pr", "timeline"] as const).map((option) => {
+        const active = view === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(option)}
+            className={cn(
+              "rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
+              active ? "bg-violet-50 text-violet-700" : "text-stone-500 hover:bg-stone-50 hover:text-stone-800",
+            )}
+          >
+            {option === "pr" ? "PR" : "Timeline"}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

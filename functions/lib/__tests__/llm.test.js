@@ -5,22 +5,15 @@ vi.mock("../pacing.js", () => ({
   sleep: vi.fn(async () => {}),
 }));
 
-import { complete, completeNarrative, probeCompletion, NARRATOR_MODEL, ZHIPU_MODEL } from "../llm.js";
-import { PROVIDER_ANTHROPIC, PROVIDER_OPENAI_COMPATIBLE } from "../llm-config.js";
+import { complete, completeNarrative, probeCompletion, NARRATOR_MODEL } from "../llm.js";
+import { PROVIDER_ANTHROPIC } from "../llm-config.js";
 import { sleep } from "../pacing.js";
 
 const ANTHROPIC_CONFIG = {
   provider: PROVIDER_ANTHROPIC,
-  baseUrl: "https://api.z.ai/api/anthropic",
+  baseUrl: "https://api.anthropic.com",
   apiKey: "key",
-  model: "glm-5",
-};
-
-const OPENAI_CONFIG = {
-  provider: PROVIDER_OPENAI_COMPATIBLE,
-  baseUrl: "https://proxy.example.com",
-  apiKey: "bearer-key",
-  model: "gpt-4o-mini",
+  model: "claude-haiku-4-5-20251001",
 };
 
 // Build a fetch-Response-like stub. complete() reads via res.text() then
@@ -65,47 +58,27 @@ describe("complete", () => {
     expect(result).toBe("hi");
 
     const [url, init] = fetch.mock.calls[0];
-    expect(url).toBe("https://api.z.ai/api/anthropic/v1/messages");
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
     expect(init.method).toBe("POST");
     expect(init.headers["x-api-key"]).toBe("key");
     expect(init.headers["anthropic-version"]).toBe("2023-06-01");
     expect(init.headers["Content-Type"]).toBe("application/json");
     const body = JSON.parse(init.body);
     expect(body).toMatchObject({
-      model: "glm-5",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 50,
       system: "sys",
       messages: [{ role: "user", content: "usr" }],
     });
   });
 
-  it("POSTs to the OpenAI-compatible endpoint with bearer auth + chat shape", async () => {
-    fetch.mockResolvedValue(okResponse({ choices: [{ message: { content: "hello" } }] }));
-    const result = await complete(OPENAI_CONFIG, { system: "sys", user: "usr", maxTokens: 50 });
-    expect(result).toBe("hello");
-
-    const [url, init] = fetch.mock.calls[0];
-    expect(url).toBe("https://proxy.example.com/v1/chat/completions");
-    expect(init.headers["Authorization"]).toBe("Bearer bearer-key");
-    expect(init.headers["x-api-key"]).toBeUndefined();
-    const body = JSON.parse(init.body);
-    expect(body).toMatchObject({
-      model: "gpt-4o-mini",
-      max_tokens: 50,
-      messages: [
-        { role: "system", content: "sys" },
-        { role: "user", content: "usr" },
-      ],
-    });
-  });
-
   it("strips trailing slashes from baseUrl", async () => {
     fetch.mockResolvedValue(okResponse({ content: [{ type: "text", text: "x" }] }));
     await complete(
-      { ...ANTHROPIC_CONFIG, baseUrl: "https://api.z.ai/api/anthropic///" },
+      { ...ANTHROPIC_CONFIG, baseUrl: "https://api.anthropic.com///" },
       { system: "s", user: "u" },
     );
-    expect(fetch.mock.calls[0][0]).toBe("https://api.z.ai/api/anthropic/v1/messages");
+    expect(fetch.mock.calls[0][0]).toBe("https://api.anthropic.com/v1/messages");
   });
 
   it("returns null on non-2xx response (and warns)", async () => {
@@ -129,11 +102,6 @@ describe("complete", () => {
   it("returns null when Anthropic content is missing", async () => {
     fetch.mockResolvedValue(okResponse({}));
     expect(await complete(ANTHROPIC_CONFIG, { system: "s", user: "u" })).toBeNull();
-  });
-
-  it("returns null when OpenAI choices array is empty", async () => {
-    fetch.mockResolvedValue(okResponse({ choices: [] }));
-    expect(await complete(OPENAI_CONFIG, { system: "s", user: "u" })).toBeNull();
   });
 
   it("uses default max_tokens (220) when not specified", async () => {
@@ -411,8 +379,7 @@ describe("completeNarrative", () => {
 });
 
 describe("model name exports", () => {
-  it("uses the same model id for both narrator + zhipu aliases", () => {
-    expect(NARRATOR_MODEL).toBe("glm-5");
-    expect(ZHIPU_MODEL).toBe("glm-5");
+  it("uses Claude Haiku for managed narration", () => {
+    expect(NARRATOR_MODEL).toBe("claude-haiku-4-5-20251001");
   });
 });

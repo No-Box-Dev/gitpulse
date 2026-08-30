@@ -24,7 +24,7 @@ We do not store your source code.
 
 ## AI narration
 
-NoxConnect can narrate certain activity (currently pull-request merges) using a large language model. For those events, **event metadata** (such as PR title, author, and repository) is sent to the configured LLM provider — by default Zhipu's GLM endpoint, or your organisation's own provider if you configure Bring-Your-Own-Key in Settings. Narration is optional and can be disabled per project. We do not send your source code to the LLM provider.
+NoxConnect can narrate certain activity (currently pull-request merges) using Anthropic through NoxConnect's managed service. For those events, **event metadata** (such as PR title, author, and repository) is sent to Anthropic. Customers do not provide API credentials. Narration can be disabled for the organization and per project. We do not send your source code to the LLM provider.
 
 ## Data retention
 
@@ -39,7 +39,7 @@ NoxConnect can narrate certain activity (currently pull-request merges) using a 
 ## Sub-processors
 
 - **Cloudflare** — hosting, database (D1), queues, and object storage (R2)
-- **The configured LLM provider** — Zhipu by default, or your own BYOK provider — for event narration only
+- **Anthropic** — through NoxConnect's managed service, for event narration only
 - **GitHub** — the source of the data you connect
 
 ## Deleting your data

@@ -264,6 +264,11 @@ export async function narrateReleaseNotes(env, eventId) {
   // not release notes (see the header comment). The 1 extra LLM call per
   // merge is the price of the structured format.
   const orgId = await resolveOrgId(env.DB, row.owner_id);
+  const metadata = await resolveReleaseMetadata(env.DB, orgId, row, triggerPayload);
+  const enrichedPayload = {
+    ...triggerPayload,
+    pr: { ...(triggerPayload.pr ?? {}), ...metadata.pr },
+  };
   let summary;
   let model;
   let source = "release-notes";
@@ -273,8 +278,10 @@ export async function narrateReleaseNotes(env, eventId) {
       projectName: project.name,
       event: {
         type: row.type,
+        repo: row.repo,
+        environment: metadata.environment,
         summary: row.summary,
-        payload: triggerPayload,
+        payload: enrichedPayload,
         created_at: row.created_at,
       },
     };
@@ -289,7 +296,7 @@ export async function narrateReleaseNotes(env, eventId) {
       : null;
 
     if (text) {
-      const trimmed = text.trim();
+      const trimmed = enforceReleaseMetadata(text.trim(), metadata);
       summary = trimmed.length > RELEASE_NOTES_MAX_OUTPUT_LENGTH
         ? trimmed.slice(0, RELEASE_NOTES_MAX_OUTPUT_LENGTH - 1).trimEnd() + "…"
         : trimmed;
@@ -330,6 +337,7 @@ export async function narrateReleaseNotes(env, eventId) {
       trigger_type: row.type,
       model,
       pr_number: prNumber,
+      environment: metadata.environment,
     }),
     row.owner_id,
     row.created_at,
@@ -581,6 +589,77 @@ function cleanSentence(value) {
     .replace(/^PR\s+#\d+\s*:\s*/i, "")
     .trim()
     .replace(/[.!?]+$/, "");
+}
+
+async function resolveReleaseMetadata(db, orgId, row, payload) {
+  const source = payload?.pr ?? {};
+  let stored = null;
+  if (orgId && row.repo && typeof source.number === "number") {
+    stored = await db.prepare(
+      `SELECT author, merged_by, head_ref, base_ref
+         FROM pull_requests
+        WHERE org_id = ? AND repo = ? AND number = ?
+        LIMIT 1`
+    ).bind(orgId, row.repo, source.number).first();
+  }
+  const pr = {
+    author: source.author ?? stored?.author ?? null,
+    merged_by: source.merged_by ?? stored?.merged_by ?? source.author ?? stored?.author ?? null,
+    head_ref: source.head_ref ?? stored?.head_ref ?? null,
+    base_ref: source.base_ref ?? stored?.base_ref ?? null,
+  };
+  return {
+    repo: row.repo,
+    number: source.number,
+    title: source.title,
+    pr,
+    environment: releaseEnvironment(source.environment ?? source.deployment_environment, pr.base_ref),
+  };
+}
+
+function releaseEnvironment(explicit, baseRef) {
+  if (typeof explicit === "string" && explicit.trim()) return explicit.trim().slice(0, 80);
+  const branch = String(baseRef ?? "").trim().toLowerCase();
+  if (branch === "main" || branch === "master") return "Production";
+  if (branch === "staging" || branch === "stage") return "Staging";
+  if (["develop", "development", "dev"].includes(branch)) return "Development";
+  return null;
+}
+
+function enforceReleaseMetadata(summary, metadata) {
+  const fields = [
+    ["Repository", metadata.repo],
+    ["Pull Request", metadata.number ? `#${metadata.number}${metadata.title ? ` - ${metadata.title}` : ""}` : null],
+    ["Author", metadata.pr.author ? `${metadata.pr.author} | Merged by: ${metadata.pr.merged_by ?? metadata.pr.author}` : null],
+    ["Branch", metadata.pr.head_ref || metadata.pr.base_ref ? `${metadata.pr.head_ref ?? "?"} → ${metadata.pr.base_ref ?? "?"}` : null],
+    ["Environment", metadata.environment],
+  ].filter(([, value]) => value);
+  const replacements = {
+    "[repo]": metadata.repo,
+    "[number]": metadata.number,
+    "[title]": metadata.title,
+    "[author]": metadata.pr.author,
+    "[merger]": metadata.pr.merged_by ?? metadata.pr.author,
+    "[head_ref]": metadata.pr.head_ref,
+    "[base_ref]": metadata.pr.base_ref,
+    "[environment]": metadata.environment,
+  };
+  let canonicalSummary = String(summary ?? "");
+  for (const [placeholder, value] of Object.entries(replacements)) {
+    if (value != null && value !== "") canonicalSummary = canonicalSummary.replaceAll(placeholder, String(value));
+  }
+  const lines = canonicalSummary.split(/\r?\n/);
+  for (const [label, value] of fields) {
+    const pattern = new RegExp(`^${label}:`, "i");
+    const index = lines.findIndex((line) => pattern.test(line.trim()));
+    const line = `${label}: ${value}`;
+    if (index >= 0) lines[index] = line;
+    else {
+      const sectionIndex = lines.findIndex((entry) => /^#{0,6}\s*Change Summary\s*$/i.test(entry.trim()));
+      lines.splice(sectionIndex >= 0 ? sectionIndex : Math.min(1, lines.length), 0, line);
+    }
+  }
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function limitText(text, maxLength) {

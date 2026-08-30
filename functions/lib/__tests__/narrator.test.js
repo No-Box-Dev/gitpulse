@@ -59,6 +59,7 @@ function makeDb({
   existingNarrative = null,
   existingPrNarrative = null,
   reusablePrNarrative = null, // { summary, technical_summary, model } — reuse SELECT
+  pullRequest = null,
   org = { id: "org-1" },
 } = {}) {
   const calls = { firsts: [], runs: [] };
@@ -80,6 +81,7 @@ function makeDb({
         if (sql.includes("FROM events")) return event;
         if (sql.includes("FROM projects")) return project;
         if (sql.includes("FROM actors")) return actor;
+        if (sql.includes("FROM pull_requests")) return pullRequest;
         if (sql.includes("FROM config")) return settings;
         if (sql.includes("FROM orgs")) return org;
         return null;
@@ -380,6 +382,33 @@ describe("narrateReleaseNotes", () => {
     const [source, type] = inserts[0].binds;
     expect(source).toBe("release-notes");
     expect(type).toBe("release_notes");
+  });
+
+  it("replaces model placeholders and always includes the release environment", async () => {
+    const db = makeDb({
+      event: EVENT_ROW,
+      project: PROJECT_ROW,
+      actor: ACTOR_ROW,
+      pullRequest: { author: "Jane", merged_by: "Sam", head_ref: "develop", base_ref: "main" },
+    });
+    completeNarrative.mockResolvedValue([
+      "🐛 [repo] #42 Merged - Bugfix",
+      "Repository: [repo]",
+      "Pull Request: #42 - [title]",
+      "Author: [author] | Merged by: [merger]",
+      "Branch: [head_ref] → [base_ref]",
+      "",
+      "Change Summary",
+      "Details: fixed the thing.",
+    ].join("\n"));
+    await narrateReleaseNotes(ENV(db), 1);
+    const insert = db._calls.runs.find((run) => run.sql.includes("INSERT INTO events"));
+    expect(insert.binds[6]).toContain("🐛 noxconnect #42 Merged - Bugfix");
+    expect(insert.binds[6]).toContain("Repository: noxconnect");
+    expect(insert.binds[6]).toContain("Author: Jane | Merged by: Sam");
+    expect(insert.binds[6]).toContain("Branch: develop → main");
+    expect(insert.binds[6]).toContain("Environment: Production");
+    expect(JSON.parse(insert.binds[7]).environment).toBe("Production");
   });
 
   it("uses the default system prompt when no override is configured", async () => {
@@ -869,7 +898,7 @@ describe("narrateReleaseNotes — always calls the LLM", () => {
     const [source, type, , , , , summary, payloadJson] = insert.binds;
     expect(source).toBe("release-notes");
     expect(type).toBe("release_notes");
-    expect(summary).toBe("## Change Summary\nStructured note.");
+    expect(summary).toBe("Repository: noxconnect\nPull Request: #42 - do thing\n## Change Summary\nStructured note.");
     expect(JSON.parse(payloadJson).model).not.toMatch(/^reused:/);
   });
 });

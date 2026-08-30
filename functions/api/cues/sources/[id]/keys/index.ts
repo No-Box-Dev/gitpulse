@@ -26,7 +26,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   ).bind(context.params.id, orgId).first<{ id: string }>();
   if (!source) return errorResponse("Cue source not found", 404);
 
-  const value = createCueKey();
+  const value = createCueKey(parsed.data.kind);
   const id = crypto.randomUUID();
   await db.prepare(
     `INSERT INTO cue_source_keys
@@ -41,4 +41,3 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     warning: "Copy this key now. It cannot be shown again.",
   }, 201);
 }
-

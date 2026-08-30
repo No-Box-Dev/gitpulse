@@ -3,6 +3,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type {
   NoxCueEventsResponse,
+  NoxCueFeaturesResponse,
   NoxCueMetricsResponse,
   NoxCueProjectMetricsResponse,
   NoxCueSourceInput,
@@ -53,11 +54,21 @@ export function useCreateNoxCueKey() {
   const { selectedOrg } = useAuth();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ sourceId, name }: { sourceId: string; name: string }) =>
-      apiPost<{ key: { id: string; name: string; kind: "secret"; prefix: string; value: string }; warning: string }>(
-        `/api/cues/sources/${encodeURIComponent(sourceId)}/keys`, { name, kind: "secret" },
+    mutationFn: ({ sourceId, name, kind }: { sourceId: string; name: string; kind: "publishable" | "secret" }) =>
+      apiPost<{ key: { id: string; name: string; kind: "publishable" | "secret"; prefix: string; value: string }; warning: string }>(
+        `/api/cues/sources/${encodeURIComponent(sourceId)}/keys`, { name, kind },
       ),
     onSuccess: () => client.invalidateQueries({ queryKey: sourcesKey(selectedOrg) }),
+  });
+}
+
+export function useNoxCueFeatures(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  return useQuery({
+    queryKey: ["noxcue-features", selectedOrg, sourceId],
+    queryFn: () => apiGet<NoxCueFeaturesResponse>(`/api/cues/features?sourceId=${encodeURIComponent(sourceId)}`),
+    enabled: Boolean(selectedOrg && sourceId),
+    refetchInterval: 15_000,
   });
 }
 

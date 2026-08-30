@@ -49,17 +49,30 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   }
   const result = await db.prepare(
     `UPDATE cue_sources SET name = ?, project_id = ?, enabled = ?,
-       timezone = ?, digest_enabled = ?, digest_time_local = ?, slack_channel_id = ?,
+       timezone = ?, digest_enabled = ?, digest_time_local = ?, allowed_origins_json = ?, slack_channel_id = ?,
        slack_connection_id = ?,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      WHERE id = ? AND org_id = ? AND owner_id = ?`,
   ).bind(
     parsed.data.name, projectId, parsed.data.enabled ? 1 : 0,
     parsed.data.timezone,
-    parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal,
+    parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal, JSON.stringify(parsed.data.allowedOrigins),
     parsed.data.slackChannelId, slackConnectionId, context.params.id, orgId, orgLogin,
   ).run();
   if (!result.meta.changes) return errorResponse("Cue source not found", 404);
+  await db.prepare(
+    `INSERT INTO cue_endpoint_monitors (org_id, source_id, enabled, url, updated_at)
+     VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+     ON CONFLICT(source_id) DO UPDATE SET
+       status = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url
+         OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN 'waiting' ELSE cue_endpoint_monitors.status END,
+       consecutive_failures = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url
+         OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN 0 ELSE cue_endpoint_monitors.consecutive_failures END,
+       incident_started_at = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url
+         OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN NULL ELSE cue_endpoint_monitors.incident_started_at END,
+       last_error = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url THEN NULL ELSE cue_endpoint_monitors.last_error END,
+       enabled = excluded.enabled, url = excluded.url, updated_at = excluded.updated_at`,
+  ).bind(orgId, context.params.id, parsed.data.healthEnabled ? 1 : 0, parsed.data.healthUrl).run();
   return jsonResponse({ ok: true });
 }
 

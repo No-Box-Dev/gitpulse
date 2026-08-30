@@ -317,6 +317,10 @@ export function updateSlackMessage(token, channelId, messageTs, payload) {
   return slackPost(token, "chat.update", { channel: channelId, ts: messageTs, ...payload });
 }
 
+export function openSlackModal(token, triggerId, view) {
+  return slackPost(token, "views.open", { trigger_id: triggerId, view });
+}
+
 export async function getSlackChannel(token, channelId) {
   const data = await slackGet(token, "conversations.info", { channel: channelId });
   return data.channel ?? null;

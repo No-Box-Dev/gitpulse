@@ -24,6 +24,7 @@ import {
   slackInstallNeedsReconnect,
   clearSlackChannelsForOrg,
   postSlackMessage,
+  openSlackModal,
   listSlackChannels,
 } from "../slack.js";
 
@@ -190,6 +191,10 @@ describe("Slack app manifest", () => {
     expect(manifest.settings.event_subscriptions).toEqual({
       request_url: "https://app.unticket.ai/api/slack/events",
       bot_events: ["link_shared"],
+    });
+    expect(manifest.settings.interactivity).toEqual({
+      is_enabled: true,
+      request_url: "https://app.unticket.ai/api/slack/interactions",
     });
     expect(manifest.features.unfurl_domains).toEqual(["app.unticket.ai"]);
   });
@@ -436,6 +441,14 @@ describe("postSlackMessage", () => {
     const body = JSON.parse(init.body);
     expect(body.channel).toBe("C-123");
     expect(body.text).toBe("hi");
+  });
+
+  it("opens a modal with the interaction trigger", async () => {
+    globalThis.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, view: { id: "V1" } }) });
+    await openSlackModal("xoxb-1", "trigger-1", { type: "modal", title: { type: "plain_text", text: "Release notes" }, blocks: [] });
+    const [url, init] = globalThis.fetch.mock.calls[0];
+    expect(url).toBe("https://slack.com/api/views.open");
+    expect(JSON.parse(init.body)).toMatchObject({ trigger_id: "trigger-1", view: { type: "modal" } });
   });
 
   it("throws when Slack returns ok=false", async () => {

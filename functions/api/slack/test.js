@@ -52,36 +52,37 @@ export async function onRequestPost(context) {
   const install = await resolveSlackInstall(context.env, orgId, connectionId);
   if (!install) return errorResponse("Slack not connected", 404);
 
-  let payload;
-  if (kind === "noxcue") {
-    if (sourceId) {
-      const source = await context.env.DB.prepare(
-        `SELECT name, timezone, project_id FROM cue_sources WHERE id = ? AND org_id = ?`,
-      ).bind(sourceId, orgId).first();
-      if (!source) return errorResponse("NoxCue source not found", 404);
-      const period = completedPeriodAt(source.timezone);
-      const digest = await loadNoxCueDigestData(context.env.DB, sourceId, period);
-      if (!digest.hasData) return errorResponse("NoxCue source has no daily user statistics", 404);
-      const enabledKeys = await loadEnabledNoxCueMetricKeys(context.env.DB, orgId, source.project_id);
-      const selected = selectNoxCueDigestMetrics(digest, enabledKeys);
-      payload = (await getNoxCueDigestResponse(
-        context.env,
-        source.name,
-        period,
-        selected.metrics,
-        selected.comparisons,
-      )).message;
-    } else {
-      payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
-    }
-  } else if (kind === "noxspot") {
-    payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
-  } else if (kind === "noxticket") {
-    payload = buildNoxTicketTestResponse(orgLogin).message;
-  } else if (kind === "noxfeed" || kind === "noxfeed_posts" || kind === "noxfeed_release_notes") {
-    const stream = kind === "noxfeed_posts" ? "posts" : kind === "noxfeed_release_notes" ? "release_notes" : "all";
-    payload = (await getNoxFeedTestResponse(context.env, orgLogin, stream)).message;
-  } else payload = kind === "connection" ? {
+  try {
+    let payload;
+    if (kind === "noxcue") {
+      if (sourceId) {
+        const source = await context.env.DB.prepare(
+          `SELECT name, timezone, project_id FROM cue_sources WHERE id = ? AND org_id = ?`,
+        ).bind(sourceId, orgId).first();
+        if (!source) return errorResponse("NoxCue source not found", 404);
+        const period = completedPeriodAt(source.timezone);
+        const digest = await loadNoxCueDigestData(context.env.DB, sourceId, period);
+        if (!digest.hasData) return errorResponse("NoxCue source has no daily user statistics", 404);
+        const enabledKeys = await loadEnabledNoxCueMetricKeys(context.env.DB, orgId, source.project_id);
+        const selected = selectNoxCueDigestMetrics(digest, enabledKeys);
+        payload = (await getNoxCueDigestResponse(
+          context.env,
+          source.name,
+          period,
+          selected.metrics,
+          selected.comparisons,
+        )).message;
+      } else {
+        payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
+      }
+    } else if (kind === "noxspot") {
+      payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
+    } else if (kind === "noxticket") {
+      payload = buildNoxTicketTestResponse(orgLogin).message;
+    } else if (kind === "noxfeed" || kind === "noxfeed_posts" || kind === "noxfeed_release_notes") {
+      const stream = kind === "noxfeed_posts" ? "posts" : kind === "noxfeed_release_notes" ? "release_notes" : "all";
+      payload = (await getNoxFeedTestResponse(context.env, orgLogin, stream)).message;
+    } else payload = kind === "connection" ? {
         text: `NoxConnect workspace test for ${orgLogin}`,
         blocks: [
           { type: "header", text: { type: "plain_text", text: "NoxConnect workspace test", emoji: true } },
@@ -92,10 +93,14 @@ export async function onRequestPost(context) {
         text: `NoxConnect fallback test for ${orgLogin}`,
         blocks: [{ type: "section", text: { type: "mrkdwn", text: `*NoxConnect — organization fallback test*\nUnassigned service messages for \`${orgLogin}\` can be delivered here.` } }],
       }
-    : null;
+      : null;
 
-  try {
-    await postSlackMessage(install.botToken, channelId, payload);
+    const receipt = await postSlackMessage(install.botToken, channelId, payload);
+    if (!receipt?.ts || receipt.channel !== channelId) {
+      throw Object.assign(new Error("Slack returned an invalid or mismatched delivery receipt"), {
+        code: "invalid_slack_receipt",
+      });
+    }
     await Promise.all([
       context.env.DB.prepare(
         `UPDATE slack_connections SET health_status = 'ok', last_error = NULL,
@@ -103,7 +108,13 @@ export async function onRequestPost(context) {
       ).bind(orgId, install.id).run(),
       markSlackChannelVerified(context.env.DB, orgId, install.id, channelId),
     ]);
-    return jsonResponse({ ok: true });
+    return jsonResponse({
+      ok: true,
+      connectionId: install.id,
+      channelId: receipt.channel,
+      messageTs: receipt.ts,
+      deliveredAt: new Date().toISOString(),
+    });
   } catch (err) {
     await Promise.all([
       context.env.DB.prepare(

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, RefreshCw, Server, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
@@ -15,7 +15,8 @@ import {
   useSaveNoxCueSource,
   useSaveNoxCueProjectMetrics,
 } from "@/hooks/useNoxCue";
-import type { NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
+import type { IntegrationsStatus } from "@/lib/integrations-api";
+import type { NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
 
 const EMPTY_SOURCE: NoxCueSourceInput = {
   name: "",
@@ -37,7 +38,7 @@ const USER_STAT_KEYS = [
   "users.stickiness.dau_mau",
 ] as const;
 
-export function NoxCueSourcesSection() {
+export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsStatus }) {
   const sources = useNoxCueSources();
   const createSource = useCreateNoxCueSource();
   const saveSource = useSaveNoxCueSource();
@@ -45,6 +46,8 @@ export function NoxCueSourcesSection() {
   const [selectedId, setSelectedId] = useState("");
   const [creating, setCreating] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, NoxCueSourceInput>>({});
+  const [checkingEvents, setCheckingEvents] = useState(false);
+  const [checkedWithoutEvent, setCheckedWithoutEvent] = useState(false);
 
   const selected = useMemo(
     () => sources.data?.sources.find((source) => source.id === selectedId) ?? sources.data?.sources[0],
@@ -60,8 +63,13 @@ export function NoxCueSourcesSection() {
     slackChannelId: selected.slackChannelId,
     slackConnectionId: selected.slackConnectionId,
   } : EMPTY_SOURCE;
+  const sourceDefaults = useMemo<NoxCueSourceInput>(() => ({
+    ...EMPTY_SOURCE,
+    projectId: sources.data?.projects.length === 1 ? sources.data.projects[0]!.id : null,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  }), [sources.data?.projects]);
   const draftKey = creating ? "new" : selected?.id ?? "new";
-  const draft = drafts[draftKey] ?? (creating ? EMPTY_SOURCE : stored);
+  const draft = drafts[draftKey] ?? (creating ? sourceDefaults : stored);
   const setDraft = (next: NoxCueSourceInput) => setDrafts((current) => ({ ...current, [draftKey]: next }));
 
   if (sources.isLoading) return <Panel><Spinner className="h-5 w-5 text-accent" /></Panel>;
@@ -75,11 +83,21 @@ export function NoxCueSourcesSection() {
           setSelectedId(id);
           setCreating(false);
           setDrafts({});
+          setCheckedWithoutEvent(false);
         },
       });
     } else if (selected) {
       saveSource.mutate({ sourceId: selected.id, input: draft });
     }
+  };
+
+  const checkForEvents = async () => {
+    if (!selected) return;
+    setCheckingEvents(true);
+    const result = await sources.refetch();
+    const refreshed = result.data?.sources.find((source) => source.id === selected.id);
+    setCheckedWithoutEvent(Boolean(refreshed && !lastUserEventAt(refreshed)));
+    setCheckingEvents(false);
   };
 
   return (
@@ -90,14 +108,14 @@ export function NoxCueSourcesSection() {
             <h3 className="text-sm font-semibold text-stone-900">Daily user-stat sources</h3>
             <p className="mt-1 text-xs text-stone-500">Create one source for each app that sends registration and active-user events.</p>
           </div>
-          <button type="button" onClick={() => { setCreating(true); setDrafts({}); }} className="flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700">
+          <button type="button" onClick={() => { setCreating(true); setDrafts({ new: sourceDefaults }); setCheckedWithoutEvent(false); }} className="flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700">
             <Plus size={13} /> New source
           </button>
         </div>
 
         {!creating && sources.data.sources.length ? (
           <label className="block text-sm font-medium text-stone-700">Source
-            <select value={selected?.id ?? ""} onChange={(event) => { setSelectedId(event.target.value); setDrafts({}); }} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
+            <select value={selected?.id ?? ""} onChange={(event) => { setSelectedId(event.target.value); setDrafts({}); setCheckedWithoutEvent(false); }} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
               {sources.data.sources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
             </select>
           </label>
@@ -108,9 +126,9 @@ export function NoxCueSourcesSection() {
             <label className="text-sm font-medium text-stone-700">App name
               <input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Playnist" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" />
             </label>
-            <label className="text-sm font-medium text-stone-700">Linked project <span className="font-normal text-stone-400">optional</span>
-              <select value={draft.projectId ?? ""} onChange={(event) => setDraft({ ...draft, projectId: event.target.value || null })} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
-                <option value="">No project</option>
+            <label className="text-sm font-medium text-stone-700">Linked project <span className="font-normal text-stone-400">{sources.data.projects.length > 1 ? "required" : "automatically selected"}</span>
+              <select required={sources.data.projects.length > 1} disabled={sources.data.projects.length === 1} value={draft.projectId ?? ""} onChange={(event) => setDraft({ ...draft, projectId: event.target.value || null })} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm disabled:bg-stone-50">
+                <option value="">{sources.data.projects.length > 1 ? "Choose a project" : "No project available"}</option>
                 {sources.data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
               </select>
             </label>
@@ -124,26 +142,143 @@ export function NoxCueSourcesSection() {
             </label>
           </div>
           <SlackDestination draft={draft} setDraft={setDraft} />
-          <p className="text-xs text-stone-400">NoxCue posts the previous completed day's user snapshot with yesterday and trailing-30-day comparisons.</p>
+          <p className="text-xs text-stone-400">The pulse covers the previous completed day and includes yesterday and trailing-30-day comparisons.</p>
           <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={draft.digestEnabled} onChange={(event) => setDraft({ ...draft, digestEnabled: event.target.checked })} /> Post the daily user stats to Slack</label>
           <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /> Accept user events</label>
           <div className="flex items-center gap-3 border-t border-stone-100 pt-4">
-            <button disabled={createSource.isPending || saveSource.isPending} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{creating ? "Create source" : "Save settings"}</button>
+            <button disabled={createSource.isPending || saveSource.isPending || (sources.data.projects.length > 1 && !draft.projectId)} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{creating ? "Create source" : "Save settings"}</button>
             {!creating && selected ? <DeleteSourceButton sourceId={selected.id} sourceName={selected.name} mutation={deleteSource} onDeleted={() => setSelectedId("")} /> : null}
             {saveSource.isSuccess || createSource.isSuccess ? <span className="flex items-center gap-1 text-xs text-green-700"><Check size={13} /> Saved</span> : null}
           </div>
+          {createSource.isError || saveSource.isError ? <p className="text-xs text-red-600">{(createSource.error ?? saveSource.error) instanceof Error ? (createSource.error ?? saveSource.error)?.message : "Could not save this source."}</p> : null}
         </> : <p className="text-sm text-stone-500">Create your first source to get a server ingest key.</p>}
       </form>
 
+      {!creating && selected ? <SetupProgress
+        source={selected}
+        slackConnected={noxConnect.slack.connected}
+        checking={checkingEvents || sources.isFetching}
+        checkedWithoutEvent={checkedWithoutEvent}
+        onCheck={() => void checkForEvents()}
+      /> : null}
+      {!creating && selected ? <KeySection source={selected} /> : null}
       {!creating && selected ? <ProjectMetricControls
         key={selected.projectId ?? "project-metrics"}
         projects={sources.data.projects}
         initialProjectId={selected.projectId}
       /> : null}
-      {!creating && selected ? <KeySection source={selected} /> : null}
-      {!creating && selected ? <DailyUserStats sourceId={selected.id} /> : null}
+      {!creating && selected ? <DailyUserStats source={selected} /> : null}
     </div>
   );
+}
+
+export function SetupProgress({
+  source,
+  slackConnected,
+  checking,
+  checkedWithoutEvent,
+  onCheck,
+}: {
+  source: NoxCueSource;
+  slackConnected: boolean;
+  checking: boolean;
+  checkedWithoutEvent: boolean;
+  onCheck: () => void;
+}) {
+  const destination = useSlackChannels(source.effectiveSlackConnectionId || undefined);
+  const channel = destination.channels.data?.find((candidate) => candidate.id === source.effectiveSlackChannelId);
+  const activeKeys = source.keys.filter((key) => !key.revokedAt);
+  const eventAt = lastUserEventAt(source);
+  const destinationReady = Boolean(slackConnected && source.digestEnabled && source.effectiveSlackChannelId);
+  const steps = [
+    {
+      label: "App configured",
+      detail: source.projectName ? `Linked to ${source.projectName}` : "Source saved in this organization",
+      complete: source.enabled,
+    },
+    {
+      label: "Slack destination",
+      detail: destinationReady
+        ? `${channel ? `#${channel.name}` : "Channel selected"} · ${routeLabel(source.slackRouteLevel)}`
+        : source.digestEnabled ? "Choose a channel or configure a fallback route" : "Daily Slack pulse is paused",
+      complete: destinationReady,
+    },
+    {
+      label: "Server key",
+      detail: activeKeys.length
+        ? `${activeKeys.length} active key${activeKeys.length === 1 ? "" : "s"}`
+        : "Create a key and save it as a server secret",
+      complete: activeKeys.length > 0,
+    },
+    {
+      label: "First user event",
+      detail: eventAt
+        ? `Received and stored ${new Date(eventAt).toLocaleString()}`
+        : "Waiting for user.registered or user.active",
+      complete: Boolean(eventAt),
+    },
+  ];
+  const completed = steps.filter((step) => step.complete).length;
+
+  return <Panel>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3 className="text-sm font-semibold text-stone-900">Setup progress</h3>
+        <p className="mt-1 text-xs text-stone-500">Each check reflects the saved production configuration.</p>
+      </div>
+      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${completed === steps.length ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}>
+        {completed} of {steps.length} complete
+      </span>
+    </div>
+    <ol className="grid gap-3 sm:grid-cols-2">
+      {steps.map((step, index) => <li key={step.label} className={`flex items-start gap-3 rounded-lg border p-3 ${step.complete ? "border-green-200 bg-green-50/60" : "border-stone-200 bg-stone-50"}`}>
+        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${step.complete ? "bg-green-600 text-white" : "border border-stone-300 bg-white text-stone-500"}`}>
+          {step.complete ? <Check size={12} /> : index + 1}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-xs font-medium text-stone-800">{step.label}</span>
+          <span className="mt-0.5 block text-[11px] leading-4 text-stone-500">{step.detail}</span>
+        </span>
+      </li>)}
+    </ol>
+    {eventAt ? <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-4">
+      <div className="flex items-start gap-2">
+        <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-700" />
+        <div>
+          <p className="text-sm font-semibold text-green-900">NoxCue is live</p>
+          <p className="mt-1 text-xs leading-5 text-green-800">
+            A user event was received and stored. The next completed-day pulse will post {channel ? `to #${channel.name} ` : "to the configured Slack destination "}after {source.digestTimeLocal} {source.timezone}.
+          </p>
+        </div>
+      </div>
+    </div> : activeKeys.length ? <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-blue-900">Waiting for the first real user event</p>
+          <p className="mt-1 text-xs leading-5 text-blue-700">Run the registration call after a signup completes, then check the connection. NoxCue will confirm the stored event here.</p>
+        </div>
+        <button type="button" onClick={onCheck} disabled={checking} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 disabled:opacity-50">
+          {checking ? <Spinner size="sm" /> : <RefreshCw size={13} />} Check for event
+        </button>
+      </div>
+      {checkedWithoutEvent ? <p role="status" className="mt-2 text-xs text-blue-700">No user event yet. Confirm the call runs server-side after signup and uses this source’s active key.</p> : null}
+    </div> : null}
+  </Panel>;
+}
+
+function lastUserEventAt(source: Pick<NoxCueSource, "lastRegistrationAt" | "lastActivityAt">) {
+  return [source.lastRegistrationAt, source.lastActivityAt]
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
+}
+
+function routeLabel(level: NoxCueSource["slackRouteLevel"]) {
+  if (level === "source") return "source route";
+  if (level === "project") return "project route";
+  if (level === "organization") return "organization route";
+  if (level === "fallback") return "organization fallback";
+  return "configured route";
 }
 
 export function ProjectMetricControls({
@@ -233,16 +368,16 @@ function SlackDestination({ draft, setDraft }: { draft: NoxCueSourceInput; setDr
     label: `${connection.teamName}${connection.isDefault ? " · default" : ""}`,
   }));
   return <div className="space-y-2">
-    <label className="text-sm font-medium text-stone-700">Slack source override</label>
+    <label className="text-sm font-medium text-stone-700">Slack destination</label>
     <div className="grid gap-3 sm:grid-cols-2">
       <SearchableSelect value={connectionId} onChange={(next) => setDraft({ ...draft, slackConnectionId: next || null, slackChannelId: null })} options={workspaceOptions} placeholder="Select workspace" className="w-full" />
       <SearchableSelect value={draft.slackChannelId ?? ""} onChange={(next) => setDraft({ ...draft, slackChannelId: next || null, slackConnectionId: next ? connectionId : null })} options={selectedWorkspace.channelOptions} placeholder={selectedWorkspace.channels.isLoading ? "Loading channels…" : "Use organization fallback"} className="w-full" />
     </div>
-    <p className="text-xs text-stone-400">Leave this empty to use the linked project's NoxCue route, then the organization default.</p>
+    <p className="text-xs text-stone-400">A source selection wins first. Otherwise NoxCue uses the linked project route, then the organization default.</p>
   </div>;
 }
 
-function KeySection({ source }: { source: NonNullable<ReturnType<typeof useNoxCueSources>["data"]>["sources"][number] }) {
+function KeySection({ source }: { source: NoxCueSource }) {
   const createKey = useCreateNoxCueKey();
   const revokeKey = useRevokeNoxCueKey();
   const { confirm, dialogProps } = useConfirm();
@@ -254,30 +389,35 @@ function KeySection({ source }: { source: NonNullable<ReturnType<typeof useNoxCu
     if (await confirm({ title: "Revoke this ingest key?", message: "The app using it will immediately stop sending NoxCue events.", confirmLabel: "Revoke key", variant: "danger" })) revokeKey.mutate({ sourceId: source.id, keyId });
   };
   return <><Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><KeyRound size={16} /><h3 className="text-sm font-semibold text-stone-900">Server ingest key</h3></div><p className="mt-1 text-xs text-stone-500">Keep this key in the reporting app’s server-side secrets.</p></div><button type="button" onClick={create} disabled={createKey.isPending} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">Create key</button></div>
-    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900">Copy now—this value is shown once.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey}</code><button type="button" onClick={() => { void navigator.clipboard.writeText(newKey).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div><RequestExample ingestKey={newKey} /></div> : null}
-    <div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name}</div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `used ${new Date(key.lastUsedAt).toLocaleString()}` : "never used"}</div></div><button type="button" onClick={() => void revoke(key.id)} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length ? <p className="py-3 text-xs text-stone-400">No active key.</p> : null}</div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Server size={16} /><h3 className="text-sm font-semibold text-stone-900">Add NoxCue to your server</h3></div><p className="mt-1 text-xs text-stone-500">Create one key, save it as a server secret, then add the registration call after signup succeeds.</p></div><button type="button" onClick={create} disabled={createKey.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{createKey.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />} Create server key</button></div>
+    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">Key created—copy it now</p><p className="mt-1 text-xs text-amber-800">This value is shown once. Store it as <code>NOXCUE_INGEST_KEY</code> in your server environment.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div><RequestExample /></div> : null}
+    <div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name}</div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `last request ${new Date(key.lastUsedAt).toLocaleString()}` : "waiting for first request"}</div></div><button type="button" onClick={() => void revoke(key.id)} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length ? <p className="py-3 text-xs text-stone-400">No active server key yet.</p> : null}</div>
+    {createKey.isError ? <p className="text-xs text-red-600">{createKey.error instanceof Error ? createKey.error.message : "Could not create the server key."}</p> : null}
   </Panel><ConfirmDialog {...dialogProps} /></>;
 }
 
-function RequestExample({ ingestKey }: { ingestKey: string }) {
-  const command = `// One-time setup
-const noxcue = createNoxCue({ endpoint: "https://noxcue.jasper-414.workers.dev", ingestKey: "${ingestKey}" });
-
-// One line at each lifecycle point
-await noxcue.userRegistered(user.id);
-await noxcue.userActive(user.id);
-
-// Wire equivalent
-curl https://noxcue.jasper-414.workers.dev/v1/events \\
-  -H 'Content-Type: application/json' \\
-  -H 'X-Nox-Ingest-Key: ${ingestKey}' \\
-  -d '{"type":"user.registered","userId":"app-user-1842"}'`;
-  return <div className="mt-3"><p className="mb-1 text-xs font-medium text-amber-900">User events</p><pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre></div>;
+function RequestExample() {
+  const [copied, setCopied] = useState(false);
+  const command = `await fetch("https://noxcue.jasper-414.workers.dev/v1/events", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Nox-Ingest-Key": process.env.NOXCUE_INGEST_KEY,
+  },
+  body: JSON.stringify({ type: "user.registered", userId: user.id }),
+});`;
+  return <div className="mt-3 space-y-2">
+    <div className="flex items-center justify-between gap-2">
+      <div><p className="text-xs font-semibold text-amber-900">Add after signup commits</p><p className="mt-0.5 text-[11px] text-amber-800">Registration also counts as activity for that day.</p></div>
+      <button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button>
+    </div>
+    <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
+    <details className="text-xs text-amber-900"><summary className="cursor-pointer font-medium">Returning users</summary><p className="mt-1 leading-5 text-amber-800">Send the same request with <code>type: "user.active"</code> after a meaningful authenticated action. NoxCue deduplicates each user per local day.</p></details>
+  </div>;
 }
 
-function DailyUserStats({ sourceId }: { sourceId: string }) {
-  const health = useNoxCueMetrics(sourceId);
+function DailyUserStats({ source }: { source: NoxCueSource }) {
+  const health = useNoxCueMetrics(source.id);
   const latest = health.data?.days[0];
   const labels = new Map(health.data?.catalog.map((metric) => [metric.key, metric.label]) ?? []);
   const visible = latest
@@ -285,7 +425,7 @@ function DailyUserStats({ sourceId }: { sourceId: string }) {
     : [];
   return <Panel>
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-stone-900">Daily user stats</h3><p className="mt-1 text-xs text-stone-500">The latest standardized snapshot retained by NoxCue.</p></div>{latest ? <span className="text-xs text-stone-500">{latest.period} · {health.data?.digests[0]?.status ? `Slack: ${health.data.digests[0].status}` : "Brief not sent yet"}</span> : null}</div>
-    {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : latest && visible.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visible.map((metric) => <div key={metric.key} className="rounded-lg border border-stone-100 bg-stone-50 p-4"><div className="text-xl font-semibold text-stone-900">{formatUserStat(metric.key, metric.value)}</div><div className="mt-1 text-xs text-stone-500">{labels.get(metric.key) ?? metric.key}</div></div>)}</div> : <p className="text-xs text-stone-400">No daily snapshot received yet.</p>}
+    {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : latest && visible.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visible.map((metric) => <div key={metric.key} className="rounded-lg border border-stone-100 bg-stone-50 p-4"><div className="text-xl font-semibold text-stone-900">{formatUserStat(metric.key, metric.value)}</div><div className="mt-1 text-xs text-stone-500">{labels.get(metric.key) ?? metric.key}</div></div>)}</div> : lastUserEventAt(source) ? <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">Events are arriving. The first completed-day snapshot will appear after {source.digestTimeLocal} {source.timezone}.</p> : <p className="text-xs text-stone-400">Waiting for the first user event.</p>}
   </Panel>;
 }
 

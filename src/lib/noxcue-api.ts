@@ -43,6 +43,11 @@ export interface NoxCueMetricsResponse {
 export interface NoxCueSource extends NoxCueSourceInput {
   id: string;
   projectName: string | null;
+  effectiveSlackChannelId: string | null;
+  effectiveSlackConnectionId: string | null;
+  slackRouteLevel: "source" | "project" | "organization" | "fallback" | null;
+  lastRegistrationAt: string | null;
+  lastActivityAt: string | null;
   createdAt: string;
   keys: Array<{
     id: string;

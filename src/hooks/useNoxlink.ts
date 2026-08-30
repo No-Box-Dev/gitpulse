@@ -8,6 +8,7 @@ import {
   fetchEvents,
   fetchEventsPage,
   fetchEvent,
+  fetchPrTimeline,
   backfillProjectPrs,
   archiveProject,
   unarchiveProject,
@@ -64,6 +65,16 @@ export function useFeedEvents(q: EventQuery = {}, opts: { enabled?: boolean } = 
     enabled,
     staleTime: 30_000,
     refetchInterval: 60_000,
+  });
+}
+
+export function usePrTimeline(repo: string | undefined, prNumber: number | undefined, enabled = true) {
+  const { selectedOrg } = useAuth();
+  return useQuery({
+    queryKey: ["noxlink", "pr-timeline", selectedOrg, repo, prNumber],
+    queryFn: () => fetchPrTimeline(repo!, prNumber!),
+    enabled: enabled && !!selectedOrg && !!repo && prNumber != null,
+    staleTime: 30_000,
   });
 }
 

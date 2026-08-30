@@ -273,3 +273,45 @@ describe("PUT /api/config/settings — app toggles", () => {
     }
   });
 });
+
+describe("PUT /api/config/settings — release-notes prompt", () => {
+  it("saves the complete prompt exactly as entered", async () => {
+    const db = makeDb();
+    const prompt = "Audience: internal teams\nInclude impact, rollout, and verification.";
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: { releaseNotesPrompt: prompt },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(db._calls.run[0].binds[2]).releaseNotesPrompt).toBe(prompt);
+  });
+
+  it("removes an empty override so the built-in base is used", async () => {
+    const db = makeDb();
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: { releaseNotesPrompt: "   ", savedSiteName: "keep" },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(db._calls.run[0].binds[2])).toEqual({ savedSiteName: "keep" });
+  });
+
+  it("rejects non-text and oversized prompts with a clear correction", async () => {
+    for (const releaseNotesPrompt of [123, "x".repeat(20_001)]) {
+      const res = await onRequestPut(makeCtx({
+        db: makeDb(),
+        params: { key: "settings" },
+        method: "PUT",
+        body: { releaseNotesPrompt },
+      }));
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toMatch(/prompt/i);
+    }
+  });
+});

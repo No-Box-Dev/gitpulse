@@ -19,6 +19,7 @@ import {
   fetchEvent,
   fetchEvents,
   fetchEventsPage,
+  fetchPrTimeline,
 } from "../noxlink-api";
 
 const mockGet = vi.mocked(apiGet);
@@ -134,6 +135,23 @@ describe("fetchEvents URL builder", () => {
     mockGet.mockResolvedValue({ events: [], nextCursor: null });
     await fetchEvents();
     expect(mockGet).toHaveBeenCalledWith("/api/events");
+  });
+
+  it("scopes timeline history to one repository and pull request", async () => {
+    mockGet.mockResolvedValue({ events: [], nextCursor: null });
+    await fetchEvents({ repo: "noxconnect", prNumber: 42, limit: 200 });
+    expect(mockGet).toHaveBeenCalledWith("/api/events?limit=200&repo=noxconnect&pr_number=42");
+  });
+
+  it("loads every page of a long pull-request timeline", async () => {
+    const first = Array.from({ length: 200 }, (_, index) => ({ id: 300 - index }));
+    mockGet
+      .mockResolvedValueOnce({ events: first, nextCursor: "cursor-2" })
+      .mockResolvedValueOnce({ events: [{ id: 100 }], nextCursor: "cursor-3" });
+
+    await expect(fetchPrTimeline("api", 7)).resolves.toHaveLength(201);
+    expect(mockGet).toHaveBeenNthCalledWith(1, "/api/events?limit=200&repo=api&pr_number=7");
+    expect(mockGet).toHaveBeenNthCalledWith(2, "/api/events?limit=200&before=cursor-2&repo=api&pr_number=7");
   });
 
   it("encodes type, limit, before, project_id, actor_id, trigger_types", async () => {

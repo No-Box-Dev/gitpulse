@@ -25,13 +25,13 @@ import { validate } from "../../../lib/validate";
 // can't silently hop workspaces.
 export async function onRequestPost(context) {
   const { isAdmin, orgId, orgLogin, userLogin } = getCtx(context);
-  if (!isAdmin) return errorResponse("Admin required", 403);
+  if (!isAdmin) return errorResponse("Only an organization admin can connect Slack. Ask an admin to complete this step.", 403);
   if (!orgId || !orgLogin) return errorResponse("Missing org context", 400);
 
   const clientId = context.env.SLACK_CLIENT_ID;
   const clientSecret = context.env.SLACK_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    return errorResponse("Slack app not configured on this deployment", 503);
+    return errorResponse("Slack app credentials are missing from this deployment. Ask an operator to configure them, then start Connect Slack again.", 503);
   }
 
   let body = {};

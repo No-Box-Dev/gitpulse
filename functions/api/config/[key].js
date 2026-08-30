@@ -1,7 +1,7 @@
 import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
 import { validateBoardStages } from "../../lib/board-stages.js";
 import { extractStatusFromLabels } from "../../lib/feature-issues.js";
-import { getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
+import { actionableSlackError, getSlackChannel, resolveSlackInstall } from "../../lib/slack.js";
 import { recoverOutboxDeliveries } from "../../lib/delivery-outbox.js";
 import { LEGACY_NOXTICKET_SOURCE, normalizeNoxSettings } from "../../lib/naming-compat.js";
 
@@ -88,6 +88,16 @@ export async function onRequestPut(context) {
   }
   if (key === "settings") body = normalizeNoxSettings(body);
 
+  if (key === "settings" && body && typeof body === "object" && body.releaseNotesPrompt !== undefined) {
+    if (typeof body.releaseNotesPrompt !== "string") {
+      return errorResponse("Release-notes prompt must be text.", 422);
+    }
+    if (body.releaseNotesPrompt.length > 20_000) {
+      return errorResponse("Release-notes prompt must be at most 20,000 characters.", 422);
+    }
+    if (!body.releaseNotesPrompt.trim()) delete body.releaseNotesPrompt;
+  }
+
   const slackWasSupplied = key === "settings"
     && body
     && typeof body === "object"
@@ -155,11 +165,11 @@ export async function onRequestPut(context) {
           const install = await resolveSlackInstall(context.env, orgId, connectionId);
           if (!install) return errorResponse("Connect the selected Slack workspace before choosing a channel", 409);
           const channel = await getSlackChannel(install.botToken, channelId);
-          if (!channel || channel.is_archived) return errorResponse("Slack channel is archived or unavailable", 409);
-          if (channel.is_private && !channel.is_member) return errorResponse("Invite the Nox bot to this private channel first", 409);
+          if (!channel || channel.is_archived) return errorResponse("This Slack channel is archived or unavailable. Choose an active channel, then save again.", 409);
+          if (channel.is_private && !channel.is_member) return errorResponse("NoxConnect is not in this private channel. Invite @NoxConnect in Slack, then save again.", 409);
         }
       } catch (error) {
-        return errorResponse(error instanceof Error ? error.message : "Slack channel is unavailable", 409);
+        return errorResponse(actionableSlackError(error, "Slack could not verify this channel. Review the workspace and channel, then save again."), 409);
       }
     }
   }

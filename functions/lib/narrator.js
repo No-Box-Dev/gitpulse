@@ -26,7 +26,7 @@ import {
   resolveSlackConnectionId,
   resolveSlackRoute,
 } from "./slack";
-import { queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
+import { markOutboxBlocked, queueOutboxDelivery, stageSlackDelivery } from "./delivery-outbox.js";
 import { isAppEnabledForOwner } from "./apps.js";
 import { getNoxFeedPrompt, getNoxFeedSlackResponse } from "./noxfeed-response.js";
 import { resolveNoxFeedDestination } from "./noxfeed-routing.js";
@@ -670,8 +670,10 @@ async function maybePostToSlack(env, args) {
     const connectionId = projectDestination
       ? projectDestination.connectionId
       : resolveSlackConnectionId(channels, service);
-    if (!channelId) return;
-
+    // An explicitly empty project route is an intentional opt-out. A missing
+    // organization default is different: stage it as blocked so saving a
+    // channel later can recover the release instead of losing it forever.
+    if (projectDestination && !channelId) return;
     const payload = safeParseObject(rawEvent.payload_json);
     const pr = payload?.pr && typeof payload.pr === "object" ? payload.pr : null;
     const prNumber = typeof pr?.number === "number" ? pr.number : null;
@@ -719,6 +721,15 @@ async function maybePostToSlack(env, args) {
         } } : {}),
       },
     });
+    if (delivery?.id && !channelId && delivery.status !== "delivered") {
+      await markOutboxBlocked(
+        env.DB,
+        delivery.id,
+        "alerts_disabled",
+        "No Slack channel is configured for this NoxFeed stream. Choose and save a channel in NoxConnect, then delivery will retry automatically.",
+      );
+      return;
+    }
     if (delivery?.id && delivery.status !== "delivered") {
       await queueOutboxDelivery(env, delivery.id, ownerId);
     }

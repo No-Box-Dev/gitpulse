@@ -22,8 +22,7 @@ export function NoxCueSection({ noxConnect }: { noxConnect: IntegrationsStatus }
           </p>
         ) : null}
       </div>
-      <NoxCueSourcesSection />
+      <NoxCueSourcesSection noxConnect={noxConnect} />
     </div>
   );
 }
-

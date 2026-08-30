@@ -21,6 +21,11 @@ interface SourceRow {
   digest_time_local: string;
   slack_channel_id: string | null;
   slack_connection_id: string | null;
+  effective_slack_channel_id: string | null;
+  effective_slack_connection_id: string | null;
+  slack_route_level: "source" | "project" | "organization" | "fallback" | null;
+  last_registration_at: string | null;
+  last_activity_at: string | null;
   created_at: string;
 }
 
@@ -46,9 +51,43 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       `SELECT source.id, source.name, source.project_id, project.name AS project_name,
               source.enabled, source.timezone, source.digest_enabled, source.digest_time_local,
               source.slack_channel_id, source.slack_connection_id,
+              COALESCE(NULLIF(source.slack_channel_id, ''), NULLIF(project_route.channel_id, ''),
+                NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), ''),
+                NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '')) AS effective_slack_channel_id,
+              CASE
+                WHEN NULLIF(source.slack_channel_id, '') IS NOT NULL THEN NULLIF(source.slack_connection_id, '')
+                WHEN NULLIF(project_route.channel_id, '') IS NOT NULL THEN NULLIF(project_route.connection_id, '')
+                WHEN NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), '') IS NOT NULL
+                  THEN NULLIF(json_extract(config.data, '$.slack.noxCueConnectionId'), '')
+                WHEN NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '') IS NOT NULL
+                  THEN NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '')
+                ELSE NULL
+              END AS effective_slack_connection_id,
+              CASE
+                WHEN NULLIF(source.slack_channel_id, '') IS NOT NULL THEN 'source'
+                WHEN NULLIF(project_route.channel_id, '') IS NOT NULL THEN 'project'
+                WHEN NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), '') IS NOT NULL THEN 'organization'
+                WHEN NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '') IS NOT NULL THEN 'fallback'
+                ELSE NULL
+              END AS slack_route_level,
+              (SELECT MAX(registration.received_at) FROM cue_user_registrations registration
+                WHERE registration.source_id = source.id) AS last_registration_at,
+              (SELECT MAX(activity.received_at) FROM cue_user_active_days activity
+                WHERE activity.source_id = source.id) AS last_activity_at,
               source.created_at
          FROM cue_sources source
          LEFT JOIN projects project ON project.id = source.project_id
+         LEFT JOIN config ON config.org_id = source.org_id AND config.key = 'settings'
+         LEFT JOIN project_slack_routes project_route
+           ON project_route.org_id = source.org_id
+          AND project_route.project_id = source.project_id
+          AND project_route.route_key = 'noxcue'
+          AND EXISTS (
+            SELECT 1 FROM project_routing_settings routing_settings
+             WHERE routing_settings.org_id = source.org_id
+               AND routing_settings.project_id = source.project_id
+               AND routing_settings.enabled = 1
+          )
         WHERE source.org_id = ? AND source.owner_id = ?
         ORDER BY source.created_at DESC`,
     ).bind(orgId, orgLogin).all<SourceRow>(),
@@ -82,6 +121,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       digestTimeLocal: source.digest_time_local,
       slackChannelId: source.slack_channel_id,
       slackConnectionId: source.slack_connection_id,
+      effectiveSlackChannelId: source.effective_slack_channel_id,
+      effectiveSlackConnectionId: source.effective_slack_connection_id,
+      slackRouteLevel: source.slack_route_level,
+      lastRegistrationAt: source.last_registration_at,
+      lastActivityAt: source.last_activity_at,
       createdAt: source.created_at,
       keys: (keysBySource.get(source.id) ?? []).map((key) => ({
         id: key.id,
@@ -107,19 +151,26 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const parsed = validate(cueSourceInputSchema, raw);
   if (!parsed.ok) return parsed.response;
 
-  if (parsed.data.projectId) {
-    const project = await db.prepare(
-      `SELECT project.id FROM projects project
-        JOIN project_routing_settings routing ON routing.project_id = project.id
-       WHERE project.id = ? AND project.owner_id = ? AND routing.org_id = ?
-         AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0`,
-    ).bind(parsed.data.projectId, orgLogin, orgId).first();
-    if (!project) return errorResponse("Active project not found in this organization", 404);
+  const activeProjects = await db.prepare(
+    `SELECT project.id FROM projects project
+      JOIN project_routing_settings routing ON routing.project_id = project.id
+     WHERE project.owner_id = ? AND routing.org_id = ?
+       AND routing.enabled = 1 AND COALESCE(project.archived, 0) = 0
+     ORDER BY project.name`,
+  ).bind(orgLogin, orgId).all<{ id: string }>();
+  const projects = activeProjects.results ?? [];
+  let projectId = parsed.data.projectId;
+  if (!projectId && projects.length === 1) projectId = projects[0]!.id;
+  if (!projectId && projects.length > 1) {
+    return errorResponse("Choose the project this NoxCue source belongs to", 409);
+  }
+  if (projectId && !projects.some((project) => project.id === projectId)) {
+    return errorResponse("Active project not found in this organization", 404);
   }
 
   let slackConnectionId: string | null = null;
   try {
-    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, parsed.data.projectId, {
+    slackConnectionId = await validateProjectSlackDestination({ ...context.env, DB: db }, orgId, projectId, {
       connectionId: parsed.data.slackConnectionId,
       channelId: parsed.data.slackChannelId,
     });
@@ -135,10 +186,10 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
         slack_connection_id, created_by)
      VALUES (?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, 15, ?, ?, ?)`,
   ).bind(
-    id, orgId, orgLogin, parsed.data.projectId, parsed.data.name,
+    id, orgId, orgLogin, projectId, parsed.data.name,
     parsed.data.enabled ? 1 : 0, parsed.data.timezone,
     parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal,
     parsed.data.slackChannelId, slackConnectionId, userLogin,
   ).run();
-  return jsonResponse({ id }, 201);
+  return jsonResponse({ id, projectId }, 201);
 }

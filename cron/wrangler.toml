@@ -62,6 +62,6 @@ bucket_name = "noxconnect-events-archive"
 
 # Secrets required on this worker before the first run:
 #   GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY  (reconcile + bootstrap/sync tasks)
-#   ZHIPU_API_KEY + ENCRYPTION_KEY (narration, BYOK, and NoxSpot Slack tasks)
-# Set via: wrangler secret put <NAME> --name noxconnect-cron
-# (ZHIPU_API_KEY was already needed for reconcile's PR-merged narration.)
+#   ANTHROPIC_API_KEY + ENCRYPTION_KEY (managed narration and NoxSpot Slack tasks)
+# Set via: wrangler secret put <NAME> --name unticket-cron
+# (ANTHROPIC_API_KEY is also needed for reconcile's PR-merged narration.)

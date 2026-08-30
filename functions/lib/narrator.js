@@ -14,7 +14,7 @@
 //     Summary / Breaking Changes / Affected Areas" structure). One extra
 //     LLM call per merge is worth the format guarantee.
 //
-// All three share the org's LLM config (BYOK setting applies to all). Runs at
+// All three share the organization's managed-AI setting. Runs at
 // every trigger point: webhook, cron queue handler, reconcile loop —
 // see the trigger-point list in CLAUDE.md ("Narration" / "Live Activity events").
 
@@ -121,9 +121,11 @@ export async function narrateEvent(env, eventId) {
         created_at: row.created_at,
       },
     });
-    // Per-org override (BYOK) wins; default falls back to env.ZHIPU_API_KEY.
+    // Resolve the organization's managed/disabled setting.
     const llmConfig = await resolveLlmConfig(env, orgId);
-    const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
+    const text = llmConfig.status === "ready"
+      ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+      : null;
     source = "narrator";
 
     if (text) {
@@ -139,8 +141,7 @@ export async function narrateEvent(env, eventId) {
       // LLM unavailable (no key, timeout, HTTP error, model rejected the
       // request). Keep the feed populated with the raw summary so the trigger
       // event is visible, AND record a row in op_failures so admins see *why*
-      // the narrator skipped — important for BYOK debugging (bad key, wrong
-      // model name) rather than failing silently and forever.
+      // the narrator skipped rather than failing silently and forever.
       if (!row.summary) return;
       summary = row.summary;
       technicalSummary = buildFallbackTechnicalSummary({
@@ -149,12 +150,16 @@ export async function narrateEvent(env, eventId) {
         payload: triggerPayload,
       });
       model = "fallback";
-      await recordFailure(env.DB, {
-        ownerId: row.owner_id,
-        op: "narrateEvent",
-        deliveryId: `event-${row.id}`,
-        error: `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`,
-      });
+      if (llmConfig.status !== "disabled") {
+        await recordFailure(env.DB, {
+          ownerId: row.owner_id,
+          op: "narrateEvent",
+          deliveryId: `event-${row.id}`,
+          error: llmConfig.status === "ready"
+            ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
+            : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+        });
+      }
     }
   }
 
@@ -279,7 +284,9 @@ export async function narrateReleaseNotes(env, eventId) {
       resolveReleaseNotesPrompt(env.DB, orgId),
     ]);
     const prompt = await getNoxFeedPrompt(env, "release_notes", promptInput, systemOverride);
-    const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
+    const text = llmConfig.status === "ready"
+      ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+      : null;
 
     if (text) {
       const trimmed = text.trim();
@@ -291,12 +298,16 @@ export async function narrateReleaseNotes(env, eventId) {
       if (!row.summary) return;
       summary = row.summary;
       model = "fallback";
-      await recordFailure(env.DB, {
-        ownerId: row.owner_id,
-        op: "narrateReleaseNotes",
-        deliveryId: `event-${row.id}`,
-        error: `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`,
-      });
+      if (llmConfig.status !== "disabled") {
+        await recordFailure(env.DB, {
+          ownerId: row.owner_id,
+          op: "narrateReleaseNotes",
+          deliveryId: `event-${row.id}`,
+          error: llmConfig.status === "ready"
+            ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
+            : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+        });
+      }
     }
   }
 
@@ -401,7 +412,9 @@ export async function narratePrOpened(env, eventId) {
 
   const orgId = await resolveOrgId(env.DB, row.owner_id);
   const llmConfig = await resolveLlmConfig(env, orgId);
-  const text = await completeNarrative(llmConfig, prompt.system, prompt.user);
+  const text = llmConfig.status === "ready"
+    ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+    : null;
 
   let summary;
   let technicalSummary;
@@ -424,12 +437,16 @@ export async function narratePrOpened(env, eventId) {
       payload: triggerPayload,
     });
     model = "fallback";
-    await recordFailure(env.DB, {
-      ownerId: row.owner_id,
-      op: "narratePrOpened",
-      deliveryId: `event-${row.id}`,
-      error: `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`,
-    });
+    if (llmConfig.status !== "disabled") {
+      await recordFailure(env.DB, {
+        ownerId: row.owner_id,
+        op: "narratePrOpened",
+        deliveryId: `event-${row.id}`,
+        error: llmConfig.status === "ready"
+          ? `LLM (${llmConfig.source}: ${llmConfig.provider}/${llmConfig.model}) returned no text`
+          : `Managed AI unavailable (${llmConfig.errorCode ?? "unknown_error"})`,
+      });
+    }
   }
 
   const insertResult = await env.DB.prepare(

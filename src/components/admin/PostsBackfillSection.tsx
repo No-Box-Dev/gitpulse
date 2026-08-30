@@ -107,7 +107,7 @@ export function PostsBackfillSection() {
             </div>
           )}
           <p className="text-stone-400">
-            Narrative cards stream in as Zhipu finishes each PR — refresh the Posts tab in a few seconds.
+            Narrative cards stream in as Anthropic finishes each PR — refresh the Posts tab in a few seconds.
           </p>
         </div>
       )}

@@ -65,6 +65,8 @@ vi.mock("@tanstack/react-query", () => {
           ? [{ id: "C1", name: "feed", is_private: false }]
           : queryKey?.[0] === "project-routing"
             ? { projects: [], repositories: [] }
+          : queryKey?.[0] === "llm-settings"
+            ? { mode: "managed", managed: { provider: "anthropic", model: "claude-haiku-4-5-20251001", available: true } }
           : { failures: [] },
       isLoading: false,
       isError: false,
@@ -307,7 +309,7 @@ describe("AdminTab", () => {
     expect(screen.getByText(/Enable a project under NoxConnect/i)).toBeInTheDocument();
     expect(screen.getByText("Default posts")).toBeInTheDocument();
     expect(screen.getByText("Default release notes")).toBeInTheDocument();
-    expect(screen.queryByText("AI Provider")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI service")).not.toBeInTheDocument();
   });
 
   it("persists app toggles while preserving other organization settings", () => {
@@ -345,7 +347,7 @@ describe("AdminTab", () => {
     expect(screen.getByRole("tab", { name: "NoxFeed" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Delivery" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("Posts Backfill")).not.toBeInTheDocument();
-    expect(screen.queryByText("AI Provider")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI service")).not.toBeInTheDocument();
   });
 
   it("routes AI provider deep links to NoxFeed", () => {
@@ -356,6 +358,6 @@ describe("AdminTab", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("tab", { name: "NoxFeed" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("AI Provider")).toBeInTheDocument();
+    expect(screen.getByText("AI service")).toBeInTheDocument();
   });
 });

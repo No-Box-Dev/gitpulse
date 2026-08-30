@@ -28,7 +28,7 @@ A high-level map of how noxconnect fits together. For maintainer-level detail (e
 
 ## Multi-tenancy
 
-NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `llm_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
+NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core tables (`repos`, `pull_requests`, `issues`, `members`, `config`, `features`, `teams`, `ai_settings`) carry an `org_id` foreign key. The auth middleware (`functions/_middleware.js`) resolves the caller's org from the request, verifies GitHub membership, and scopes every query by `org_id`. The first user to authenticate for an org becomes its admin.
 
 ## Auth
 
@@ -55,7 +55,7 @@ NoxConnect owns explicit project enablement, the shared repository-to-project ma
 
 ## AI narration
 
-A bounded server-side LLM integration narrates pull-request activity. Organizations can use the managed provider or configure Anthropic, Zhipu, or an OpenAI-compatible provider through `llm_settings`. Narration is paced, can be disabled per organization, and fails closed to deterministic summaries when unavailable. Provider credentials remain server-side and are never returned to the browser.
+A bounded server-side Anthropic integration narrates pull-request activity. NoxConnect owns the provider credential; customers can enable or disable managed AI through `ai_settings` but never supply keys or endpoints. Narration is paced and fails closed to deterministic summaries when unavailable. Provider credentials remain server-side and are never returned to the browser.
 
 ## Where to look
 

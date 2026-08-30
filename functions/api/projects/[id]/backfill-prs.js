@@ -99,7 +99,7 @@ export async function onRequestPost(context) {
     if (rewriteOtherModels) {
       const orgId = await resolveOrgId(db, orgLogin);
       const llmConfig = await resolveLlmConfig(context.env, orgId);
-      currentModel = llmConfig?.model ?? null;
+      currentModel = llmConfig.status === "ready" ? llmConfig.model : null;
     }
     const fallbackIds = (
       await findRenarrateTargets(db, orgLogin, project.id, currentModel)

@@ -78,7 +78,7 @@ npx wrangler pages secret put GITHUB_APP_CLIENT_SECRET --project-name unticket
 npx wrangler pages secret put GITHUB_APP_PRIVATE_KEY --project-name unticket
 npx wrangler pages secret put GITHUB_WEBHOOK_SECRET --project-name unticket
 npx wrangler pages secret put ENCRYPTION_KEY        --project-name unticket   # 64-char hex
-npx wrangler pages secret put ZHIPU_API_KEY         --project-name unticket
+npx wrangler pages secret put ANTHROPIC_API_KEY     --project-name unticket
 npx wrangler pages secret put SLACK_CLIENT_ID       --project-name unticket
 npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name unticket
 npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name unticket
@@ -93,13 +93,13 @@ npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name unticket
 The **cron Worker** needs its own copy of the secrets it uses:
 
 ```bash
-npx wrangler secret put GITHUB_APP_ID        --name noxconnect-cron
-npx wrangler secret put GITHUB_APP_PRIVATE_KEY --name noxconnect-cron
-npx wrangler secret put ZHIPU_API_KEY        --name noxconnect-cron
-npx wrangler secret put ENCRYPTION_KEY       --name noxconnect-cron
+npx wrangler secret put GITHUB_APP_ID        --name unticket-cron
+npx wrangler secret put GITHUB_APP_PRIVATE_KEY --name unticket-cron
+npx wrangler secret put ANTHROPIC_API_KEY     --name unticket-cron
+npx wrangler secret put ENCRYPTION_KEY       --name unticket-cron
 ```
 
-> **LLM provider:** `ZHIPU_API_KEY` is the default narrator backend (Zhipu's Anthropic-compatible GLM endpoint). Each org can override it with their own key (BYOK) in Settings → AI Provider. Narration is optional — without a key, narration is skipped gracefully.
+> **LLM provider:** `ANTHROPIC_API_KEY` powers the managed Claude Haiku service. Clients never supply API credentials. An organization can disable AI in Settings; without the managed key, AI fails closed to deterministic summaries.
 
 ### Provision the NoxConnect Slack app
 
@@ -187,4 +187,4 @@ cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 
 ## Costs
 
-NoxConnect fits comfortably in Cloudflare's free/low tiers for a small org. The main variable cost is LLM narration (PR-merge narration only, paced, per-project toggle, BYOK-capable). The backfill endpoint is rate-limited to bound that spend.
+NoxConnect fits comfortably in Cloudflare's free/low tiers for a small org. The main variable cost is managed LLM narration (PR-merge narration only, paced, and disable-able). The backfill endpoint is rate-limited to bound that spend.

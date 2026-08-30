@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, RefreshCw, Send, Server, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, Check, CheckCircle2, CircleDashed, Clipboard, KeyRound, Plus, RefreshCw, Send, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
@@ -9,6 +9,7 @@ import {
   useCreateNoxCueSource,
   useDeleteNoxCueSource,
   useNoxCueMetrics,
+  useNoxCueFeatures,
   useNoxCueProjectMetrics,
   useNoxCueSources,
   useRevokeNoxCueKey,
@@ -29,6 +30,9 @@ const EMPTY_SOURCE: NoxCueSourceInput = {
   digestTimeLocal: "00:30",
   slackChannelId: null,
   slackConnectionId: null,
+  allowedOrigins: [],
+  healthEnabled: false,
+  healthUrl: null,
 };
 
 const USER_STAT_KEYS = [
@@ -64,6 +68,9 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
     digestTimeLocal: selected.digestTimeLocal,
     slackChannelId: selected.slackChannelId,
     slackConnectionId: selected.slackConnectionId,
+    allowedOrigins: selected.allowedOrigins,
+    healthEnabled: selected.healthEnabled,
+    healthUrl: selected.healthUrl,
   } : EMPTY_SOURCE;
   const sourceDefaults = useMemo<NoxCueSourceInput>(() => ({
     ...EMPTY_SOURCE,
@@ -144,6 +151,16 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
             </label>
           </div>
           <SlackDestination draft={draft} setDraft={setDraft} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium text-stone-700">Browser origins
+              <textarea value={draft.allowedOrigins.join("\n")} onChange={(event) => setDraft({ ...draft, allowedOrigins: event.target.value.split(/\s+/).map((value) => value.trim().replace(/\/$/, "")).filter(Boolean) })} placeholder="https://app.example.com" rows={2} className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" />
+              <span className="mt-1 block text-[11px] font-normal text-stone-400">Exact origins only, one per line. Required for browser auth health.</span>
+            </label>
+            <label className="text-sm font-medium text-stone-700">Public health URL
+              <input type="url" value={draft.healthUrl ?? ""} onChange={(event) => setDraft({ ...draft, healthUrl: event.target.value || null })} placeholder="https://app.example.com/health" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" />
+              <span className="mt-1 flex items-center gap-2 text-[11px] font-normal text-stone-500"><input type="checkbox" checked={draft.healthEnabled} onChange={(event) => setDraft({ ...draft, healthEnabled: event.target.checked })} /> Check every five minutes</span>
+            </label>
+          </div>
           <p className="text-xs text-stone-400">The pulse covers the previous completed day and includes yesterday and trailing-30-day comparisons.</p>
           <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={draft.digestEnabled} onChange={(event) => setDraft({ ...draft, digestEnabled: event.target.checked })} /> Post the daily user stats to Slack</label>
           <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /> Accept user events</label>
@@ -165,6 +182,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         onCheck={() => void checkForEvents()}
       /> : null}
       {!creating && selected ? <KeySection source={selected} /> : null}
+      {!creating && selected ? <AuthHealthPanel source={selected} /> : null}
       {!creating && selected ? <ProjectMetricControls
         key={selected.projectId ?? "project-metrics"}
         projects={sources.data.projects}
@@ -197,7 +215,7 @@ export function SetupProgress({
   );
   const [testingDelivery, setTestingDelivery] = useState(false);
   const [testFeedback, setTestFeedback] = useState<{ ok: boolean; message: string } | null>(null);
-  const activeKeys = source.keys.filter((key) => !key.revokedAt);
+  const activeKeys = source.keys.filter((key) => key.kind === "secret" && !key.revokedAt);
   const eventAt = lastUserEventAt(source);
   const destinationReady = Boolean(slackConnected && source.digestEnabled && source.effectiveSlackChannelId);
   const deliveryHealthy = channelStatus?.status === "verified";
@@ -453,19 +471,66 @@ function KeySection({ source }: { source: NoxCueSource }) {
   const createKey = useCreateNoxCueKey();
   const revokeKey = useRevokeNoxCueKey();
   const { confirm, dialogProps } = useConfirm();
-  const [newKey, setNewKey] = useState<string | null>(null);
+  const [newKey, setNewKey] = useState<{ value: string; kind: "publishable" | "secret" } | null>(null);
   const [copied, setCopied] = useState(false);
   const activeKeys = source.keys.filter((key) => !key.revokedAt);
-  const create = () => createKey.mutate({ sourceId: source.id, name: "Server" }, { onSuccess: (result) => { setNewKey(result.key.value); setCopied(false); } });
+  const create = (kind: "publishable" | "secret") => createKey.mutate(
+    { sourceId: source.id, name: kind === "publishable" ? "Browser" : "Server", kind },
+    { onSuccess: (result) => { setNewKey({ value: result.key.value, kind }); setCopied(false); } },
+  );
   const revoke = async (keyId: string) => {
     if (await confirm({ title: "Revoke this ingest key?", message: "The app using it will immediately stop sending NoxCue events.", confirmLabel: "Revoke key", variant: "danger" })) revokeKey.mutate({ sourceId: source.id, keyId });
   };
   return <><Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Server size={16} /><h3 className="text-sm font-semibold text-stone-900">Add NoxCue to your server</h3></div><p className="mt-1 text-xs text-stone-500">Create one key, save it as a server secret, then add the registration call after signup succeeds.</p></div><button type="button" onClick={create} disabled={createKey.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{createKey.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />} Create server key</button></div>
-    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">Key created—copy it now</p><p className="mt-1 text-xs text-amber-800">This value is shown once. Store it as <code>NOXCUE_INGEST_KEY</code> in your server environment.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div><RequestExample /></div> : null}
-    <div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name}</div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `last request ${new Date(key.lastUsedAt).toLocaleString()}` : "waiting for first request"}</div></div><button type="button" onClick={() => void revoke(key.id)} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length ? <p className="py-3 text-xs text-stone-400">No active server key yet.</p> : null}</div>
-    {createKey.isError ? <p className="text-xs text-red-600">{createKey.error instanceof Error ? createKey.error.message : "Could not create the server key."}</p> : null}
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Server size={16} /><h3 className="text-sm font-semibold text-stone-900">Connect the app</h3></div><p className="mt-1 text-xs text-stone-500">Use a public, origin-restricted key in the browser for auth health. Server keys remain secret and send user totals.</p></div><div className="flex gap-2"><button type="button" onClick={() => create("publishable")} disabled={createKey.isPending || !source.allowedOrigins.length} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50"><ShieldCheck size={13} /> Create browser key</button><button type="button" onClick={() => create("secret")} disabled={createKey.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{createKey.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />} Create server key</button></div></div>
+    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">{newKey.kind === "publishable" ? "Browser key" : "Server key"} created—copy it now</p><p className="mt-1 text-xs text-amber-800">{newKey.kind === "publishable" ? "This key is safe to ship only because requests are restricted to the exact origins above." : "Store this value as NOXCUE_INGEST_KEY in your server environment."}</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey.value}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey.value).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div>{newKey.kind === "publishable" ? <BrowserExample ingestKey={newKey.value} /> : <RequestExample />}</div> : null}
+    <div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name} <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase text-stone-500">{key.kind === "publishable" ? "browser" : "server"}</span></div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `last request ${new Date(key.lastUsedAt).toLocaleString()}` : "waiting for first request"}</div></div><button type="button" onClick={() => void revoke(key.id)} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length ? <p className="py-3 text-xs text-stone-400">No active keys yet.</p> : null}</div>
+    {!source.allowedOrigins.length ? <p className="text-xs text-amber-700">Save at least one browser origin before creating a browser key.</p> : null}
+    {createKey.isError ? <p className="text-xs text-red-600">{createKey.error instanceof Error ? createKey.error.message : "Could not create the key."}</p> : null}
   </Panel><ConfirmDialog {...dialogProps} /></>;
+}
+
+function BrowserExample({ ingestKey }: { ingestKey: string }) {
+  const [copied, setCopied] = useState(false);
+  const command = `const noxcue = createNoxCue({ ingestKey: "${ingestKey}" });
+
+// One wrapper around the auth call. The original result is unchanged.
+const result = await noxcue.auth.signup(() => auth.signUp(input));
+
+// Run once during setup, then click “Check now” in NoxConnect.
+await noxcue.test();`;
+  return <div className="mt-3 space-y-2">
+    <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold text-amber-900">Wrap each auth action</p><p className="mt-0.5 text-[11px] text-amber-800">Available: signup, login, passwordReset, emailVerification, oauth, mfa, sessionRefresh, logout.</p></div><button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => setCopied(true)); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button></div>
+    <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
+    <p className="text-[11px] leading-5 text-amber-800">Only the feature, success/rejection/system failure, fixed reason, duration, and event ID leave the browser. NoxCue never receives account data or credentials.</p>
+  </div>;
+}
+
+function AuthHealthPanel({ source }: { source: NoxCueSource }) {
+  const health = useNoxCueFeatures(source.id);
+  const publishable = source.keys.some((key) => key.kind === "publishable" && !key.revokedAt);
+  const testedAt = health.data?.features.map((feature) => feature.lastTestAt).filter(Boolean).sort().at(-1) ?? null;
+  const issueCount = health.data?.features.filter((feature) => feature.status === "issue").length ?? 0;
+  return <Panel>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Auth feature health</h3></div><p className="mt-1 text-xs text-stone-500">Expected user rejections are counted separately. Three consecutive system failures open an issue; two successes close it.</p></div><button type="button" onClick={() => void health.refetch()} disabled={health.isFetching} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{health.isFetching ? <Spinner size="sm" /> : <RefreshCw size={13} />} Check now</button></div>
+    <div className="grid gap-2 sm:grid-cols-3">
+      <SetupChip label="Origin saved" complete={source.allowedOrigins.length > 0} detail={source.allowedOrigins[0] ?? "Add the app origin"} />
+      <SetupChip label="Browser key" complete={publishable} detail={publishable ? "Active" : "Create a publishable key"} />
+      <SetupChip label="End-to-end test" complete={Boolean(testedAt)} detail={testedAt ? `Received ${new Date(testedAt).toLocaleString()}` : "Run noxcue.test() in the app"} />
+    </div>
+    {source.healthEnabled ? <div className={`rounded-lg border px-3 py-2 text-xs ${source.healthStatus === "issue" ? "border-red-200 bg-red-50 text-red-800" : source.healthStatus === "healthy" ? "border-green-200 bg-green-50 text-green-800" : "border-stone-200 bg-stone-50 text-stone-600"}`}><span className="font-medium">Endpoint: {source.healthStatus}</span>{source.healthLastCheckedAt ? ` · checked ${new Date(source.healthLastCheckedAt).toLocaleString()}` : " · waiting for first check"}{source.healthLastError ? ` · ${source.healthLastError}` : ""}</div> : null}
+    {issueCount ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{issueCount} auth feature{issueCount === 1 ? " has" : "s have"} an active issue. Slack was notified.</p> : null}
+    {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : <div className="grid gap-3 sm:grid-cols-2">{health.data?.features.map((feature) => <div key={feature.key} className={`rounded-lg border p-3 ${feature.status === "issue" ? "border-red-200 bg-red-50" : feature.status === "healthy" ? "border-green-200 bg-green-50/50" : "border-stone-200 bg-stone-50"}`}><div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-stone-800">{feature.label}</span><HealthBadge status={feature.status} /></div><p className="mt-1 text-[11px] leading-4 text-stone-500">{feature.description}</p><p className="mt-2 text-[11px] text-stone-500">24h: {feature.successes24h} successful · {feature.rejections24h} rejected · {feature.failures24h} system failures</p>{feature.lastResultAt ? <p className="mt-1 text-[11px] text-stone-400">Last result {new Date(feature.lastResultAt).toLocaleString()}</p> : null}</div>)}</div>}
+  </Panel>;
+}
+
+function SetupChip({ label, complete, detail }: { label: string; complete: boolean; detail: string }) {
+  return <div className={`rounded-lg border p-3 ${complete ? "border-green-200 bg-green-50" : "border-stone-200 bg-stone-50"}`}><div className="flex items-center gap-1.5 text-xs font-medium text-stone-800">{complete ? <CheckCircle2 size={13} className="text-green-700" /> : <CircleDashed size={13} className="text-stone-400" />}{label}</div><p className="mt-1 truncate text-[11px] text-stone-500">{detail}</p></div>;
+}
+
+function HealthBadge({ status }: { status: "waiting" | "healthy" | "issue" }) {
+  const styles = status === "healthy" ? "bg-green-100 text-green-700" : status === "issue" ? "bg-red-100 text-red-700" : "bg-stone-200 text-stone-600";
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}>{status === "issue" ? "Issue" : status === "healthy" ? "Healthy" : "Waiting"}</span>;
 }
 
 function RequestExample() {

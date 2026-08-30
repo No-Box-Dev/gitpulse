@@ -9,6 +9,9 @@ export interface NoxCueSourceInput {
   digestTimeLocal: string;
   slackChannelId: string | null;
   slackConnectionId: string | null;
+  allowedOrigins: string[];
+  healthEnabled: boolean;
+  healthUrl: string | null;
 }
 
 export interface NoxCueMetricsResponse {
@@ -49,6 +52,9 @@ export interface NoxCueSource extends NoxCueSourceInput {
   lastRegistrationAt: string | null;
   lastActivityAt: string | null;
   createdAt: string;
+  healthStatus: "waiting" | "healthy" | "issue";
+  healthLastCheckedAt: string | null;
+  healthLastError: string | null;
   keys: Array<{
     id: string;
     name: string;
@@ -57,6 +63,17 @@ export interface NoxCueSource extends NoxCueSourceInput {
     createdAt: string;
     lastUsedAt: string | null;
     revokedAt: string | null;
+  }>;
+}
+
+export interface NoxCueFeaturesResponse {
+  features: Array<{
+    key: "auth.signup" | "auth.login" | "auth.password_reset" | "auth.email_verification" |
+      "auth.oauth" | "auth.mfa" | "auth.session_refresh" | "auth.logout";
+    label: string; description: string; status: "waiting" | "healthy" | "issue";
+    consecutiveFailures: number; lastResultAt: string | null; lastSuccessAt: string | null;
+    lastFailureAt: string | null; lastReason: string | null; incidentStartedAt: string | null;
+    successes24h: number; rejections24h: number; failures24h: number; lastTestAt: string | null;
   }>;
 }
 

@@ -26,6 +26,12 @@ interface SourceRow {
   slack_route_level: "source" | "project" | "organization" | "fallback" | null;
   last_registration_at: string | null;
   last_activity_at: string | null;
+  allowed_origins_json: string;
+  health_enabled: number | null;
+  health_url: string | null;
+  health_status: "waiting" | "healthy" | "issue" | null;
+  health_last_checked_at: string | null;
+  health_last_error: string | null;
   created_at: string;
 }
 
@@ -50,6 +56,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     db.prepare(
       `SELECT source.id, source.name, source.project_id, project.name AS project_name,
               source.enabled, source.timezone, source.digest_enabled, source.digest_time_local,
+              source.allowed_origins_json, monitor.enabled AS health_enabled, monitor.url AS health_url,
+              monitor.status AS health_status, monitor.last_checked_at AS health_last_checked_at,
+              monitor.last_error AS health_last_error,
               source.slack_channel_id, source.slack_connection_id,
               COALESCE(NULLIF(source.slack_channel_id, ''), NULLIF(project_route.channel_id, ''),
                 NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), ''),
@@ -78,6 +87,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
          FROM cue_sources source
          LEFT JOIN projects project ON project.id = source.project_id
          LEFT JOIN config ON config.org_id = source.org_id AND config.key = 'settings'
+         LEFT JOIN cue_endpoint_monitors monitor ON monitor.source_id = source.id
          LEFT JOIN project_slack_routes project_route
            ON project_route.org_id = source.org_id
           AND project_route.project_id = source.project_id
@@ -119,6 +129,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       timezone: source.timezone,
       digestEnabled: source.digest_enabled === 1,
       digestTimeLocal: source.digest_time_local,
+      allowedOrigins: JSON.parse(source.allowed_origins_json || "[]"),
+      healthEnabled: source.health_enabled === 1,
+      healthUrl: source.health_url,
+      healthStatus: source.health_status ?? "waiting",
+      healthLastCheckedAt: source.health_last_checked_at,
+      healthLastError: source.health_last_error,
       slackChannelId: source.slack_channel_id,
       slackConnectionId: source.slack_connection_id,
       effectiveSlackChannelId: source.effective_slack_channel_id,
@@ -184,12 +200,16 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
        (id, org_id, owner_id, project_id, name, enabled, allowed_origins_json, timezone,
         digest_enabled, digest_time_local, error_cooldown_minutes, slack_channel_id,
         slack_connection_id, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, 15, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 15, ?, ?, ?)`,
   ).bind(
     id, orgId, orgLogin, projectId, parsed.data.name,
-    parsed.data.enabled ? 1 : 0, parsed.data.timezone,
+    parsed.data.enabled ? 1 : 0, JSON.stringify(parsed.data.allowedOrigins), parsed.data.timezone,
     parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal,
     parsed.data.slackChannelId, slackConnectionId, userLogin,
   ).run();
+  await db.prepare(
+    `INSERT INTO cue_endpoint_monitors (org_id, source_id, enabled, url, updated_at)
+     VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))`,
+  ).bind(orgId, id, parsed.data.healthEnabled ? 1 : 0, parsed.data.healthUrl).run();
   return jsonResponse({ id, projectId }, 201);
 }

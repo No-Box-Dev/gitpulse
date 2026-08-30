@@ -196,23 +196,9 @@ export async function narrateEvent(env, eventId) {
   // Slack mirror so we don't double-post.
   if ((insertResult.meta?.changes ?? 0) === 0) return;
 
-  // Slack mirror — fire after the D1 write so a Slack outage never blocks
-  // the in-app feed. Failures are recorded to op_failures (admin-visible)
-  // and swallowed; the narrative row is already durable.
-  //
-  // Open-time narration is deliberately app-only. Slack delivery begins when
-  // the PR merges, alongside its release notes, whether this text was generated
-  // now or reused from the Opened feed.
-  await maybePostToSlack(env, {
-    kind: "narrative",
-    orgId,
-    ownerId: row.owner_id,
-    triggerEventId: row.id,
-    actor: { id: actor.id, name: actor.name },
-    project,
-    summary,
-    rawEvent: row,
-  });
+  // Merged narration stays in the in-app feed. Slack receives the structured
+  // release note from narrateReleaseNotes only, so one merged PR creates one
+  // message instead of a social post immediately followed by a release note.
 }
 
 // Sibling to narrateEvent — same gates, same LLM config, different prompt

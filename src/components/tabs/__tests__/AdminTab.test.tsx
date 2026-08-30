@@ -307,8 +307,9 @@ describe("AdminTab", () => {
     expect(screen.getAllByText("NoxFeed").length).toBeGreaterThan(0);
     expect(screen.getByText(/Choose an enabled NoxConnect project and one channel/i)).toBeInTheDocument();
     expect(screen.getByText(/Enable a project under NoxConnect/i)).toBeInTheDocument();
-    expect(screen.getByText("Default posts")).toBeInTheDocument();
-    expect(screen.getByText("Default release notes")).toBeInTheDocument();
+    expect(screen.getByText("Default channel")).toBeInTheDocument();
+    expect(screen.queryByText("Default posts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Default release notes")).not.toBeInTheDocument();
     expect(screen.queryByText("AI service")).not.toBeInTheDocument();
   });
 

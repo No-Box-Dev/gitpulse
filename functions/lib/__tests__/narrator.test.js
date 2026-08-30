@@ -520,83 +520,34 @@ describe("narrateEvent — payload parsing", () => {
   });
 });
 
-describe("narrateEvent — Slack mirror", () => {
-  it("stages delivery even when the Slack install is temporarily missing", async () => {
-    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("ok");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
-    await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({ channelId: "C1", source: "posts" }));
-  });
-
-  it("keeps an organization-default delivery recoverable when no channel is configured", async () => {
+describe("narrateEvent — app-only merged post", () => {
+  it("stores the social narrative without staging a second Slack message", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({
-      noxFeedChannelId: "", fallbackChannelId: "", postsChannelId: "", releaseNotesChannelId: "",
-    });
-    await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
-      source: "posts", channelId: "",
-    }));
-    expect(markOutboxBlocked).toHaveBeenCalledWith(
-      db,
-      "delivery-1",
-      "alerts_disabled",
-      expect.stringContaining("Choose and save a channel"),
-    );
-    expect(queueOutboxDelivery).not.toHaveBeenCalled();
-  });
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "C1" });
 
-  it("does not fall back when a project explicitly disables Posts delivery", async () => {
-    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C-DEFAULT" });
-    resolveNoxFeedDestination.mockResolvedValue({
-      projectId: "proj-1", projectName: "Playnist", connectionId: "", channelId: "",
-    });
     await narrateEvent(ENV(db), 1);
+
+    expect(db._calls.runs.some((run) => run.sql.includes("INSERT INTO events"))).toBe(true);
     expect(stageSlackDelivery).not.toHaveBeenCalled();
-  });
-
-  it("uses the repository's project-specific workspace and channel", async () => {
-    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C-DEFAULT" });
-    resolveNoxFeedDestination.mockResolvedValue({
-      projectId: "proj-1", projectName: "Playnist", connectionId: "conn-playnist", channelId: "C-PLAYNIST",
-    });
-    await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
-      source: "posts", connectionId: "conn-playnist", channelId: "C-PLAYNIST",
-    }));
-  });
-
-  it("posts to the Posts channel after inserting a narrative", async () => {
-    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
-    await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
-      source: "posts", sourceId: "1:narrative", channelId: "C1",
-    }));
-    expect(queueOutboxDelivery).toHaveBeenCalledWith(expect.objectContaining({ DB: db }), "delivery-1", "owner-1");
-  });
-
-  it("records op_failure but doesn't throw when Slack post fails", async () => {
-    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    completeNarrative.mockResolvedValue("I merged it.");
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
-    stageSlackDelivery.mockRejectedValueOnce(new Error("D1 unavailable"));
-    await expect(narrateEvent(ENV(db), 1)).resolves.toBeUndefined();
-    expect(recordFailure).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ op: "slackPostNarrative" }),
-    );
   });
 });
 
 describe("narrateReleaseNotes — Slack mirror", () => {
+  it("stages exactly one Slack delivery when both merge narrators run", async () => {
+    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
+    completeNarrative.mockResolvedValue("✅ noxconnect #42 Merged - Feature\n\nSummary\nOutcome: shipped");
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C2", releaseNotesChannelId: "C2" });
+
+    await narrateEvent(ENV(db), 1);
+    await narrateReleaseNotes(ENV(db), 1);
+
+    expect(stageSlackDelivery).toHaveBeenCalledTimes(1);
+    expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
+      source: "release_notes", channelId: "C2",
+    }));
+  });
+
   it("posts to the Release-notes channel after inserting a release_notes row", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("🐛 noxconnect #42 ...");
@@ -778,36 +729,22 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
     expect(insert.binds[6]).toBe("I merged the login button.");
   });
 
-  it("posts reused Opened-feed copy to Slack when the PR merges", async () => {
-    // The existing copy avoided a second LLM call, but it was app-only while
-    // the PR was open. The merged event is the single Slack delivery point.
+  it("keeps reused Opened-feed copy app-only when the PR merges", async () => {
     const db = makeDb({
       event: EVENT_ROW,
       project: PROJECT_ROW,
       actor: ACTOR_ROW,
       reusablePrNarrative: { summary: "Fixing the login redirect.", model: "glm-5" },
     });
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        source: "posts",
-        sourceId: "1:narrative",
-        channelId: "C1",
-      }),
-    );
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 
-  it("still posts to Slack when narrateEvent takes the fresh-LLM path (no reuse)", async () => {
-    // Sanity check that the reuse-suppression doesn't accidentally break the
-    // normal Slack mirror. A PR that predates the PRs-feed feature has no
-    // pr_narrative row → fresh LLM call → normal Slack post.
+  it("keeps fresh merged narration app-only too", async () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
-    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     completeNarrative.mockResolvedValue("I merged it.");
     await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).toHaveBeenCalledTimes(1);
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
   });
 });
 

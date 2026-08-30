@@ -35,12 +35,22 @@ const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack
   releaseNotesChannelId: "releaseNotesConnectionId",
 };
 
-// The briefly-used combined feed selection. Both NoxFeed routes adopt it as
-// their persisted value until an admin saves dedicated choices.
+// NoxFeed now exposes one channel. Adopt any older combined or split route so
+// the single selector is populated without requiring a migration first.
 function legacyNoxFeedAdopted(key: SlackRouteKey, settings: OrgSettings | null | undefined): string {
-  return key === "postsChannelId" || key === "releaseNotesChannelId"
-    ? settings?.slack?.noxFeedChannelId ?? ""
-    : "";
+  if (key === "releaseNotesChannelId") {
+    return settings?.slack?.noxFeedChannelId ?? settings?.slack?.postsChannelId ?? "";
+  }
+  if (key === "postsChannelId") {
+    return settings?.slack?.noxFeedChannelId ?? settings?.slack?.releaseNotesChannelId ?? "";
+  }
+  return "";
+}
+
+function legacyNoxFeedConnectionAdopted(key: SlackRouteKey, settings: OrgSettings | null | undefined): string {
+  if (key === "releaseNotesChannelId") return settings?.slack?.postsConnectionId ?? "";
+  if (key === "postsChannelId") return settings?.slack?.releaseNotesConnectionId ?? "";
+  return "";
 }
 
 // One self-contained Slack route picker: channel dropdown + Save + Test.
@@ -63,7 +73,9 @@ export function SlackRouteField({
   const baseSlack = settings?.slack;
   const statusQuery = useSlackChannels();
   const defaultConnectionId = statusQuery.status.data?.defaultConnectionId ?? "";
-  const persistedConnectionId = String(baseSlack?.[connectionKey] ?? defaultConnectionId);
+  const persistedConnectionId = String(
+    baseSlack?.[connectionKey] ?? legacyNoxFeedConnectionAdopted(routeKey, settings),
+  ) || defaultConnectionId;
   const [connectionOverride, setConnectionOverride] = useState<string | null>(null);
   const connectionId = connectionOverride ?? persistedConnectionId;
   const selectedWorkspace = useSlackChannels(connectionId || undefined);
@@ -93,17 +105,9 @@ export function SlackRouteField({
     setSaveStatus(null);
     try {
       const slack = { ...(settings.slack ?? {}) };
-      // Saving any dedicated route retires the combined feed selection.
-      // The sibling NoxFeed route may still be showing the legacy value —
-      // copy it into its dedicated key before deleting so this save
-      // doesn't silently unroute the other stream.
-      const legacy = slack.noxFeedChannelId;
-      if (legacy) {
-        const sibling: SlackRouteKey | null =
-          routeKey === "postsChannelId" ? "releaseNotesChannelId" :
-          routeKey === "releaseNotesChannelId" ? "postsChannelId" : null;
-        if (sibling && !slack[sibling]) slack[sibling] = legacy;
-      }
+      // Keep the legacy split fields synchronized while older clients remain
+      // supported. The UI exposes only one NoxFeed route and Slack sends only
+      // the release-note message.
       delete slack.noxFeedChannelId;
       const trimmed = value.trim();
       if (trimmed) {
@@ -112,6 +116,15 @@ export function SlackRouteField({
       } else {
         delete slack[routeKey];
         delete slack[connectionKey];
+      }
+      if (routeKey === "releaseNotesChannelId") {
+        if (trimmed) {
+          slack.postsChannelId = trimmed;
+          slack.postsConnectionId = connectionId;
+        } else {
+          delete slack.postsChannelId;
+          delete slack.postsConnectionId;
+        }
       }
       const next: OrgSettings = { ...settings, slack };
       if (Object.keys(slack).length === 0) delete next.slack;

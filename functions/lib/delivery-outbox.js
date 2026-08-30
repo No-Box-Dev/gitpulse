@@ -95,6 +95,13 @@ export async function deliverSlackOutbox(env, deliveryId) {
     await markOutboxFailed(env.DB, deliveryId, "Unsupported delivery destination", "invalid_delivery");
     return { failed: "invalid_delivery" };
   }
+  // NoxFeed now sends one structured release note per merged PR. Block any
+  // legacy queued social-post delivery, including a task that was already in
+  // the queue when the single-message release deployed.
+  if (delivery.source === "posts") {
+    await markOutboxConsolidated(env.DB, deliveryId);
+    return { blocked: "stream_consolidated" };
+  }
   const appId = appForDeliverySource(delivery.source);
   if (appId && !(await isAppEnabled(env.DB, delivery.org_id, appId))) {
     await markOutboxServiceDisabled(env.DB, deliveryId, appId);
@@ -174,6 +181,17 @@ export async function markOutboxServiceDisabled(db, deliveryId, appId) {
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      WHERE id = ? AND status != 'delivered'`,
   ).bind(`${appId} is off for this organization`, deliveryId).run();
+}
+
+async function markOutboxConsolidated(db, deliveryId) {
+  await db.prepare(
+    `UPDATE delivery_outbox SET status = 'blocked_service_disabled',
+       last_error_code = 'stream_consolidated',
+       last_error = 'NoxFeed sends one structured release note per merged pull request; the separate social post was not delivered.',
+       next_attempt_at = NULL,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+     WHERE id = ? AND status != 'delivered'`,
+  ).bind(deliveryId).run();
 }
 
 export async function requeueBlockedForOrg(env, orgId) {

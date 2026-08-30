@@ -689,6 +689,14 @@ describe("narratePrOpened — happy path", () => {
     expect(payload.model).toBe("claude-haiku-4-5-20251001");
   });
 
+  it("keeps opened PR narration in-app and does not send it to Slack", async () => {
+    const db = makeDb({ event: EVENT_ROW_OPENED, project: PROJECT_ROW, actor: ACTOR_ROW });
+    resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
+    completeNarrative.mockResolvedValue("Fixing the login redirect.");
+    await narratePrOpened(ENV(db), 1);
+    expect(stageSlackDelivery).not.toHaveBeenCalled();
+  });
+
   it("dedups by PR identity — skips when pr_narrative row already exists", async () => {
     const db = makeDb({
       event: EVENT_ROW_OPENED,
@@ -759,11 +767,9 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
     expect(insert.binds[6]).toBe("I merged the login button.");
   });
 
-  it("does NOT re-post to the Posts Slack channel when reusing pr_narrative text", async () => {
-    // narratePrOpened already posted this exact text to the Posts channel at
-    // PR-open time (both use kind='narrative' → postsChannelId). Posting the
-    // same payload again at merge would duplicate the message. Regression test
-    // for the CodeRabbit finding on PR #365.
+  it("posts reused Opened-feed copy to Slack when the PR merges", async () => {
+    // The existing copy avoided a second LLM call, but it was app-only while
+    // the PR was open. The merged event is the single Slack delivery point.
     const db = makeDb({
       event: EVENT_ROW,
       project: PROJECT_ROW,
@@ -772,7 +778,14 @@ describe("narrateEvent — reuse text from pr_narrative row", () => {
     });
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C1", releaseNotesChannelId: "" });
     await narrateEvent(ENV(db), 1);
-    expect(stageSlackDelivery).not.toHaveBeenCalled();
+    expect(stageSlackDelivery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        source: "posts",
+        sourceId: "1:narrative",
+        channelId: "C1",
+      }),
+    );
   });
 
   it("still posts to Slack when narrateEvent takes the fresh-LLM path (no reuse)", async () => {

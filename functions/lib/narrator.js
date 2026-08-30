@@ -200,13 +200,9 @@ export async function narrateEvent(env, eventId) {
   // the in-app feed. Failures are recorded to op_failures (admin-visible)
   // and swallowed; the narrative row is already durable.
   //
-  // When we're reusing the pr_narrative text, the SAME text was already
-  // posted to the Posts Slack channel by narratePrOpened at PR-open time.
-  // Posting it again here — with a different D1 row but identical Slack
-  // payload — reads as duplicate noise. Rule of thumb we now follow: one
-  // Slack post per LLM call. Reused rows spent no tokens, so they don't
-  // get a Slack post either.
-  if (reused) return;
+  // Open-time narration is deliberately app-only. Slack delivery begins when
+  // the PR merges, alongside its release notes, whether this text was generated
+  // now or reused from the Opened feed.
   await maybePostToSlack(env, {
     kind: "narrative",
     orgId,
@@ -457,7 +453,7 @@ export async function narratePrOpened(env, eventId) {
     }
   }
 
-  const insertResult = await env.DB.prepare(
+  await env.DB.prepare(
     `INSERT INTO events (source, type, actor_id, project_id, org, repo, summary, technical_summary, payload_json, owner_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT DO NOTHING`
@@ -480,18 +476,8 @@ export async function narratePrOpened(env, eventId) {
     row.created_at,
   ).run();
 
-  if ((insertResult.meta?.changes ?? 0) === 0) return;
-
-  await maybePostToSlack(env, {
-    kind: "narrative",
-    orgId,
-    ownerId: row.owner_id,
-    triggerEventId: row.id,
-    actor: { id: actor.id, name: actor.name },
-    project,
-    summary,
-    rawEvent: row,
-  });
+  // The Opened feed is an in-app preview. Its conversational Slack post is
+  // staged by narrateEvent only after this PR reaches the merged state.
 }
 
 // Look up the existing pr_narrative row (if any) for this PR. Used by both

@@ -64,7 +64,7 @@ import { NoxFeedProjectDelivery } from "../NoxFeedProjectDelivery";
 describe("NoxFeedProjectDelivery", () => {
   beforeEach(() => mutateAsync.mockClear());
 
-  it("offers enabled NoxConnect projects and saves one channel for all NoxFeed traffic", async () => {
+  it("offers enabled NoxConnect projects and saves one release-note channel", async () => {
     render(<NoxFeedProjectDelivery />);
 
     const project = screen.getByRole("combobox", { name: "NoxFeed project" });

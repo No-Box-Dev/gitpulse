@@ -48,17 +48,19 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
                 <div className="space-y-3 border-t border-stone-100 pt-4">
                   <div className="space-y-1">
                     <h3 className="text-xs font-semibold text-stone-700">Project channel</h3>
-                    <p className="text-xs text-stone-400">Choose an enabled NoxConnect project and one channel for its posts and release notes.</p>
+                    <p className="text-xs text-stone-400">Choose an enabled NoxConnect project and one channel for its release notes.</p>
                   </div>
                   <NoxFeedProjectDelivery />
                   <div className="space-y-1 border-t border-stone-100 pt-4">
                     <h3 className="text-xs font-semibold text-stone-700">Organization defaults</h3>
                     <p className="text-xs text-stone-400">Used for repositories without a project channel.</p>
                   </div>
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <SlackRouteField label="Default posts" helpText="Narrated pull request activity." kind="noxfeed_posts" routeKey="postsChannelId" />
-                    <SlackRouteField label="Default release notes" helpText="Summaries generated from merged work." kind="noxfeed_release_notes" routeKey="releaseNotesChannelId" />
-                  </div>
+                  <SlackRouteField
+                    label="Default channel"
+                    helpText="One structured release note is sent for each merged pull request."
+                    kind="noxfeed_release_notes"
+                    routeKey="releaseNotesChannelId"
+                  />
                 </div>
               ) : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">Connect Slack in NoxConnect before choosing channels.</p>}
             </div>

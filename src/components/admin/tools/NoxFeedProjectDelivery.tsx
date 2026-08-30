@@ -35,9 +35,9 @@ export function NoxFeedProjectDelivery() {
 
 function ProjectChannelForm({ project }: { project: ProjectRouting }) {
   const save = useSaveProjectRouting();
-  const initial = project.routes.noxfeedPosts.channelId
-    ? project.routes.noxfeedPosts
-    : project.routes.noxfeedReleaseNotes;
+  const initial = project.routes.noxfeedReleaseNotes.channelId
+    ? project.routes.noxfeedReleaseNotes
+    : project.routes.noxfeedPosts;
   const [destination, setDestination] = useState<ProjectDestination>(initial);
   const [saved, setSaved] = useState(false);
   const dirty = !sameDestination(destination, project.routes.noxfeedPosts)
@@ -64,7 +64,7 @@ function ProjectChannelForm({ project }: { project: ProjectRouting }) {
     <ProjectSlackRouteField
       projectId={project.id}
       label="Project channel"
-      kind="noxfeed_posts"
+      kind="noxfeed_release_notes"
       value={destination}
       onChange={(value) => { setSaved(false); setDestination(value); }}
     />

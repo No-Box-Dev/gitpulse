@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../slack.js", () => ({
   resolveSlackInstall: vi.fn(),
@@ -35,6 +35,8 @@ function db({ first = null, all = [] } = {}) {
 }
 
 describe("delivery outbox", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("stages an idempotent source/destination row", async () => {
     const database = db({ first: { id: "delivery-1", status: "pending" } });
     const result = await stageSlackDelivery(database, {
@@ -91,6 +93,21 @@ describe("delivery outbox", () => {
     expect(postSlackMessage).toHaveBeenCalledWith("xoxb-test", "C123", { text: "hello", client_msg_id: "stable-1" });
     expect(database.calls.some((call) => call.sql.includes("status = 'delivered'"))).toBe(true);
     expect(database.calls.some((call) => call.binds?.[0] === "1723456789.123456")).toBe(true);
+  });
+
+  it("blocks a queued legacy NoxFeed social post instead of duplicating the release note", async () => {
+    const outbox = {
+      id: "delivery-post", org_id: 7, source: "posts", destination: "slack", channel_id: "C123",
+      payload_json: JSON.stringify({ message: { text: "social post" } }),
+    };
+    const database = db({ first: outbox });
+
+    const result = await deliverSlackOutbox({ DB: database }, "delivery-post");
+
+    expect(result).toEqual({ blocked: "stream_consolidated" });
+    expect(postSlackMessage).not.toHaveBeenCalled();
+    expect(database.calls.some((call) => call.binds?.[0] === "delivery-post"
+      && call.sql.includes("stream_consolidated"))).toBe(true);
   });
 
   it("does not mark a delivery complete without a matching Slack receipt", async () => {

@@ -34,6 +34,9 @@ function database(authenticated: boolean) {
           number: 22, title: "Repair covers", author: "jasper", author_avatar: null,
           merged_at: "2026-08-03T00:00:00Z", html_url: "https://github.com/No-Box-Dev/playnist/pull/22",
         }] };
+        if (sql.includes("type = 'github:pr:merged'")) return { results: [{
+          payload_json: JSON.stringify({ pr: { number: 22, body: "Closes #12" } }),
+        }] };
         return { results: [
           { id: 2, type: "release_notes", summary: "Release details", technical_summary: null, payload_json: JSON.stringify({ pr_number: 22 }), created_at: "2026-08-03T00:01:00Z" },
           { id: 1, type: "narrative", summary: "I fixed the covers.", technical_summary: "What it does: fixes covers", payload_json: JSON.stringify({ pr_number: 22 }), created_at: "2026-08-03T00:00:30Z" },
@@ -69,6 +72,15 @@ describe("GET external NoxSpot project portal", () => {
     expect(body.project).toEqual({ name: "Playnist", repo: "playnist" });
     expect(body.counts.merges).toBe(27);
     expect(body.issues[0]).toMatchObject({ number: 12, state: "open", title: "Cover is missing" });
-    expect(body.timeline[0]).toMatchObject({ number: 22, post: "I fixed the covers.", releaseNotes: "Release details" });
+    expect(body.timeline[0]).toMatchObject({
+      number: 22,
+      post: "I fixed the covers.",
+      releaseNotes: "Release details",
+      linkedIssues: [{
+        number: 12,
+        title: "Cover is missing",
+        state: "open",
+      }],
+    });
   });
 });

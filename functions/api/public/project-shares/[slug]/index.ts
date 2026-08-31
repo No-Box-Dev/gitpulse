@@ -38,6 +38,22 @@ function prNumber(payload: unknown): number | null {
   } catch { return null; }
 }
 
+function closingIssueNumbers(payload: unknown, owner: string, repo: string): number[] {
+  try {
+    const parsed = JSON.parse(String(payload || "{}"));
+    const body = typeof parsed?.pr?.body === "string" ? parsed.pr.body : "";
+    const numbers = new Set<number>();
+    const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:(?:([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+))?#(\d+))/gi;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(body)) !== null) {
+      if (match[1] && (match[1].toLowerCase() !== owner.toLowerCase() || match[2].toLowerCase() !== repo.toLowerCase())) continue;
+      const number = Number(match[3]);
+      if (Number.isInteger(number) && number > 0) numbers.add(number);
+    }
+    return [...numbers];
+  } catch { return []; }
+}
+
 async function resolveShare(context: Ctx): Promise<ShareRow | null> {
   return context.env.DB.prepare(
     `SELECT share.id, share.org_id, share.project_id,
@@ -69,7 +85,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     return response({ error: "Password required", projectName: share.project_name }, 401);
   }
 
-  const [countsResult, openIssuesResult, closedIssuesResult, mergeCountResult, mergesResult, eventsResult] = await context.env.DB.batch([
+  const [countsResult, openIssuesResult, closedIssuesResult, mergeCountResult, mergesResult, eventsResult, mergeEventsResult] = await context.env.DB.batch([
     context.env.DB.prepare(
       `SELECT state, COUNT(*) AS count
          FROM issues
@@ -113,6 +129,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
           AND type IN ('narrative', 'release_notes')
         ORDER BY created_at DESC LIMIT 300`,
     ).bind(share.owner_id, share.project_id, share.repo),
+    context.env.DB.prepare(
+      `SELECT payload_json
+         FROM events
+        WHERE owner_id = ? AND project_id = ? AND repo = ? AND type = 'github:pr:merged'
+        ORDER BY created_at DESC LIMIT 100`,
+    ).bind(share.owner_id, share.project_id, share.repo),
   ]);
 
   const generated = new Map<number, { post: string | null; technicalSummary: string | null; releaseNotes: string | null }>();
@@ -138,12 +160,24 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       createdAt: issue.created_at, updatedAt: issue.updated_at, closedAt: issue.closed_at, url: issue.html_url,
     };
   });
+  const issuesByNumber = new Map(issues.map((issue) => [issue.number, issue]));
+  const linkedIssueNumbersByMerge = new Map<number, number[]>();
+  for (const raw of mergeEventsResult.results ?? []) {
+    const event = raw as Record<string, unknown>;
+    const number = prNumber(event.payload_json);
+    if (!number || linkedIssueNumbersByMerge.has(number)) continue;
+    linkedIssueNumbersByMerge.set(number, closingIssueNumbers(event.payload_json, share.owner_id, share.repo));
+  }
   const timeline = (mergesResult.results ?? []).map((raw) => {
     const merge = raw as Record<string, unknown>;
     const number = Number(merge.number);
     return {
       number, title: String(merge.title), mergedAt: merge.merged_at, url: merge.html_url,
       author: merge.author ? { login: String(merge.author), avatarUrl: merge.author_avatar ? String(merge.author_avatar) : null } : null,
+      linkedIssues: (linkedIssueNumbersByMerge.get(number) ?? [])
+        .map((issueNumber) => issuesByNumber.get(issueNumber))
+        .filter((issue): issue is NonNullable<typeof issue> => Boolean(issue))
+        .map((issue) => ({ number: issue.number, title: issue.title, state: issue.state })),
       ...(generated.get(number) ?? { post: null, technicalSummary: null, releaseNotes: null }),
     };
   });

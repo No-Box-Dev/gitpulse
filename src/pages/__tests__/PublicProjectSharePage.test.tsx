@@ -27,7 +27,7 @@ const merge = {
 
 describe("external project portal issue history", () => {
   it("shows captured details and NoxFeed data on a solved issue", () => {
-    render(<IssueCard issue={{
+    const { getByTestId } = render(<IssueCard issue={{
       ...baseIssue,
       resolution: { merge, post: "The cover now remains visible.", releaseNotes: "## Fixed\nCover rendering is stable." },
     }} />);
@@ -41,6 +41,8 @@ describe("external project portal issue history", () => {
     expect(screen.getByText("NoxFeed update")).toBeInTheDocument();
     expect(screen.getByText("The cover now remains visible.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "PR #22" })).toHaveAttribute("href", merge.url);
+    expect(getByTestId("resolution").compareDocumentPosition(getByTestId("issue-details")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Original issue")).toBeInTheDocument();
   });
 
   it("falls back to the closing PR when no NoxFeed data exists", () => {

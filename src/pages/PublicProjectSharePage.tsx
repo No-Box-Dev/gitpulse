@@ -196,11 +196,31 @@ function IssueGroup({ title, issues, total, empty }: { title: string; issues: Is
 
 export function IssueCard({ issue }: { issue: Issue }) {
   const solved = issue.state === "closed";
+  if (solved) {
+    return (
+      <article id={`issue-${issue.number}`} className="scroll-mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+        <div data-testid="resolution" className="p-5">
+          <ResolutionTimeline issue={issue} />
+        </div>
+        <IssueDetails issue={issue} original />
+      </article>
+    );
+  }
+
+  return <IssueDetails issue={issue} />;
+}
+
+function IssueDetails({ issue, original = false }: { issue: Issue; original?: boolean }) {
   return (
-    <details id={`issue-${issue.number}`} className="group scroll-mt-5 rounded-2xl border border-stone-200 bg-white shadow-sm open:shadow-md">
+    <details
+      id={original ? undefined : `issue-${issue.number}`}
+      data-testid="issue-details"
+      className={`group ${original ? "border-t border-stone-100" : "scroll-mt-5 rounded-2xl border border-stone-200 bg-white shadow-sm open:shadow-md"}`}
+    >
       <summary className="flex cursor-pointer list-none items-start gap-3 p-5 [&::-webkit-details-marker]:hidden">
-        <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${solved ? "bg-[#34734c]" : "bg-[#d53a12]"}`} />
+        <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${original ? "bg-stone-400" : "bg-[#d53a12]"}`} />
         <div className="min-w-0 flex-1">
+          {original ? <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Original issue</p> : null}
           <h4 className="font-medium leading-6 text-stone-900">{issue.title}</h4>
           <p className="mt-1 text-xs text-stone-500">#{issue.number} · Submitted by {issue.submittedBy || "Anonymous"} · {formatDate(issue.createdAt)}</p>
         </div>
@@ -215,7 +235,6 @@ export function IssueCard({ issue }: { issue: Issue }) {
           {issue.labels.filter((label) => labelName(label).toLowerCase() !== "noxspot").slice(0, 4).map((label) => <span key={labelName(label)} className="rounded-full bg-stone-100 px-2 py-1 text-[10px] text-stone-600">{labelName(label)}</span>)}
           {issue.url ? <a href={issue.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-stone-500 hover:text-[#c92e08]">GitHub issue <ExternalLink size={12} /></a> : null}
         </div>
-        {solved ? <ResolutionTimeline issue={issue} /> : null}
       </div>
     </details>
   );
@@ -225,7 +244,7 @@ function ResolutionTimeline({ issue }: { issue: Issue }) {
   const resolution = issue.resolution;
   const hasNoxFeed = Boolean(resolution?.post || resolution?.releaseNotes);
   return (
-    <div className="mt-6 border-t border-stone-200 pt-5">
+    <div>
       <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#34734c]">Resolution</p>
       {hasNoxFeed ? (
         <div className="rounded-xl bg-[#edf4ee] p-4">

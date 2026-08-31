@@ -225,11 +225,11 @@ environment overrides, ordered report-form blocks, and per-site Slack routing.
 Each project can also expose one external stakeholder portal from its NoxSpot
 site card. The portal uses an opaque URL plus a PBKDF2-hashed password, revokes
 sessions on password rotation, and shows only that project's NoxSpot-labelled
-open/closed issues and read-only merge timeline. Matching NoxFeed merged posts
-and release notes are grouped beneath each PR, alongside links to same-project
-NoxSpot issues declared by that PR's `Closes`/`Fixes`/`Resolves` references.
-Each linked issue expands to its captured image, title, description, and
-submitter; screenshot bytes are served only through the authenticated portal.
+issues in simple Open and Solved groups. Each issue expands to its captured
+image, title, description, and submitter. A solved issue shows related NoxFeed
+post/release data first, falls back to the PR whose
+`Closes`/`Fixes`/`Resolves` reference names it, and finally to its closure date.
+Screenshot bytes are served only through the authenticated portal.
 External visitors never receive GitHub/NoxConnect credentials and cannot edit,
 review, assign, or change state.
 Environment and block edits are saved atomically so renamed environments cannot

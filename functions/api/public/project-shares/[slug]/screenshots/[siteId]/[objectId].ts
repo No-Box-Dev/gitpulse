@@ -1,7 +1,7 @@
 import { hasValidProjectShareSession } from "../../../../../../lib/project-share";
 
 interface Ctx {
-  env: { DB: D1Database; NOXSPOT_ASSETS?: R2Bucket };
+  env: { DB: D1Database; NOXSPOT_ASSETS?: R2Bucket; NOXSPOT_RESPONSE?: Fetcher };
   params: { slug: string; siteId: string; objectId: string };
   request: Request;
 }
@@ -19,6 +19,34 @@ function error(status: number): Response {
   });
 }
 
+function protectedImage(body: BodyInit | null, sourceHeaders: Headers): Response {
+  const headers = new Headers({
+    "Cache-Control": "private, no-store",
+    "Content-Disposition": "inline",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow",
+  });
+  const contentType = sourceHeaders.get("Content-Type");
+  const etag = sourceHeaders.get("ETag");
+  if (contentType) headers.set("Content-Type", contentType);
+  if (etag) headers.set("ETag", etag);
+  return new Response(body, { headers });
+}
+
+async function serviceScreenshot(context: Ctx, key: string): Promise<Response | null> {
+  if (!context.env.NOXSPOT_RESPONSE) return null;
+  try {
+    const response = await context.env.NOXSPOT_RESPONSE.fetch(`https://noxspot.internal/r2/${key}`);
+    return response.ok ? protectedImage(response.body, response.headers) : null;
+  } catch (cause) {
+    console.error("[external-project-share] NoxSpot screenshot service unavailable", {
+      key,
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    return null;
+  }
+}
+
 export async function onRequestGet(context: Ctx): Promise<Response> {
   const { slug, siteId, objectId } = context.params;
   if (!/^[A-Za-z0-9._-]{1,160}$/.test(siteId) || !/^[A-Za-z0-9._-]{1,240}$/.test(objectId)) return error(404);
@@ -34,9 +62,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   ).bind(siteId, slug).first<{ id: string }>();
   if (!share) return error(404);
   if (!(await hasValidProjectShareSession(context.env.DB, context.request, slug, share.id))) return error(401);
+  const key = `screenshots/${siteId}/${objectId}`;
+  const serviceResponse = await serviceScreenshot(context, key);
+  if (serviceResponse) return serviceResponse;
   if (!context.env.NOXSPOT_ASSETS) return error(503);
 
-  const object = await context.env.NOXSPOT_ASSETS.get(`screenshots/${siteId}/${objectId}`);
+  const object = await context.env.NOXSPOT_ASSETS.get(key);
   if (!object) {
     return new Response(EXPIRED_SCREENSHOT_SVG, {
       headers: {
@@ -47,13 +78,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       },
     });
   }
-  const headers = new Headers({
-    "Cache-Control": "private, no-store",
-    "Content-Disposition": "inline",
-    "X-Content-Type-Options": "nosniff",
-    "X-Robots-Tag": "noindex, nofollow",
-  });
-  object.writeHttpMetadata(headers);
-  headers.set("ETag", object.httpEtag);
-  return new Response(object.body, { headers });
+  const sourceHeaders = new Headers();
+  object.writeHttpMetadata(sourceHeaders);
+  sourceHeaders.set("ETag", object.httpEtag);
+  return protectedImage(object.body, sourceHeaders);
 }

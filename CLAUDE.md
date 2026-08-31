@@ -228,6 +228,8 @@ sessions on password rotation, and shows only that project's NoxSpot-labelled
 open/closed issues and read-only merge timeline. Matching NoxFeed merged posts
 and release notes are grouped beneath each PR, alongside links to same-project
 NoxSpot issues declared by that PR's `Closes`/`Fixes`/`Resolves` references.
+Each linked issue expands to its captured image, title, description, and
+submitter; screenshot bytes are served only through the authenticated portal.
 External visitors never receive GitHub/NoxConnect credentials and cannot edit,
 review, assign, or change state.
 Environment and block edits are saved atomically so renamed environments cannot

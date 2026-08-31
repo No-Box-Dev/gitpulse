@@ -148,6 +148,9 @@ describe("createNoxSpotGitHubIssue", () => {
       githubIssueNumber: 12,
       githubIssueUrl: "https://github.com/acme/web/issues/12",
       siteId: "site-1",
+      description: "The submit button does nothing.",
+      reporter: "Ada",
+      screenshotUrl: "https://cdn.example/shot.png",
     });
   });
 

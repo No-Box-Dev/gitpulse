@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { onRequestGet } from "../public/project-shares/[slug]/index";
+import { captureFromIssueBody, onRequestGet } from "../public/project-shares/[slug]/index";
 import { sha256 } from "../../lib/project-share";
 
 const share = { id: "share-1", org_id: 7, project_id: "project-1", project_name: "Playnist", repo: "playnist", owner_id: "No-Box-Dev" };
@@ -36,6 +36,16 @@ function database(authenticated: boolean) {
         }] };
         if (sql.includes("type = 'github:pr:merged'")) return { results: [{
           payload_json: JSON.stringify({ pr: { number: 22, body: "Closes #12" } }),
+        }] };
+        if (sql.includes("type = 'spot:issue_created'")) return { results: [{
+          actor_id: "Ada",
+          payload_json: JSON.stringify({
+            githubIssueNumber: 12,
+            siteId: "playnist-staging",
+            description: "The cover disappears after refresh.",
+            reporter: "Ada",
+            screenshotUrl: "https://noxspot.example/screenshots/playnist-staging/shot.png",
+          }),
         }] };
         return { results: [
           { id: 2, type: "release_notes", summary: "Release details", technical_summary: null, payload_json: JSON.stringify({ pr_number: 22 }), created_at: "2026-08-03T00:01:00Z" },
@@ -80,7 +90,29 @@ describe("GET external NoxSpot project portal", () => {
         number: 12,
         title: "Cover is missing",
         state: "open",
+        description: "The cover disappears after refresh.",
+        submittedBy: "Ada",
+        screenshotUrl: "/api/public/project-shares/portal-token/screenshots/playnist-staging/shot.png",
       }],
+    });
+  });
+
+  it("reads historical capture details from the NoxSpot issue body", () => {
+    expect(captureFromIssueBody([
+      "The cover disappears after refresh.",
+      "",
+      "![NoxSpot capture](https://noxspot.example/screenshots/site-1/shot.png)",
+      "",
+      "### Capture",
+      "",
+      "- **Site:** Playnist",
+      "- **Reporter:** @ada",
+      "",
+      "<!-- noxspot:capture-1 -->",
+    ].join("\n"))).toEqual({
+      description: "The cover disappears after refresh.",
+      submittedBy: "@ada",
+      screenshotUrl: "https://noxspot.example/screenshots/site-1/shot.png",
     });
   });
 });

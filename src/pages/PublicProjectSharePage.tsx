@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, GitMerge, Link2, LockKeyhole, LogOut, MessageSquareText, Radio, ShieldCheck } from "lucide-react";
+import { ChevronDown, ExternalLink, GitMerge, Link2, LockKeyhole, LogOut, MessageSquareText, Radio, ShieldCheck } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useParams } from "react-router-dom";
 import { Spinner } from "@/components/Spinner";
@@ -21,7 +21,11 @@ interface Merge {
   mergedAt: string;
   url: string;
   author: { login: string; avatarUrl: string | null } | null;
-  linkedIssues: Array<Pick<Issue, "number" | "title" | "state">>;
+  linkedIssues: Array<Pick<Issue, "number" | "title" | "state"> & {
+    description: string | null;
+    submittedBy: string | null;
+    screenshotUrl: string | null;
+  }>;
   post: string | null;
   technicalSummary: string | null;
   releaseNotes: string | null;
@@ -219,17 +223,34 @@ export function TimelineEntry({ merge }: { merge: Merge }) {
             <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500"><Link2 size={12} /> Linked issues</p>
             <div className="mt-2 space-y-1.5">
               {merge.linkedIssues.map((issue) => (
-                <a
+                <details
                   key={issue.number}
-                  href={`#issue-${issue.number}`}
-                  aria-label={`View linked issue #${issue.number}: ${issue.title}`}
-                  className="group flex items-center gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-700 transition hover:bg-stone-100 hover:text-[#34734c]"
+                  className="group rounded-xl bg-stone-50 text-xs text-stone-700 open:bg-stone-100"
                 >
-                  <span className={`size-2 shrink-0 rounded-full ${issue.state === "closed" ? "bg-[#34734c]" : "bg-[#d53a12]"}`} />
-                  <span className="shrink-0 font-mono text-stone-500">#{issue.number}</span>
-                  <span className="min-w-0 flex-1 truncate">{issue.title}</span>
-                  <span className="shrink-0 text-[10px] capitalize text-stone-400">{issue.state}</span>
-                </a>
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 transition hover:text-[#34734c] [&::-webkit-details-marker]:hidden">
+                    <span className={`size-2 shrink-0 rounded-full ${issue.state === "closed" ? "bg-[#34734c]" : "bg-[#d53a12]"}`} />
+                    <span className="shrink-0 font-mono text-stone-500">#{issue.number}</span>
+                    <span className="min-w-0 flex-1 truncate">{issue.title}</span>
+                    <span className="shrink-0 text-[10px] capitalize text-stone-400">{issue.state}</span>
+                    <ChevronDown aria-hidden="true" size={13} className="shrink-0 text-stone-400 transition group-open:rotate-180" />
+                  </summary>
+                  <div className="border-t border-stone-200 px-3 pb-3 pt-3">
+                    {issue.screenshotUrl ? (
+                      <img
+                        src={issue.screenshotUrl}
+                        alt={`Captured screen for ${issue.title}`}
+                        loading="lazy"
+                        className="mb-3 max-h-72 w-full rounded-lg border border-stone-200 bg-white object-contain"
+                      />
+                    ) : null}
+                    <h4 className="font-medium text-stone-800">{issue.title}</h4>
+                    <p className="mt-2 whitespace-pre-wrap leading-5 text-stone-600">{issue.description || "No description was submitted."}</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 pt-2 text-[11px] text-stone-500">
+                      <span>Submitted by <strong className="font-medium text-stone-700">{issue.submittedBy || "Anonymous"}</strong></span>
+                      <a href={`#issue-${issue.number}`} aria-label={`View linked issue #${issue.number}: ${issue.title}`} className="font-medium text-[#34734c] hover:underline">View in issues</a>
+                    </div>
+                  </div>
+                </details>
               ))}
             </div>
           </div>

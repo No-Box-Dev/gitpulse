@@ -14,6 +14,9 @@ describe("external project portal timeline", () => {
         number: 12,
         title: "Cover is missing",
         state: "closed",
+        description: "The cover disappears after refresh.",
+        submittedBy: "Ada",
+        screenshotUrl: "/api/public/project-shares/portal/screenshots/site-1/shot.png",
       }],
       post: null,
       technicalSummary: null,
@@ -21,6 +24,12 @@ describe("external project portal timeline", () => {
     }} />);
 
     expect(screen.getByText("Linked issues")).toBeInTheDocument();
+    expect(screen.getByText("The cover disappears after refresh.")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Captured screen for Cover is missing" })).toHaveAttribute(
+      "src",
+      "/api/public/project-shares/portal/screenshots/site-1/shot.png",
+    );
     expect(screen.getByRole("link", { name: "View linked issue #12: Cover is missing" })).toHaveAttribute(
       "href",
       "#issue-12",

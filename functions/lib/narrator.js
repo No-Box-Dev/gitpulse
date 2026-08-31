@@ -18,7 +18,7 @@
 // every trigger point: webhook, cron queue handler, reconcile loop —
 // see the trigger-point list in CLAUDE.md ("Narration" / "Live Activity events").
 
-import { completeNarrative } from "./llm";
+import { completeNarrative, RELEASE_NOTES_MAX_TOKENS } from "./llm";
 import { resolveLlmConfig } from "./llm-config";
 import { recordFailure } from "./op-failures";
 import {
@@ -274,7 +274,10 @@ export async function narrateReleaseNotes(env, eventId) {
     ]);
     const prompt = await getNoxFeedPrompt(env, "release_notes", promptInput, systemOverride);
     const text = llmConfig.status === "ready"
-      ? await completeNarrative(llmConfig, prompt.system, prompt.user)
+      ? await completeNarrative(llmConfig, prompt.system, prompt.user, {
+          maxTokens: RELEASE_NOTES_MAX_TOKENS,
+          tag: "release-notes",
+        })
       : null;
 
     if (text) {
@@ -518,12 +521,21 @@ export function parseNarrativeOutput(text, context) {
     }
   }
 
+  const looksStructured = /^```(?:json)?\b/i.test(raw)
+    || raw.startsWith("{")
+    || /["']social["']\s*:/.test(raw);
   const social = typeof parsed?.social === "string" && parsed.social.trim()
     ? parsed.social.trim()
-    : raw;
+    : looksStructured
+      ? buildFallbackSocial(context)
+      : raw;
   const technicalSummary = normalizeTechnicalSummary(parsed?.technical)
     || buildFallbackTechnicalSummary(context);
   return { social, technicalSummary };
+}
+
+function buildFallbackSocial({ eventSummary, payload }) {
+  return cleanSentence(payload?.pr?.title || eventSummary || "Engineering update");
 }
 
 function normalizeTechnicalSummary(value) {

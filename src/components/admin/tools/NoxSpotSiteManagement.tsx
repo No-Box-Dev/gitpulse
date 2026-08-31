@@ -143,11 +143,17 @@ function SiteCard({
         </button>
       </div>
       <ConfirmDialog {...dialogProps} />
-      <div className="mt-4 flex items-center gap-2 rounded-lg bg-stone-950 px-3 py-2.5">
-        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-xs text-stone-200">{snippet}</code>
-        <button onClick={copy} className="shrink-0 text-stone-400 hover:text-white" title="Copy install code">
-          {copied ? <Check size={15} /> : <Clipboard size={15} />}
-        </button>
+      <div className="mt-4">
+        <p className="text-xs font-medium text-stone-700">Install snippet</p>
+        <p className="mt-1 text-xs leading-5 text-stone-500">
+          Paste this directly into the page you want to capture, ideally before <code>&lt;/body&gt;</code>. Do not place NoxSpot inside an iframe or sandbox; it must run in the main document to capture the page correctly.
+        </p>
+        <div className="mt-2 flex items-center gap-2 rounded-lg bg-stone-950 px-3 py-2.5">
+          <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-xs text-stone-200">{snippet}</code>
+          <button onClick={copy} className="shrink-0 text-stone-400 hover:text-white" title="Copy install code">
+            {copied ? <Check size={15} /> : <Clipboard size={15} />}
+          </button>
+        </div>
       </div>
       <details className="mt-3 rounded-lg border border-stone-200 p-3">
         <summary className="cursor-pointer text-xs font-medium text-stone-600">Widget behavior</summary>

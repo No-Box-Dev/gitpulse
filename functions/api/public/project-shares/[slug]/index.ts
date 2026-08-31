@@ -53,8 +53,11 @@ async function authenticated(context: Ctx, shareId: string): Promise<boolean> {
   if (!token) return false;
   const tokenHash = await sha256(token);
   const row = await context.env.DB.prepare(
-    `SELECT token_hash FROM external_project_share_sessions
-      WHERE token_hash = ? AND share_id = ? AND expires_at > ?`,
+    `SELECT session.token_hash
+       FROM external_project_share_sessions session
+       JOIN external_project_shares share
+         ON share.id = session.share_id AND share.password_version = session.password_version
+      WHERE session.token_hash = ? AND session.share_id = ? AND session.expires_at > ?`,
   ).bind(tokenHash, shareId, new Date().toISOString()).first();
   return Boolean(row);
 }
@@ -66,7 +69,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     return response({ error: "Password required", projectName: share.project_name }, 401);
   }
 
-  const [countsResult, openIssuesResult, closedIssuesResult, mergesResult, eventsResult] = await context.env.DB.batch([
+  const [countsResult, openIssuesResult, closedIssuesResult, mergeCountResult, mergesResult, eventsResult] = await context.env.DB.batch([
     context.env.DB.prepare(
       `SELECT state, COUNT(*) AS count
          FROM issues
@@ -92,6 +95,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
           AND EXISTS (SELECT 1 FROM json_each(labels_json)
                        WHERE LOWER(json_extract(value, '$.name')) = 'noxspot')
         ORDER BY updated_at DESC LIMIT 250`,
+    ).bind(share.org_id, share.repo),
+    context.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM pull_requests
+        WHERE org_id = ? AND repo = ? AND merged_at IS NOT NULL`,
     ).bind(share.org_id, share.repo),
     context.env.DB.prepare(
       `SELECT number, title, author, author_avatar, merged_at, html_url
@@ -152,7 +159,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     counts: {
       open: issueCounts.get("open") ?? 0,
       closed: issueCounts.get("closed") ?? 0,
-      merges: timeline.length,
+      merges: Number((mergeCountResult.results?.[0] as Record<string, unknown> | undefined)?.count ?? 0),
     },
     issues,
     timeline,

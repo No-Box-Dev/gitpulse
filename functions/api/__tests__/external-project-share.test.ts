@@ -21,6 +21,7 @@ function database(authenticated: boolean) {
     },
     async batch(statements: Array<{ sql: string }>) {
       return statements.map(({ sql }) => {
+        if (sql.includes("COUNT(*) AS count FROM pull_requests")) return { results: [{ count: 27 }] };
         if (sql.includes("COUNT(*)")) return { results: [{ state: "open", count: 1 }, { state: "closed", count: 0 }] };
         if (sql.includes("state = 'open'")) return { results: [{
           number: 12, title: "Cover is missing", state: "open", author: "jasper", author_avatar: null,
@@ -66,6 +67,7 @@ describe("GET external NoxSpot project portal", () => {
     expect(response.status).toBe(200);
     const body = await response.json() as any;
     expect(body.project).toEqual({ name: "Playnist", repo: "playnist" });
+    expect(body.counts.merges).toBe(27);
     expect(body.issues[0]).toMatchObject({ number: 12, state: "open", title: "Cover is missing" });
     expect(body.timeline[0]).toMatchObject({ number: 22, post: "I fixed the covers.", releaseNotes: "Release details" });
   });

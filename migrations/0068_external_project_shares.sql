@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS external_project_shares (
   password_salt       TEXT NOT NULL,
   password_hash       TEXT NOT NULL,
   password_iterations INTEGER NOT NULL,
+  password_version    INTEGER NOT NULL DEFAULT 1,
   enabled             INTEGER NOT NULL DEFAULT 1,
   created_by          TEXT NOT NULL,
   created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
@@ -21,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_external_project_shares_project
 CREATE TABLE IF NOT EXISTS external_project_share_sessions (
   token_hash TEXT PRIMARY KEY,
   share_id   TEXT NOT NULL REFERENCES external_project_shares(id) ON DELETE CASCADE,
+  password_version INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
   expires_at TEXT NOT NULL
 );

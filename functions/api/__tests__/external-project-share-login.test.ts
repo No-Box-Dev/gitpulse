@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { onRequestPost } from "../public/project-shares/[slug]/login";
 import { hashSharePassword } from "../../lib/project-share";
 
-function database(password: Awaited<ReturnType<typeof hashSharePassword>>) {
+function database(password: Awaited<ReturnType<typeof hashSharePassword>>, attempts = 1) {
   const runs: Array<{ sql: string; binds: unknown[] }> = [];
   const batches: Array<Array<{ sql: string; binds: unknown[] }>> = [];
   return {
@@ -20,9 +20,13 @@ function database(password: Awaited<ReturnType<typeof hashSharePassword>>) {
               password_salt: password.salt,
               password_hash: password.hash,
               password_iterations: password.iterations,
+              password_version: 3,
             };
           }
-          if (sql.includes("FROM external_project_share_attempts")) return null;
+          if (sql.includes("INSERT INTO external_project_share_attempts")) {
+            runs.push({ sql, binds: statement.binds });
+            return { attempts };
+          }
           return null;
         },
         async run() { runs.push({ sql, binds: statement.binds }); return { success: true }; },
@@ -57,7 +61,17 @@ describe("external project portal password login", () => {
     expect(response.status).toBe(401);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(db.runs).toHaveLength(1);
-    expect(db.runs[0].sql).toContain("external_project_share_attempts");
+    expect(db.runs[0].sql).toContain("attempts + 1");
+    expect(db.batches).toHaveLength(0);
+  });
+
+  it("rejects an attempt beyond the atomic per-client limit", async () => {
+    const password = await hashSharePassword("a-strong-project-password");
+    const db = database(password, 9);
+    const response = await onRequestPost(context(db, "a-strong-project-password") as never);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("900");
     expect(db.batches).toHaveLength(0);
   });
 
@@ -73,5 +87,6 @@ describe("external project portal password login", () => {
     const sessionInsert = db.batches[0].find((statement) => statement.sql.includes("share_sessions"));
     expect(sessionInsert?.binds[0]).not.toBe("a-strong-project-password");
     expect(String(sessionInsert?.binds[0])).toHaveLength(43);
+    expect(sessionInsert?.binds[2]).toBe(3);
   });
 });

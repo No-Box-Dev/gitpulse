@@ -1,6 +1,6 @@
 const encoder = new TextEncoder();
 
-export const SHARE_PASSWORD_ITERATIONS = 120_000;
+export const SHARE_PASSWORD_ITERATIONS = 600_000;
 export const SHARE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -58,7 +58,10 @@ export function readCookie(request: Request, name: string): string | null {
   for (const part of cookies.split(";")) {
     const separator = part.indexOf("=");
     if (separator < 0) continue;
-    if (part.slice(0, separator).trim() === name) return decodeURIComponent(part.slice(separator + 1).trim());
+    if (part.slice(0, separator).trim() === name) {
+      try { return decodeURIComponent(part.slice(separator + 1).trim()); }
+      catch { return null; }
+    }
   }
   return null;
 }

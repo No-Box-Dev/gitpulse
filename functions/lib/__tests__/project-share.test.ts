@@ -16,4 +16,9 @@ describe("external project share credentials", () => {
     expect(cookie).toContain("Secure");
     expect(readCookie(new Request("https://x", { headers: { Cookie: "other=1; wanted=value%202" } }), "wanted")).toBe("value 2");
   });
+
+  it("treats malformed cookie encoding as an absent session", () => {
+    const request = new Request("https://app.unticket.ai", { headers: { Cookie: "noxspot_share_demo=%" } });
+    expect(readCookie(request, "noxspot_share_demo")).toBeNull();
+  });
 });

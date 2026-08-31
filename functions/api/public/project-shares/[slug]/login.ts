@@ -27,22 +27,36 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   if (!parsed.ok) return parsed.response;
 
   const share = await context.env.DB.prepare(
-    `SELECT id, password_salt, password_hash, password_iterations
+    `SELECT id, password_salt, password_hash, password_iterations, password_version
        FROM external_project_shares WHERE slug = ? AND enabled = 1`,
   ).bind(context.params.slug).first<{
-    id: string; password_salt: string; password_hash: string; password_iterations: number;
+    id: string; password_salt: string; password_hash: string; password_iterations: number; password_version: number;
   }>();
   if (!share) return jsonResponse({ error: "Share not found" }, 404);
 
   const client = context.request.headers.get("CF-Connecting-IP") ?? "unknown";
   const clientHash = await sha256(`${share.id}:${client}`);
-  const attempt = await context.env.DB.prepare(
-    "SELECT attempts, window_started FROM external_project_share_attempts WHERE share_id = ? AND client_hash = ?",
-  ).bind(share.id, clientHash).first<{ attempts: number; window_started: string }>();
   const now = Date.now();
-  const withinWindow = attempt && now - Date.parse(attempt.window_started) < ATTEMPT_WINDOW_MS;
-  if (withinWindow && attempt.attempts >= MAX_ATTEMPTS) {
-    return jsonResponse({ error: "Too many attempts. Try again later." }, 429);
+  const nowIso = new Date(now).toISOString();
+  const cutoffIso = new Date(now - ATTEMPT_WINDOW_MS).toISOString();
+  const attempt = await context.env.DB.prepare(
+    `INSERT INTO external_project_share_attempts (share_id, client_hash, window_started, attempts)
+     VALUES (?, ?, ?, 1)
+     ON CONFLICT(share_id, client_hash) DO UPDATE SET
+       attempts = CASE
+         WHEN external_project_share_attempts.window_started <= ? THEN 1
+         ELSE external_project_share_attempts.attempts + 1
+       END,
+       window_started = CASE
+         WHEN external_project_share_attempts.window_started <= ? THEN excluded.window_started
+         ELSE external_project_share_attempts.window_started
+       END
+     RETURNING attempts`,
+  ).bind(share.id, clientHash, nowIso, cutoffIso, cutoffIso).first<{ attempts: number }>();
+  if (Number(attempt?.attempts ?? MAX_ATTEMPTS + 1) > MAX_ATTEMPTS) {
+    const response = jsonResponse({ error: "Too many attempts. Try again later." }, 429);
+    response.headers.set("Retry-After", String(Math.ceil(ATTEMPT_WINDOW_MS / 1000)));
+    return response;
   }
 
   const valid = await verifySharePassword(
@@ -52,14 +66,6 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     share.password_iterations,
   );
   if (!valid) {
-    const windowStarted = withinWindow ? attempt.window_started : new Date(now).toISOString();
-    const attempts = withinWindow ? attempt.attempts + 1 : 1;
-    await context.env.DB.prepare(
-      `INSERT INTO external_project_share_attempts (share_id, client_hash, window_started, attempts)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(share_id, client_hash) DO UPDATE SET
-         window_started = excluded.window_started, attempts = excluded.attempts`,
-    ).bind(share.id, clientHash, windowStarted, attempts).run();
     return jsonResponse({ error: "Incorrect password" }, 401);
   }
 
@@ -68,8 +74,9 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const expiresAt = new Date(now + SHARE_SESSION_TTL_MS).toISOString();
   await context.env.DB.batch([
     context.env.DB.prepare(
-      "INSERT INTO external_project_share_sessions (token_hash, share_id, expires_at) VALUES (?, ?, ?)",
-    ).bind(tokenHash, share.id, expiresAt),
+      `INSERT INTO external_project_share_sessions
+         (token_hash, share_id, password_version, expires_at) VALUES (?, ?, ?, ?)`,
+    ).bind(tokenHash, share.id, share.password_version, expiresAt),
     context.env.DB.prepare(
       "DELETE FROM external_project_share_attempts WHERE share_id = ? AND client_hash = ?",
     ).bind(share.id, clientHash),

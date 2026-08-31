@@ -43,7 +43,8 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     await context.env.DB.batch([
       context.env.DB.prepare(
         `UPDATE external_project_shares
-            SET password_salt = ?, password_hash = ?, password_iterations = ?, enabled = 1,
+            SET password_salt = ?, password_hash = ?, password_iterations = ?,
+                password_version = password_version + 1, enabled = 1,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
           WHERE id = ? AND org_id = ?`,
       ).bind(password.salt, password.hash, password.iterations, existing.id, orgId),

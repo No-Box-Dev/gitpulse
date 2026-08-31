@@ -227,7 +227,8 @@ site card. The portal uses an opaque URL plus a PBKDF2-hashed password, revokes
 sessions on password rotation, and shows only that project's NoxSpot-labelled
 issues in simple Open and Solved groups. Each issue expands to its captured
 image, title, description, and submitter. A solved issue shows related NoxFeed
-post/release data first, falls back to the PR whose
+post/release data as the card's primary content, with the original issue and
+capture details beneath it. The resolution falls back to the PR whose
 `Closes`/`Fixes`/`Resolves` reference names it, and finally to its closure date.
 Screenshot bytes are served only through the authenticated portal.
 External visitors never receive GitHub/NoxConnect credentials and cannot edit,

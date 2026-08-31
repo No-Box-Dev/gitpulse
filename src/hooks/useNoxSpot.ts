@@ -64,3 +64,22 @@ export function useRetryNoxSpotDeliveries() {
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });
 }
+
+export function useUpsertNoxSpotExternalShare() {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { projectId: string; password: string }) =>
+      apiPost<{ share: { id: string; slug: string; enabled: boolean } }>("/api/spots/shares", input),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
+  });
+}
+
+export function useDeleteNoxSpotExternalShare() {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (shareId: string) => apiDelete<{ ok: true }>(`/api/spots/shares/${encodeURIComponent(shareId)}`),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
+  });
+}

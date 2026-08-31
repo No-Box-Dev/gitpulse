@@ -126,6 +126,13 @@ export async function onRequest(context) {
     return context.next();
   }
 
+  // Password-protected external NoxSpot project portals authenticate with a
+  // scoped HttpOnly share-session cookie inside their own handlers. They do
+  // not accept or expose NoxConnect/GitHub bearer credentials.
+  if (url.pathname.startsWith("/api/public/project-shares/")) {
+    return context.next();
+  }
+
   // Skip middleware for non-API routes
   if (!url.pathname.startsWith("/api/")) {
     return context.next();

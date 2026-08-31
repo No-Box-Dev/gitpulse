@@ -91,6 +91,7 @@ export interface NoxSpotSite {
   slackLastError: string | null;
   issueCount: number;
   openIssueCount: number;
+  externalShare: { id: string; slug: string; enabled: boolean } | null;
   createdAt: string;
   updatedAt: string;
 }

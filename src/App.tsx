@@ -41,6 +41,9 @@ const DraftPrsPage = lazy(() =>
 const StalePrsPage = lazy(() =>
   import("@/pages/lists/PrListPages").then((m) => ({ default: m.StalePrsPage })),
 );
+const PublicProjectSharePage = lazy(() =>
+  import("@/pages/PublicProjectSharePage").then((m) => ({ default: m.PublicProjectSharePage })),
+);
 
 function PageFallback() {
   return (
@@ -71,7 +74,7 @@ function AuthenticatedRoutes() {
   );
 }
 
-export function App() {
+function PrivateApp() {
   const { user, isLoading, authError, selectedOrg, setSelectedOrg } = useAuth();
   const { data: orgs, isLoading: orgsLoading } = useOrgs();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -146,4 +149,13 @@ export function App() {
   if (!user) return <><Toaster /><LoginPage /></>;
   if (!selectedOrg) return <><Toaster /><OrgPickerPage /></>;
   return <><Toaster /><AuthenticatedRoutes /></>;
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/share/:slug" element={<Suspense fallback={<PageFallback />}><PublicProjectSharePage /></Suspense>} />
+      <Route path="*" element={<PrivateApp />} />
+    </Routes>
+  );
 }

@@ -54,6 +54,11 @@ function siteDto(row: Record<string, unknown>) {
     slackPendingCount: pendingCount,
     slackBlockedCount: blockedCount + failedCount,
     slackLastError: row.slack_last_error ?? null,
+    externalShare: row.external_share_id ? {
+      id: row.external_share_id,
+      slug: row.external_share_slug,
+      enabled: Number(row.external_share_enabled ?? 0) === 1,
+    } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -104,7 +109,13 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
             (SELECT delivery.last_error FROM delivery_outbox delivery
               WHERE delivery.site_id = site.id AND delivery.destination = 'slack'
                 AND delivery.last_error IS NOT NULL
-              ORDER BY delivery.updated_at DESC LIMIT 1) AS slack_last_error
+              ORDER BY delivery.updated_at DESC LIMIT 1) AS slack_last_error,
+            (SELECT share.id FROM external_project_shares share
+                WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_id,
+            (SELECT share.slug FROM external_project_shares share
+                WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_slug,
+            (SELECT share.enabled FROM external_project_shares share
+                WHERE share.org_id = site.org_id AND share.project_id = site.project_id LIMIT 1) AS external_share_enabled
        FROM spot_sites site
       WHERE site.org_id = ?
       ORDER BY site.created_at DESC`,

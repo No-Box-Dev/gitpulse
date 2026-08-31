@@ -33,7 +33,7 @@ function parseJsonArray(value: unknown): unknown[] {
 function prNumber(payload: unknown): number | null {
   try {
     const parsed = JSON.parse(String(payload || "{}"));
-    const value = Number(parsed?.pr?.number);
+    const value = Number(parsed?.pr_number ?? parsed?.pr?.number);
     return Number.isInteger(value) && value > 0 ? value : null;
   } catch { return null; }
 }

@@ -34,8 +34,8 @@ function database(authenticated: boolean) {
           merged_at: "2026-08-03T00:00:00Z", html_url: "https://github.com/No-Box-Dev/playnist/pull/22",
         }] };
         return { results: [
-          { id: 2, type: "release_notes", summary: "Release details", technical_summary: null, payload_json: JSON.stringify({ pr: { number: 22 } }), created_at: "2026-08-03T00:01:00Z" },
-          { id: 1, type: "narrative", summary: "I fixed the covers.", technical_summary: "What it does: fixes covers", payload_json: JSON.stringify({ pr: { number: 22 } }), created_at: "2026-08-03T00:00:30Z" },
+          { id: 2, type: "release_notes", summary: "Release details", technical_summary: null, payload_json: JSON.stringify({ pr_number: 22 }), created_at: "2026-08-03T00:01:00Z" },
+          { id: 1, type: "narrative", summary: "I fixed the covers.", technical_summary: "What it does: fixes covers", payload_json: JSON.stringify({ pr_number: 22 }), created_at: "2026-08-03T00:00:30Z" },
         ] };
       });
     },

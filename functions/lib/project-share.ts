@@ -1,6 +1,9 @@
 const encoder = new TextEncoder();
 
-export const SHARE_PASSWORD_ITERATIONS = 600_000;
+// Cloudflare Workers rejects a single PBKDF2 operation above 100,000 rounds.
+// Keep this at the runtime maximum so credentials can be created and verified
+// consistently in Pages Functions.
+export const SHARE_PASSWORD_ITERATIONS = 100_000;
 export const SHARE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function bytesToBase64Url(bytes: Uint8Array): string {

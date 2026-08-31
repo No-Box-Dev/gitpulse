@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hashSharePassword, readCookie, sessionCookie, verifySharePassword } from "../project-share";
+import { SHARE_PASSWORD_ITERATIONS, hashSharePassword, readCookie, sessionCookie, verifySharePassword } from "../project-share";
 
 describe("external project share credentials", () => {
   it("hashes and verifies passwords without storing plaintext", async () => {
@@ -7,6 +7,18 @@ describe("external project share credentials", () => {
     expect(credential.hash).not.toContain("sufficiently");
     await expect(verifySharePassword("a sufficiently long password", credential.salt, credential.hash, credential.iterations)).resolves.toBe(true);
     await expect(verifySharePassword("the wrong password", credential.salt, credential.hash, credential.iterations)).resolves.toBe(false);
+  });
+
+  it("uses the strongest PBKDF2 iteration count supported by Cloudflare Workers", async () => {
+    expect(SHARE_PASSWORD_ITERATIONS).toBe(100_000);
+    const credential = await hashSharePassword("a sufficiently long password");
+    expect(credential.iterations).toBe(100_000);
+    await expect(verifySharePassword(
+      "a sufficiently long password",
+      credential.salt,
+      credential.hash,
+      credential.iterations,
+    )).resolves.toBe(true);
   });
 
   it("creates an HttpOnly cookie scoped to one portal API", () => {

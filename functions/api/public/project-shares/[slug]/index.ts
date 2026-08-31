@@ -121,25 +121,31 @@ async function historicalCaptureDetails(
     const installationId = await getInstallationIdForOrg(context.env.DB, share.org_id);
     if (!installationId) return details;
     const token = await getInstallationToken(context.env, installationId);
-    const fields = issueNumbers.map((number, index) => `issue${index}: issue(number: ${number}) { number body }`).join("\n");
-    const result = await fetch("https://api.github.com/graphql", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "User-Agent": "NoxConnect",
-      },
-      body: JSON.stringify({
-        query: `query ExternalPortalIssues($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { ${fields} } }`,
-        variables: { owner: share.owner_id, repo: share.repo },
-      }),
-    });
-    if (!result.ok) return details;
-    const body = await result.json() as { data?: { repository?: Record<string, { number?: unknown; body?: unknown } | null> } };
-    for (const issue of Object.values(body.data?.repository ?? {})) {
-      const number = Number(issue?.number);
-      if (Number.isInteger(number) && number > 0 && typeof issue?.body === "string") {
-        details.set(number, captureFromIssueBody(issue.body));
+    const batches: number[][] = [];
+    for (let index = 0; index < issueNumbers.length; index += 50) batches.push(issueNumbers.slice(index, index + 50));
+    const responses = await Promise.all(batches.map(async (numbers) => {
+      const fields = numbers.map((number, index) => `issue${index}: issue(number: ${number}) { number body }`).join("\n");
+      const result = await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "User-Agent": "NoxConnect",
+        },
+        body: JSON.stringify({
+          query: `query ExternalPortalIssues($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { ${fields} } }`,
+          variables: { owner: share.owner_id, repo: share.repo },
+        }),
+      });
+      if (!result.ok) return null;
+      return result.json() as Promise<{ data?: { repository?: Record<string, { number?: unknown; body?: unknown } | null> } }>;
+    }));
+    for (const body of responses) {
+      for (const issue of Object.values(body?.data?.repository ?? {})) {
+        const number = Number(issue?.number);
+        if (Number.isInteger(number) && number > 0 && typeof issue?.body === "string") {
+          details.set(number, captureFromIssueBody(issue.body));
+        }
       }
     }
   } catch (error) {
@@ -169,7 +175,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     return response({ error: "Password required", projectName: share.project_name }, 401);
   }
 
-  const [countsResult, openIssuesResult, closedIssuesResult, mergeCountResult, mergesResult, eventsResult, mergeEventsResult, captureEventsResult] = await context.env.DB.batch([
+  const [countsResult, openIssuesResult, closedIssuesResult, mergesResult, eventsResult, mergeEventsResult, captureEventsResult] = await context.env.DB.batch([
     context.env.DB.prepare(
       `SELECT state, COUNT(*) AS count
          FROM issues
@@ -197,27 +203,23 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         ORDER BY updated_at DESC LIMIT 250`,
     ).bind(share.org_id, share.repo),
     context.env.DB.prepare(
-      `SELECT COUNT(*) AS count FROM pull_requests
-        WHERE org_id = ? AND repo = ? AND merged_at IS NOT NULL`,
-    ).bind(share.org_id, share.repo),
-    context.env.DB.prepare(
       `SELECT number, title, author, author_avatar, merged_at, html_url
          FROM pull_requests
         WHERE org_id = ? AND repo = ? AND merged_at IS NOT NULL
-        ORDER BY merged_at DESC LIMIT 100`,
+        ORDER BY merged_at DESC LIMIT 250`,
     ).bind(share.org_id, share.repo),
     context.env.DB.prepare(
       `SELECT id, type, summary, technical_summary, payload_json, created_at
          FROM events
         WHERE owner_id = ? AND project_id = ? AND repo = ?
           AND type IN ('narrative', 'release_notes')
-        ORDER BY created_at DESC LIMIT 300`,
+        ORDER BY created_at DESC LIMIT 600`,
     ).bind(share.owner_id, share.project_id, share.repo),
     context.env.DB.prepare(
       `SELECT payload_json
          FROM events
         WHERE owner_id = ? AND project_id = ? AND repo = ? AND type = 'github:pr:merged'
-        ORDER BY created_at DESC LIMIT 100`,
+        ORDER BY created_at DESC LIMIT 250`,
     ).bind(share.owner_id, share.project_id, share.repo),
     context.env.DB.prepare(
       `SELECT actor_id, payload_json
@@ -250,7 +252,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       createdAt: issue.created_at, updatedAt: issue.updated_at, closedAt: issue.closed_at, url: issue.html_url,
     };
   });
-  const issuesByNumber = new Map(issues.map((issue) => [issue.number, issue]));
+  const issueNumbers = issues.map((issue) => issue.number);
   const linkedIssueNumbersByMerge = new Map<number, number[]>();
   for (const raw of mergeEventsResult.results ?? []) {
     const event = raw as Record<string, unknown>;
@@ -258,8 +260,6 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     if (!number || linkedIssueNumbersByMerge.has(number)) continue;
     linkedIssueNumbersByMerge.set(number, closingIssueNumbers(event.payload_json, share.owner_id, share.repo));
   }
-  const linkedIssueNumbers = [...new Set([...linkedIssueNumbersByMerge.values()].flat())]
-    .filter((number) => issuesByNumber.has(number));
   const captureDetailsByIssue = new Map<number, CaptureDetails>();
   const structuredCaptureIssues = new Set<number>();
   for (const raw of captureEventsResult.results ?? []) {
@@ -273,7 +273,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       screenshotUrl: screenshotProxyUrl(capture.details.screenshotUrl, context.params.slug, capture.siteId),
     });
   }
-  const missingDetails = linkedIssueNumbers.filter((number) => !structuredCaptureIssues.has(number));
+  const missingDetails = issueNumbers.filter((number) => !structuredCaptureIssues.has(number));
   const historicalDetails = await historicalCaptureDetails(context, share, missingDetails);
   for (const [number, details] of historicalDetails) {
     const stored = captureDetailsByIssue.get(number);
@@ -283,24 +283,49 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       screenshotUrl: screenshotProxyUrl(details.screenshotUrl, context.params.slug),
     });
   }
-  const timeline = (mergesResult.results ?? []).map((raw) => {
+  const mergesByNumber = new Map<number, {
+    number: number;
+    title: string;
+    mergedAt: string;
+    url: string;
+    author: { login: string; avatarUrl: string | null } | null;
+  }>();
+  for (const raw of mergesResult.results ?? []) {
     const merge = raw as Record<string, unknown>;
     const number = Number(merge.number);
-    return {
-      number, title: String(merge.title), mergedAt: merge.merged_at, url: merge.html_url,
+    mergesByNumber.set(number, {
+      number, title: String(merge.title), mergedAt: String(merge.merged_at || ""), url: String(merge.html_url || ""),
       author: merge.author ? { login: String(merge.author), avatarUrl: merge.author_avatar ? String(merge.author_avatar) : null } : null,
-      linkedIssues: (linkedIssueNumbersByMerge.get(number) ?? [])
-        .map((issueNumber) => issuesByNumber.get(issueNumber))
-        .filter((issue): issue is NonNullable<typeof issue> => Boolean(issue))
-        .map((issue) => ({
-          number: issue.number,
-          title: issue.title,
-          state: issue.state,
-          ...(captureDetailsByIssue.get(issue.number) ?? { description: null, submittedBy: null, screenshotUrl: null }),
-        })),
-      ...(generated.get(number) ?? { post: null, technicalSummary: null, releaseNotes: null }),
-    };
-  });
+    });
+  }
+  const resolutionByIssue = new Map<number, {
+    merge: NonNullable<ReturnType<typeof mergesByNumber.get>>;
+    post: string | null;
+    releaseNotes: string | null;
+  }>();
+  for (const [mergeNumber, linkedIssues] of linkedIssueNumbersByMerge) {
+    const merge = mergesByNumber.get(mergeNumber);
+    if (!merge) continue;
+    const feed = generated.get(mergeNumber);
+    for (const issueNumber of linkedIssues) {
+      if (!resolutionByIssue.has(issueNumber)) {
+        resolutionByIssue.set(issueNumber, {
+          merge,
+          post: feed?.post ?? null,
+          releaseNotes: feed?.releaseNotes ?? null,
+        });
+      }
+    }
+  }
+  const enrichedIssues = issues.map((issue) => ({
+    ...issue,
+    ...(captureDetailsByIssue.get(issue.number) ?? { description: null, submittedBy: null, screenshotUrl: null }),
+    resolution: issue.state === "closed" ? (resolutionByIssue.get(issue.number) ?? {
+      merge: null,
+      post: null,
+      releaseNotes: null,
+    }) : null,
+  }));
   const issueCounts = new Map(
     (countsResult.results ?? []).map((raw) => {
       const count = raw as Record<string, unknown>;
@@ -313,10 +338,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     counts: {
       open: issueCounts.get("open") ?? 0,
       closed: issueCounts.get("closed") ?? 0,
-      merges: Number((mergeCountResult.results?.[0] as Record<string, unknown> | undefined)?.count ?? 0),
     },
-    issues,
-    timeline,
+    issues: enrichedIssues,
   });
 }
 

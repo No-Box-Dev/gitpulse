@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { IssueCard, SolvedIssueGroup } from "../PublicProjectSharePage";
 
@@ -68,5 +68,11 @@ describe("external project portal issue history", () => {
     render(<IssueCard issue={{ ...baseIssue, resolution: { merge: null, post: null, releaseNotes: null } }} />);
     expect(screen.getByText(/Closed/)).toBeInTheDocument();
     expect(screen.queryByText(/Solved in PR/)).not.toBeInTheDocument();
+  });
+
+  it("replaces a failed capture with a compact unavailable state", () => {
+    render(<IssueCard issue={{ ...baseIssue, state: "open", resolution: null }} />);
+    fireEvent.error(screen.getByRole("img", { name: "Captured screen for Cover is missing" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Screenshot unavailable");
   });
 });

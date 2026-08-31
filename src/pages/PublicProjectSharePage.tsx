@@ -269,9 +269,7 @@ function IssueDetails({ issue, nested = false }: { issue: Issue; nested?: boolea
         <ChevronDown aria-hidden="true" size={16} className="mt-1 shrink-0 text-stone-400 transition group-open:rotate-180" />
       </summary>
       <div className="border-t border-stone-100 px-5 pb-5 pt-5">
-        {issue.screenshotUrl ? (
-          <img src={issue.screenshotUrl} alt={`Captured screen for ${issue.title}`} loading="lazy" className="mb-5 max-h-[28rem] w-full rounded-xl border border-stone-200 bg-stone-50 object-contain" />
-        ) : null}
+        {issue.screenshotUrl ? <CaptureScreenshot issue={issue} /> : null}
         <p className="whitespace-pre-wrap text-sm leading-6 text-stone-700">{issue.description || "No description was submitted."}</p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {issue.labels.filter((label) => labelName(label).toLowerCase() !== "noxspot").slice(0, 4).map((label) => <span key={labelName(label)} className="rounded-full bg-stone-100 px-2 py-1 text-[10px] text-stone-600">{labelName(label)}</span>)}
@@ -280,6 +278,14 @@ function IssueDetails({ issue, nested = false }: { issue: Issue; nested?: boolea
       </div>
     </details>
   );
+}
+
+function CaptureScreenshot({ issue }: { issue: Issue }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <div role="status" className="mb-5 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-10 text-center text-sm text-stone-500">Screenshot unavailable</div>;
+  }
+  return <img src={issue.screenshotUrl ?? ""} alt={`Captured screen for ${issue.title}`} loading="lazy" onError={() => setFailed(true)} className="mb-5 max-h-[28rem] w-full rounded-xl border border-stone-200 bg-stone-50 object-contain" />;
 }
 
 function ResolutionTimeline({ issue }: { issue: Issue }) {

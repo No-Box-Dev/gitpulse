@@ -233,6 +233,8 @@ resolution so its NoxFeed post and release notes are not repeated. The
 resolution falls back to the PR whose
 `Closes`/`Fixes`/`Resolves` reference names it, and finally to its closure date.
 Screenshot bytes are served only through the authenticated portal.
+The screenshot handler streams from the private `NOXSPOT_RESPONSE` service
+binding first and retains the shared R2 binding as a resilience fallback.
 External visitors never receive GitHub/NoxConnect credentials and cannot edit,
 review, assign, or change state.
 Environment and block edits are saved atomically so renamed environments cannot

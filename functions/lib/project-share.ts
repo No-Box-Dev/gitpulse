@@ -69,6 +69,25 @@ export function readCookie(request: Request, name: string): string | null {
   return null;
 }
 
+export async function hasValidProjectShareSession(
+  db: D1Database,
+  request: Request,
+  slug: string,
+  shareId: string,
+): Promise<boolean> {
+  const token = readCookie(request, shareCookieName(slug));
+  if (!token) return false;
+  const tokenHash = await sha256(token);
+  const row = await db.prepare(
+    `SELECT session.token_hash
+       FROM external_project_share_sessions session
+       JOIN external_project_shares share
+         ON share.id = session.share_id AND share.password_version = session.password_version
+      WHERE session.token_hash = ? AND session.share_id = ? AND session.expires_at > ?`,
+  ).bind(tokenHash, shareId, new Date().toISOString()).first();
+  return Boolean(row);
+}
+
 export function sessionCookie(slug: string, token: string, maxAge = Math.floor(SHARE_SESSION_TTL_MS / 1000)): string {
   return `${shareCookieName(slug)}=${encodeURIComponent(token)}; Path=/api/public/project-shares/${slug}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }

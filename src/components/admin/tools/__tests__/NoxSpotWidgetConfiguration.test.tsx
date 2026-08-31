@@ -34,6 +34,7 @@ const site: NoxSpotSite = {
   slackLastError: null,
   issueCount: 0,
   openIssueCount: 0,
+  externalShare: null,
   createdAt: "2026-08-22T00:00:00Z",
   updatedAt: "2026-08-22T00:00:00Z",
 };

@@ -104,10 +104,20 @@ describe("complete", () => {
     expect(await complete(ANTHROPIC_CONFIG, { system: "s", user: "u" })).toBeNull();
   });
 
-  it("uses default max_tokens (220) when not specified", async () => {
+  it("uses a broad 4096-token safety ceiling when not specified", async () => {
     fetch.mockResolvedValue(okResponse({ content: [{ type: "text", text: "x" }] }));
     await complete(ANTHROPIC_CONFIG, { system: "s", user: "u" });
-    expect(JSON.parse(fetch.mock.calls[0][1].body).max_tokens).toBe(220);
+    expect(JSON.parse(fetch.mock.calls[0][1].body).max_tokens).toBe(4096);
+  });
+
+  it("rejects provider output stopped by the hard token ceiling", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    fetch.mockResolvedValue(okResponse({
+      content: [{ type: "text", text: "```json\n{\"social\":\"unfinished" }],
+      stop_reason: "max_tokens",
+    }));
+    expect(await complete(ANTHROPIC_CONFIG, { system: "s", user: "u", tag: "narrator" })).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("hard token ceiling"));
   });
 
   it("returns null when response Content-Length exceeds the cap", async () => {
@@ -347,6 +357,12 @@ describe("probeCompletion", () => {
 });
 
 describe("completeNarrative", () => {
+  it("uses the broad narrative safety ceiling", async () => {
+    fetch.mockResolvedValue(okResponse({ content: [{ type: "text", text: "hello" }] }));
+    await completeNarrative(ANTHROPIC_CONFIG, "s", "u");
+    expect(JSON.parse(fetch.mock.calls[0][1].body).max_tokens).toBe(2048);
+  });
+
   it("strips matching double quotes", async () => {
     fetch.mockResolvedValue(okResponse({ content: [{ type: "text", text: '"hello"' }] }));
     expect(await completeNarrative(ANTHROPIC_CONFIG, "s", "u")).toBe("hello");

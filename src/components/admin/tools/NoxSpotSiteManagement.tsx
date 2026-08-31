@@ -261,6 +261,7 @@ export function ExternalPortal({
 }) {
   const [password, setPassword] = useState("");
   const [copied, setCopied] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const upsert = useUpsertNoxSpotExternalShare();
   const remove = useDeleteNoxSpotExternalShare();
   const activeShare = site.externalShare ?? upsert.data?.share ?? null;
@@ -304,35 +305,58 @@ export function ExternalPortal({
           </p>
         )}
         <form
+          noValidate
           className="flex flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!site.projectId || password.length < 12) return;
-            upsert.mutate({ projectId: site.projectId, password }, { onSuccess: () => setPassword("") });
+            if (!site.projectId) return;
+            if (password.length < 12) {
+              setValidationError("Use at least 12 characters for the portal password.");
+              return;
+            }
+            setValidationError("");
+            upsert.mutate({ projectId: site.projectId, password }, {
+              onSuccess: () => {
+                setPassword("");
+                setValidationError("");
+              },
+            });
           }}
         >
-          <label className="min-w-0 flex-1 text-xs font-medium text-stone-500">
-            {activeShare ? "New password" : "Portal password"}
+          <div className="min-w-0 flex-1">
+            <label htmlFor={`spot-share-password-${site.id}`} className="text-xs font-medium text-stone-500">
+              {activeShare ? "New password" : "Portal password"}
+            </label>
             <input
+              id={`spot-share-password-${site.id}`}
               type="password"
               autoComplete="new-password"
               minLength={12}
               maxLength={200}
               required
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              aria-describedby={`spot-share-password-help-${site.id}`}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (validationError) setValidationError("");
+              }}
               placeholder="At least 12 characters"
               className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-xs"
             />
-          </label>
+            <span id={`spot-share-password-help-${site.id}`} className="mt-1 block text-[11px] font-normal text-stone-400">
+              12 character minimum · {password.length} entered
+            </span>
+          </div>
           <button
             type="submit"
-            disabled={upsert.isPending || !site.projectId || password.length < 12}
+            disabled={upsert.isPending || !site.projectId}
             className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-stone-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
           >
-            <KeyRound size={13} /> {activeShare ? "Change password" : "Create portal"}
+            {upsert.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />}
+            {upsert.isPending ? (activeShare ? "Changing…" : "Creating…") : (activeShare ? "Change password" : "Create portal")}
           </button>
         </form>
+        {validationError ? <p role="alert" className="text-xs text-red-600">{validationError}</p> : null}
         {upsert.isError ? (
           <p role="alert" className="text-xs text-red-600">
             {upsert.error instanceof Error ? upsert.error.message : "The portal could not be created."}

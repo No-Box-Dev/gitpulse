@@ -26,9 +26,9 @@ describe("NoxCue settings contracts", () => {
     }).success).toBe(false);
   });
 
-  it("accepts browser and server keys but no arbitrary key kinds", () => {
-    expect(createCueKeySchema.safeParse({ name: "Server", kind: "secret" }).success).toBe(true);
-    expect(createCueKeySchema.safeParse({ name: "Browser", kind: "publishable" }).success).toBe(true);
+  it("accepts publishable and secret keys but no arbitrary key kinds", () => {
+    expect(createCueKeySchema.safeParse({ name: "Secret", kind: "secret" }).success).toBe(true);
+    expect(createCueKeySchema.safeParse({ name: "Publishable", kind: "publishable" }).success).toBe(true);
     expect(createCueKeySchema.safeParse({ name: "Unknown", kind: "admin" }).success).toBe(false);
   });
 });

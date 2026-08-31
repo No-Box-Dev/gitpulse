@@ -386,7 +386,7 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
             />
             {settingsReady && noxCueEnabled ? <AdminGate
               title="NoxCue settings"
-              description="Choose project metrics, schedules, server keys, and Slack channels."
+              description="Choose project metrics, schedules, publishable and secret keys, and Slack channels."
             >
               {status ? <NoxCueSection noxConnect={status} /> : connectionsLoading}
             </AdminGate> : null}

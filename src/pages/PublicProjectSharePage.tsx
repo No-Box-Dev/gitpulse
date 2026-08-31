@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, GitMerge, LockKeyhole, LogOut, MessageSquareText, Radio, ShieldCheck } from "lucide-react";
+import { ExternalLink, GitMerge, Link2, LockKeyhole, LogOut, MessageSquareText, Radio, ShieldCheck } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useParams } from "react-router-dom";
 import { Spinner } from "@/components/Spinner";
@@ -21,6 +21,7 @@ interface Merge {
   mergedAt: string;
   url: string;
   author: { login: string; avatarUrl: string | null } | null;
+  linkedIssues: Array<Pick<Issue, "number" | "title" | "state">>;
   post: string | null;
   technicalSummary: string | null;
   releaseNotes: string | null;
@@ -190,7 +191,7 @@ function IssueGroup({ title, issues, total, empty }: { title: string; issues: Is
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stone-500">{title} <span className="ml-1 text-stone-400">{total}</span></h3>
       <div className="space-y-2">
         {issues.length === 0 ? <p className="rounded-2xl border border-dashed border-stone-300 p-5 text-sm text-stone-500">{empty}</p> : issues.map((issue) => (
-          <article key={issue.number} className="group rounded-2xl border border-stone-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+          <article id={`issue-${issue.number}`} key={issue.number} className="group scroll-mt-5 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
             <div className="flex items-start gap-3">
               <span className={`mt-1 size-2.5 shrink-0 rounded-full ${issue.state === "open" ? "bg-[#d53a12]" : "bg-[#34734c]"}`} />
               <div className="min-w-0 flex-1">
@@ -207,12 +208,32 @@ function IssueGroup({ title, issues, total, empty }: { title: string; issues: Is
   );
 }
 
-function TimelineEntry({ merge }: { merge: Merge }) {
+export function TimelineEntry({ merge }: { merge: Merge }) {
   return (
     <article className="relative pl-8">
       <span className="absolute left-0 top-2 grid size-6 place-items-center rounded-full border border-stone-300 bg-[#f6f3e8] text-[#34734c]"><GitMerge size={12} /></span>
       <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-wider text-[#34734c]">Merged {formatDate(merge.mergedAt)}</p><h3 className="mt-1 font-medium leading-5">{merge.title}</h3><p className="mt-1 text-xs text-stone-500">#{merge.number} · {merge.author?.login ?? "Unknown"}</p></div>{merge.url ? <a href={merge.url} target="_blank" rel="noreferrer" className="text-stone-400 hover:text-[#34734c]" aria-label={`Open pull request ${merge.number}`}><ExternalLink size={14} /></a> : null}</div>
+        {merge.linkedIssues.length > 0 ? (
+          <div className="mt-4 border-t border-stone-100 pt-3" aria-label={`Issues linked to pull request ${merge.number}`}>
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500"><Link2 size={12} /> Linked issues</p>
+            <div className="mt-2 space-y-1.5">
+              {merge.linkedIssues.map((issue) => (
+                <a
+                  key={issue.number}
+                  href={`#issue-${issue.number}`}
+                  aria-label={`View linked issue #${issue.number}: ${issue.title}`}
+                  className="group flex items-center gap-2 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-700 transition hover:bg-stone-100 hover:text-[#34734c]"
+                >
+                  <span className={`size-2 shrink-0 rounded-full ${issue.state === "closed" ? "bg-[#34734c]" : "bg-[#d53a12]"}`} />
+                  <span className="shrink-0 font-mono text-stone-500">#{issue.number}</span>
+                  <span className="min-w-0 flex-1 truncate">{issue.title}</span>
+                  <span className="shrink-0 text-[10px] capitalize text-stone-400">{issue.state}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {merge.post ? <div className="mt-4 rounded-xl bg-[#edf4ee] p-4"><p className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#34734c]"><MessageSquareText size={12} /> Post</p><p className="text-sm leading-6 text-stone-700">{merge.post}</p></div> : null}
         {merge.releaseNotes ? <details className="mt-3 rounded-xl border border-stone-200 p-3"><summary className="cursor-pointer text-xs font-semibold text-stone-600">Release notes</summary><div className="prose prose-stone mt-3 max-w-none text-sm prose-headings:font-display"><ReactMarkdown>{merge.releaseNotes}</ReactMarkdown></div></details> : null}
       </div>

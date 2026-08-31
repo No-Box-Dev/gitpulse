@@ -48,6 +48,7 @@ import { recordFailure } from "../op-failures.js";
 import { resolveSlackChannels } from "../slack.js";
 import { markOutboxBlocked, queueOutboxDelivery, stageSlackDelivery } from "../delivery-outbox.js";
 import { resolveNoxFeedDestination } from "../noxfeed-routing.js";
+import { getNoxFeedSlackResponse } from "../noxfeed-response.js";
 
 // D1 stub: dispatch by SQL substring. Tests configure what each query returns
 // and inspect _calls.runs/binds for the INSERT side effect.
@@ -535,7 +536,12 @@ describe("narrateEvent — app-only merged post", () => {
 
 describe("narrateReleaseNotes — Slack mirror", () => {
   it("stages exactly one Slack delivery when both merge narrators run", async () => {
-    const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
+    const db = makeDb({
+      event: EVENT_ROW,
+      project: PROJECT_ROW,
+      actor: ACTOR_ROW,
+      reusablePrNarrative: { summary: "I shipped the social post.", model: "glm-5" },
+    });
     completeNarrative.mockResolvedValue("✅ noxconnect #42 Merged - Feature\n\nSummary\nOutcome: shipped");
     resolveSlackChannels.mockResolvedValue({ postsChannelId: "C2", releaseNotesChannelId: "C2" });
 
@@ -545,6 +551,13 @@ describe("narrateReleaseNotes — Slack mirror", () => {
     expect(stageSlackDelivery).toHaveBeenCalledTimes(1);
     expect(stageSlackDelivery).toHaveBeenCalledWith(db, expect.objectContaining({
       source: "release_notes", channelId: "C2",
+    }));
+    expect(getNoxFeedSlackResponse).toHaveBeenCalledWith(expect.anything(), "release_notes", expect.objectContaining({
+      summary: expect.stringContaining("Outcome: shipped"),
+      post: expect.objectContaining({
+        actorName: "Jane",
+        summary: "I shipped the social post.",
+      }),
     }));
   });
 

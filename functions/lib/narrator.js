@@ -329,6 +329,12 @@ export async function narrateReleaseNotes(env, eventId) {
   // concurrent writer already produced this release note.
   if ((insertResult.meta?.changes ?? 0) === 0) return;
 
+  // Slack receives one combined message. Prefer the conversational copy made
+  // when the PR opened; fall back to the merge event summary for legacy PRs or
+  // an open-time narration failure. The structured release note remains the
+  // durable release_notes row above.
+  const existingPost = await findExistingPrNarrative(env.DB, row.owner_id, row.repo, prNumber);
+
   await maybePostToSlack(env, {
     kind: "release_notes",
     orgId,
@@ -337,6 +343,7 @@ export async function narrateReleaseNotes(env, eventId) {
     actor: { id: actor.id, name: actor.name },
     project,
     summary,
+    postSummary: existingPost?.summary || row.summary,
     rawEvent: row,
   });
 }
@@ -645,7 +652,7 @@ function limitText(text, maxLength) {
 // source of truth; Slack is delivered independently with durable retries and
 // visible blocked state.
 async function maybePostToSlack(env, args) {
-  const { kind, orgId, ownerId, triggerEventId, actor, project, summary, rawEvent } = args;
+  const { kind, orgId, ownerId, triggerEventId, actor, project, summary, postSummary, rawEvent } = args;
   try {
     const channels = await resolveSlackChannels(env.DB, orgId);
     const service = kind === "release_notes" ? "noxfeed_release_notes" : "noxfeed_posts";
@@ -669,9 +676,15 @@ async function maybePostToSlack(env, args) {
 
     let response;
     if (kind === "release_notes") {
+      const avatarUrl = await fetchActorAvatar(env.DB, actor.id, ownerId);
       response = await getNoxFeedSlackResponse(env, "release_notes", {
         projectName: projectDestination?.projectName ?? project?.name ?? rawEvent.repo,
         summary,
+        post: {
+          actorName: actor.name,
+          avatarUrl,
+          summary: postSummary || rawEvent.summary,
+        },
         prUrl,
         prNumber,
         interactionId: String(triggerEventId),

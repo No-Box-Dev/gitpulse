@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { IssueCard } from "../PublicProjectSharePage";
+import { IssueCard, SolvedIssueGroup } from "../PublicProjectSharePage";
 
 const baseIssue = {
   number: 12,
@@ -42,7 +42,20 @@ describe("external project portal issue history", () => {
     expect(screen.getByText("The cover now remains visible.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "PR #22" })).toHaveAttribute("href", merge.url);
     expect(getByTestId("resolution").compareDocumentPosition(getByTestId("issue-details")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText("Original issue")).toBeInTheDocument();
+    expect(screen.getByText("Issue solved")).toBeInTheDocument();
+  });
+
+  it("shows one shared resolution for every issue closed by the same PR", () => {
+    render(<SolvedIssueGroup issues={[
+      { ...baseIssue, resolution: { merge, post: "The cover now remains visible.", releaseNotes: "Cover rendering is stable." } },
+      { ...baseIssue, number: 13, title: "Second cover issue", resolution: { merge, post: "The cover now remains visible.", releaseNotes: "Cover rendering is stable." } },
+    ]} />);
+
+    expect(screen.getAllByText("NoxFeed update")).toHaveLength(1);
+    expect(screen.getAllByText("The cover now remains visible.")).toHaveLength(1);
+    expect(screen.getByText("Issues solved")).toBeInTheDocument();
+    expect(screen.getByText("Cover is missing")).toBeInTheDocument();
+    expect(screen.getByText("Second cover issue")).toBeInTheDocument();
   });
 
   it("falls back to the closing PR when no NoxFeed data exists", () => {

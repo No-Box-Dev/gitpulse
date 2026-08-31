@@ -171,7 +171,7 @@ export function PublicProjectSharePage() {
       <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8 lg:py-14">
         <div className="mb-8"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c92e08]">NoxSpot</p><h2 className="mt-1 font-display text-3xl">Issues</h2></div>
         <IssueGroup title="Open" issues={openIssues} total={data.counts.open} empty="No open issues." />
-        <div className="mt-12"><IssueGroup title="Solved" issues={closedIssues} total={data.counts.closed} empty="No solved issues yet." /></div>
+        <div className="mt-12"><SolvedIssueSection issues={closedIssues} total={data.counts.closed} /></div>
       </div>
       <footer className="border-t border-black/10 px-5 py-7 text-center text-xs text-stone-500">Protected read-only project view powered by NoxSpot + NoxFeed</footer>
     </main>
@@ -194,33 +194,75 @@ function IssueGroup({ title, issues, total, empty }: { title: string; issues: Is
   );
 }
 
+function groupSolvedIssues(issues: Issue[]): Issue[][] {
+  const groups = new Map<string, Issue[]>();
+  for (const issue of issues) {
+    const mergeNumber = issue.resolution?.merge?.number;
+    const key = mergeNumber ? `pr:${mergeNumber}` : `issue:${issue.number}`;
+    const group = groups.get(key);
+    if (group) group.push(issue);
+    else groups.set(key, [issue]);
+  }
+  return [...groups.values()];
+}
+
+function SolvedIssueSection({ issues, total }: { issues: Issue[]; total: number }) {
+  const groups = groupSolvedIssues(issues);
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2">
+        <CircleCheck size={17} className="text-[#34734c]" />
+        <h3 className="font-display text-xl">Solved</h3>
+        <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs text-stone-600">{total}</span>
+      </div>
+      <div className="space-y-3">
+        {groups.length === 0 ? <p className="rounded-2xl border border-dashed border-stone-300 p-5 text-sm text-stone-500">No solved issues yet.</p> : groups.map((group) => (
+          <SolvedIssueGroup key={group[0].resolution?.merge?.number ? `pr:${group[0].resolution.merge.number}` : `issue:${group[0].number}`} issues={group} />
+        ))}
+      </div>
+      {issues.length < total ? <p className="mt-2 text-xs text-stone-500">Showing the {issues.length} most recently updated.</p> : null}
+    </section>
+  );
+}
+
+export function SolvedIssueGroup({ issues }: { issues: Issue[] }) {
+  const representative = issues[0];
+  if (!representative) return null;
+  return (
+    <article className="scroll-mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+      <div data-testid="resolution" className="p-5">
+        <ResolutionTimeline issue={representative} />
+      </div>
+      <div className="border-t border-stone-100">
+        <div className="flex items-center gap-2 px-5 pb-2 pt-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{issues.length === 1 ? "Issue solved" : "Issues solved"}</p>
+          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-500">{issues.length}</span>
+        </div>
+        <div className="divide-y divide-stone-100">
+          {issues.map((issue) => <IssueDetails key={issue.number} issue={issue} nested />)}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function IssueCard({ issue }: { issue: Issue }) {
   const solved = issue.state === "closed";
-  if (solved) {
-    return (
-      <article id={`issue-${issue.number}`} className="scroll-mt-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-        <div data-testid="resolution" className="p-5">
-          <ResolutionTimeline issue={issue} />
-        </div>
-        <IssueDetails issue={issue} original />
-      </article>
-    );
-  }
+  if (solved) return <SolvedIssueGroup issues={[issue]} />;
 
   return <IssueDetails issue={issue} />;
 }
 
-function IssueDetails({ issue, original = false }: { issue: Issue; original?: boolean }) {
+function IssueDetails({ issue, nested = false }: { issue: Issue; nested?: boolean }) {
   return (
     <details
-      id={original ? undefined : `issue-${issue.number}`}
+      id={`issue-${issue.number}`}
       data-testid="issue-details"
-      className={`group ${original ? "border-t border-stone-100" : "scroll-mt-5 rounded-2xl border border-stone-200 bg-white shadow-sm open:shadow-md"}`}
+      className={`group scroll-mt-5 ${nested ? "" : "rounded-2xl border border-stone-200 bg-white shadow-sm open:shadow-md"}`}
     >
       <summary className="flex cursor-pointer list-none items-start gap-3 p-5 [&::-webkit-details-marker]:hidden">
-        <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${original ? "bg-stone-400" : "bg-[#d53a12]"}`} />
+        <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${nested ? "bg-stone-400" : "bg-[#d53a12]"}`} />
         <div className="min-w-0 flex-1">
-          {original ? <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Original issue</p> : null}
           <h4 className="font-medium leading-6 text-stone-900">{issue.title}</h4>
           <p className="mt-1 text-xs text-stone-500">#{issue.number} · Submitted by {issue.submittedBy || "Anonymous"} · {formatDate(issue.createdAt)}</p>
         </div>

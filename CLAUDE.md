@@ -228,7 +228,9 @@ sessions on password rotation, and shows only that project's NoxSpot-labelled
 issues in simple Open and Solved groups. Each issue expands to its captured
 image, title, description, and submitter. A solved issue shows related NoxFeed
 post/release data as the card's primary content, with the original issue and
-capture details beneath it. The resolution falls back to the PR whose
+capture details beneath it. Issues sharing a closing PR are grouped under one
+resolution so its NoxFeed post and release notes are not repeated. The
+resolution falls back to the PR whose
 `Closes`/`Fixes`/`Resolves` reference names it, and finally to its closure date.
 Screenshot bytes are served only through the authenticated portal.
 External visitors never receive GitHub/NoxConnect credentials and cannot edit,

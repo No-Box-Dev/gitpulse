@@ -57,6 +57,38 @@ describe("external project portal issue history", () => {
     await waitFor(() => expect(document.title).toBe("Playnist · NoxSpot portal"));
   });
 
+  it("clears a stale submitter filter when the portal reloads", async () => {
+    const portalData = (issues: unknown[]) => ({
+      project: { name: "Playnist", repo: "playnist" },
+      counts: { open: issues.length, closed: 0 },
+      issues,
+    });
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json(portalData([
+        { ...baseIssue, state: "open", closedAt: null, submittedBy: "Ada", resolution: null },
+      ])))
+      .mockResolvedValueOnce(json({ ok: true }))
+      .mockResolvedValueOnce(json({ ok: true }))
+      .mockResolvedValueOnce(json(portalData([
+        { ...baseIssue, number: 14, title: "Lin open issue", state: "open", closedAt: null, submittedBy: "Lin", resolution: null },
+      ])));
+
+    render(
+      <MemoryRouter initialEntries={["/share/portal-token"]}>
+        <Routes><Route path="/share/:slug" element={<PublicProjectSharePage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Filter by submitter" }), { target: { value: "ada" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lock portal" }));
+    fireEvent.change(await screen.findByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open project" }));
+
+    expect(await screen.findByText("Lin open issue")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filter by submitter" })).toHaveValue("");
+  });
+
   it("shows captured details and NoxFeed data on a solved issue", () => {
     const { getByTestId } = render(<IssueCard issue={{
       ...baseIssue,

@@ -3,6 +3,11 @@ import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type {
   NoxCueEventsResponse,
+  NoxCueCustomFeatureInput,
+  NoxCueCustomFeatureUpdate,
+  NoxCueCustomMetricInput,
+  NoxCueCustomMetricUpdate,
+  NoxCueCustomMetricsResponse,
   NoxCueFeaturesResponse,
   NoxCueMetricsResponse,
   NoxCueProjectMetricsResponse,
@@ -12,6 +17,8 @@ import type {
 } from "@/lib/noxcue-api";
 
 const sourcesKey = (org: string | null | undefined) => ["noxcue-sources", org];
+const featuresKey = (org: string | null | undefined, sourceId: string) => ["noxcue-features", org, sourceId];
+const customMetricsKey = (org: string | null | undefined, sourceId: string) => ["noxcue-custom-metrics", org, sourceId];
 
 export function useNoxCueSources() {
   const { selectedOrg } = useAuth();
@@ -65,10 +72,85 @@ export function useCreateNoxCueKey() {
 export function useNoxCueFeatures(sourceId: string) {
   const { selectedOrg } = useAuth();
   return useQuery({
-    queryKey: ["noxcue-features", selectedOrg, sourceId],
-    queryFn: () => apiGet<NoxCueFeaturesResponse>(`/api/cues/features?sourceId=${encodeURIComponent(sourceId)}`),
+    queryKey: featuresKey(selectedOrg, sourceId),
+    queryFn: () => apiGet<NoxCueFeaturesResponse>(`/api/cues/sources/${encodeURIComponent(sourceId)}/features`),
     enabled: Boolean(selectedOrg && sourceId),
     refetchInterval: 15_000,
+  });
+}
+
+export function useCreateNoxCueFeature(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NoxCueCustomFeatureInput) => apiPost<NoxCueFeaturesResponse>(
+      `/api/cues/sources/${encodeURIComponent(sourceId)}/features`, input,
+    ),
+    onSuccess: (data) => client.setQueryData(featuresKey(selectedOrg, sourceId), data),
+  });
+}
+
+export function useSaveNoxCueFeature(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, input }: { key: string; input: NoxCueCustomFeatureUpdate }) => apiPut<NoxCueFeaturesResponse>(
+      `/api/cues/sources/${encodeURIComponent(sourceId)}/features/${encodeURIComponent(key)}`, input,
+    ),
+    onSuccess: (data) => client.setQueryData(featuresKey(selectedOrg, sourceId), data),
+  });
+}
+
+export function useDeleteNoxCueFeature(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => apiDelete<NoxCueFeaturesResponse>(
+      `/api/cues/sources/${encodeURIComponent(sourceId)}/features/${encodeURIComponent(key)}`,
+    ),
+    onSuccess: (data) => client.setQueryData(featuresKey(selectedOrg, sourceId), data),
+  });
+}
+
+export function useNoxCueCustomMetrics(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  return useQuery({
+    queryKey: customMetricsKey(selectedOrg, sourceId),
+    queryFn: () => apiGet<NoxCueCustomMetricsResponse>(`/api/cues/sources/${encodeURIComponent(sourceId)}/custom-metrics`),
+    enabled: Boolean(selectedOrg && sourceId),
+  });
+}
+
+export function useCreateNoxCueCustomMetric(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: NoxCueCustomMetricInput) => apiPost<NoxCueCustomMetricsResponse>(
+      `/api/cues/sources/${encodeURIComponent(sourceId)}/custom-metrics`, input,
+    ),
+    onSuccess: (data) => client.setQueryData(customMetricsKey(selectedOrg, sourceId), data),
+  });
+}
+
+export function useSaveNoxCueCustomMetric(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, input }: { key: string; input: NoxCueCustomMetricUpdate }) => apiPut<NoxCueCustomMetricsResponse>(
+      `/api/cues/sources/${encodeURIComponent(sourceId)}/custom-metrics/${encodeURIComponent(key)}`, input,
+    ),
+    onSuccess: (data) => client.setQueryData(customMetricsKey(selectedOrg, sourceId), data),
+  });
+}
+
+export function useDeleteNoxCueCustomMetric(sourceId: string) {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => apiDelete<NoxCueCustomMetricsResponse>(
+      `/api/cues/sources/${encodeURIComponent(sourceId)}/custom-metrics/${encodeURIComponent(key)}`,
+    ),
+    onSuccess: (data) => client.setQueryData(customMetricsKey(selectedOrg, sourceId), data),
   });
 }
 

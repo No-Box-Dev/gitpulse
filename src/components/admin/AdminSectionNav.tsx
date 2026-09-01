@@ -1,23 +1,22 @@
 import { cn } from "@/lib/cn";
 
-export interface AdminSectionDef {
+export interface AdminServiceDef {
   id: string;
   label: string;
 }
 
-export function AdminSectionTabs({
+export function AdminServiceNav({
   sections,
   activeId,
   onChange,
 }: {
-  sections: AdminSectionDef[];
+  sections: AdminServiceDef[];
   activeId: string;
   onChange: (id: string) => void;
 }) {
   return (
     <nav
-      role="tablist"
-      aria-label="Admin areas"
+      aria-label="Admin services"
       className="flex items-center gap-1 overflow-x-auto border-b border-stone-200"
     >
       {sections.map(({ id, label }) => {
@@ -25,11 +24,8 @@ export function AdminSectionTabs({
         return (
           <button
             key={id}
-            id={`${id}-tab`}
             type="button"
-            role="tab"
-            aria-selected={active}
-            aria-controls={`${id}-panel`}
+            aria-current={active ? "page" : undefined}
             onClick={() => onChange(id)}
             className={cn(
               "relative shrink-0 cursor-pointer px-3 py-2.5 text-sm font-medium transition-colors",

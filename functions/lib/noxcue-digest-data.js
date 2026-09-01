@@ -69,7 +69,7 @@ async function loadStoredNoxCueDigestData(db, sourceId, period) {
 }
 
 async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
-  const { results } = await db.prepare(
+  const [{ results }, { results: activityResults }] = await Promise.all([db.prepare(
     `WITH RECURSIVE periods(period) AS (
        SELECT date(?, '-30 days')
        UNION ALL
@@ -89,8 +89,30 @@ async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
          WHERE active.source_id = ?
            AND active.period BETWEEN date(periods.period, '-29 days') AND periods.period) AS monthly_active
      FROM periods ORDER BY periods.period`,
-  ).bind(period, period, sourceId, sourceId, sourceId, sourceId, sourceId).all();
+  ).bind(period, period, sourceId, sourceId, sourceId, sourceId, sourceId).all(), db.prepare(
+    `WITH RECURSIVE periods(period) AS (
+       SELECT date(?, '-30 days')
+       UNION ALL
+       SELECT date(period, '+1 day') FROM periods WHERE period < date(?)
+     ), definitions(metric_key, label) AS (
+       SELECT metric.metric_key, metric.label
+         FROM cue_custom_metrics metric
+         JOIN cue_sources source ON source.id = ?
+        WHERE metric.org_id = source.org_id AND metric.enabled = 1
+          AND ((source.project_id IS NOT NULL AND metric.project_id = source.project_id)
+            OR (source.project_id IS NULL AND metric.source_id = source.id))
+     )
+     SELECT periods.period, definitions.metric_key, definitions.label,
+       (SELECT COUNT(*) FROM cue_activity_events activity
+         WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key
+           AND activity.period <= periods.period) AS total_events,
+       (SELECT COUNT(*) FROM cue_user_registrations registration
+         WHERE registration.source_id = ? AND registration.period <= periods.period) AS total_users
+     FROM periods CROSS JOIN definitions
+     ORDER BY periods.period, definitions.metric_key`,
+  ).bind(period, period, sourceId, sourceId, sourceId).all()]);
   const metricRows = [];
+  const metricLabels = {};
   let hasFacts = false;
   for (const row of results ?? []) {
     const values = {
@@ -113,18 +135,38 @@ async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
       });
     }
   }
+  for (const row of activityResults ?? []) {
+    const total = Number(row.total_events ?? 0);
+    const users = Number(row.total_users ?? 0);
+    const metricKey = String(row.metric_key);
+    const label = String(row.label);
+    if (total > 0) hasFacts = true;
+    metricRows.push({ period: row.period, metric_key: metricKey, value: total, origin: "calculated" });
+    metricLabels[metricKey] = `${label} total`;
+    if (users > 0) {
+      metricRows.push({
+        period: row.period,
+        metric_key: `${metricKey}.per_user`,
+        value: total / users,
+        origin: "calculated",
+      });
+      metricLabels[`${metricKey}.per_user`] = `${label} / user`;
+    }
+  }
   if (!hasFacts) return null;
-  return { ...summarizeNoxCueDigestRows(metricRows, period), derivedFromEvents: true };
+  return { ...summarizeNoxCueDigestRows(metricRows, period), metricLabels, derivedFromEvents: true };
 }
 
 export async function loadNoxCueDigestData(db, sourceId, period) {
   return await loadEventDerivedNoxCueDigestData(db, sourceId, period)
-    ?? { ...(await loadStoredNoxCueDigestData(db, sourceId, period)), derivedFromEvents: false };
+    ?? { ...(await loadStoredNoxCueDigestData(db, sourceId, period)), metricLabels: {}, derivedFromEvents: false };
 }
 
 export async function storeNoxCueDerivedMetrics(db, orgId, sourceId, period, metrics) {
   const now = new Date().toISOString();
-  const statements = Object.entries(metrics).map(([metricKey, value]) => db.prepare(
+  const statements = Object.entries(metrics)
+    .filter(([metricKey]) => !metricKey.startsWith("custom."))
+    .map(([metricKey, value]) => db.prepare(
     `INSERT INTO cue_daily_metrics
        (org_id, source_id, period, metric_key, value, origin, formula_version, updated_at)
      VALUES (?, ?, ?, ?, ?, 'calculated', 2, ?)

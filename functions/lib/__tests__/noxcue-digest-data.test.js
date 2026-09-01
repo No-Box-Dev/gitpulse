@@ -75,6 +75,37 @@ describe("NoxCue digest history", () => {
     });
   });
 
+  it("derives cumulative custom activity totals and totals per registered user", async () => {
+    const db = {
+      prepare(sql) {
+        return {
+          bind() { return this; },
+          async all() {
+            if (sql.includes("cue_custom_metrics")) return { results: [
+              { period: "2026-08-27", metric_key: "custom.journals.added", label: "Journals added", total_events: 70, total_users: 70 },
+              { period: "2026-08-28", metric_key: "custom.journals.added", label: "Journals added", total_events: 74, total_users: 72 },
+              { period: "2026-08-29", metric_key: "custom.journals.added", label: "Journals added", total_events: 80, total_users: 74 },
+            ] };
+            return { results: [
+              { period: "2026-08-27", new_users: 1, total_users: 70, daily_active: 1, weekly_active: 1, monthly_active: 1 },
+              { period: "2026-08-28", new_users: 2, total_users: 72, daily_active: 1, weekly_active: 1, monthly_active: 1 },
+              { period: "2026-08-29", new_users: 2, total_users: 74, daily_active: 1, weekly_active: 1, monthly_active: 1 },
+            ] };
+          },
+        };
+      },
+    };
+    const { loadNoxCueDigestData } = await import("../noxcue-digest-data.js");
+    const summary = await loadNoxCueDigestData(db, "source-1", "2026-08-29");
+    expect(summary.metrics["custom.journals.added"]).toBe(80);
+    expect(summary.metrics["custom.journals.added.per_user"]).toBeCloseTo(80 / 74);
+    expect(summary.metricLabels).toEqual({
+      "custom.journals.added": "Journals added total",
+      "custom.journals.added.per_user": "Journals added / user",
+    });
+    expect(summary.comparisons["custom.journals.added"]).toMatchObject({ yesterday: 74, average30d: 72 });
+  });
+
   it("does not treat missing days as zero", () => {
     const summary = summarizeNoxCueDigestRows([
       { period: "2026-08-20", metric_key: "users.active.daily", value: 20, origin: "reported" },

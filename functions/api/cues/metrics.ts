@@ -21,6 +21,15 @@ interface MetricRow {
   updated_at: string;
 }
 
+interface ActivityMetricRow {
+  period: string;
+  metric_key: string;
+  label: string;
+  total_events: number;
+  total_users: number;
+  updated_at: string;
+}
+
 export async function onRequestGet(context: Ctx): Promise<Response> {
   const { orgId, isAdmin } = getCtx(context) as Ctx["data"];
   if (!orgId) return errorResponse("Missing org context", 400);
@@ -32,7 +41,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   ).bind(parsed.data.sourceId, orgId).first();
   if (!source) return errorResponse("Cue source not found", 404);
 
-  const [catalog, metricRows, digests, errorGroups] = await Promise.all([
+  const [catalog, metricRows, activityRows, digests, errorGroups] = await Promise.all([
     context.env.DB.prepare(
       `SELECT key, label, domain, unit, origin, description, formula_key, version
          FROM cue_metric_definitions ORDER BY rowid`,
@@ -44,6 +53,29 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
           AND period >= date('now', ?)
         ORDER BY period DESC, metric_key`,
     ).bind(parsed.data.sourceId, `-${parsed.data.days - 1} days`).all<MetricRow>(),
+    context.env.DB.prepare(
+      `WITH RECURSIVE periods(period) AS (
+         SELECT date('now', ?)
+         UNION ALL SELECT date(period, '+1 day') FROM periods WHERE period < date('now')
+       ), definitions(metric_key, label) AS (
+         SELECT metric.metric_key, metric.label
+           FROM cue_custom_metrics metric
+           JOIN cue_sources source ON source.id = ?
+          WHERE metric.org_id = source.org_id AND metric.enabled = 1
+            AND ((source.project_id IS NOT NULL AND metric.project_id = source.project_id)
+              OR (source.project_id IS NULL AND metric.source_id = source.id))
+       )
+       SELECT periods.period, definitions.metric_key, definitions.label,
+         (SELECT COUNT(*) FROM cue_activity_events activity
+           WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key
+             AND activity.period <= periods.period) AS total_events,
+         (SELECT COUNT(*) FROM cue_user_registrations registration
+           WHERE registration.source_id = ? AND registration.period <= periods.period) AS total_users,
+         COALESCE((SELECT MAX(activity.received_at) FROM cue_activity_events activity
+           WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key), '') AS updated_at
+       FROM periods CROSS JOIN definitions ORDER BY periods.period DESC, definitions.metric_key`,
+    ).bind(`-${parsed.data.days - 1} days`, parsed.data.sourceId, parsed.data.sourceId,
+      parsed.data.sourceId, parsed.data.sourceId).all<ActivityMetricRow>(),
     context.env.DB.prepare(
       `SELECT run.period, run.created_at, delivery.status, delivery.delivered_at
          FROM cue_digest_runs run
@@ -66,8 +98,19 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     values[row.metric_key] = { value: row.value, origin: row.origin, updatedAt: row.updated_at };
     days.set(row.period, values);
   }
+  const customCatalog = new Map<string, { key: string; label: string; unit: "count" | "decimal" }>();
+  for (const row of activityRows.results ?? []) {
+    const values = days.get(row.period) ?? {};
+    const total = Number(row.total_events ?? 0);
+    const users = Number(row.total_users ?? 0);
+    values[row.metric_key] = { value: total, origin: "calculated", updatedAt: row.updated_at };
+    if (users > 0) values[`${row.metric_key}.per_user`] = { value: total / users, origin: "calculated", updatedAt: row.updated_at };
+    days.set(row.period, values);
+    customCatalog.set(row.metric_key, { key: row.metric_key, label: `${row.label} total`, unit: "count" });
+    customCatalog.set(`${row.metric_key}.per_user`, { key: `${row.metric_key}.per_user`, label: `${row.label} per user`, unit: "decimal" });
+  }
   return jsonResponse({
-    catalog: (catalog.results ?? []).map((row) => ({
+    catalog: [...(catalog.results ?? []).map((row) => ({
       key: row.key,
       label: row.label,
       domain: row.domain,
@@ -76,7 +119,10 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       description: row.description,
       formulaKey: row.formula_key,
       version: row.version,
-    })),
+    })), ...[...customCatalog.values()].map((metric) => ({
+      ...metric, domain: "activity", origin: "calculated", description: metric.label,
+      formulaKey: metric.key, version: 1,
+    }))],
     days: [...days].map(([period, metrics]) => ({ period, metrics })),
     digests: (digests.results ?? []).map((row) => ({
       period: row.period,
@@ -97,4 +143,3 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     })),
   });
 }
-

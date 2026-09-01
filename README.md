@@ -6,7 +6,7 @@ NoxConnect is the shared GitHub, Slack, identity, and delivery foundation for th
 - **NoxFeed** — current work, activity feed, issues, and release narratives
 - **NoxTicket** — features, backlog, specs, and board stages
 - **NoxSpot** — feedback widgets, sites, reports, and screenshots
-- **NoxCue** — closed user lifecycle events aggregated into project-configurable daily user reports
+- **NoxCue** — closed user lifecycle events, governed feature health, immediate critical-error alerts, and project-configurable daily reports
 
 **Hosted (free):** [app.unticket.ai](https://app.unticket.ai) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md)
 

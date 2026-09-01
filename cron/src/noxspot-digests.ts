@@ -5,7 +5,6 @@ import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } fro
 import { localDateTime, previousPeriod } from "./noxcue-digests.js";
 
 const MAX_SITES_PER_TICK = 100;
-const MAX_ISSUES_PER_STATE = 20;
 
 interface NoxSpotResponseService {
   buildDailyDigestResponse(
@@ -175,8 +174,8 @@ export async function loadNoxSpotDailyDigestData(db: D1Database, site: SpotSite,
           AND json_extract(capture.payload_json, '$.siteId') = ?
           AND datetime(capture.created_at) >= datetime(?) AND datetime(capture.created_at) < datetime(?)
         GROUP BY issue.number
-        ORDER BY MIN(capture.created_at) ASC LIMIT ?`,
-    ).bind(site.org_id, site.repo, site.id, start, end, MAX_ISSUES_PER_STATE),
+        ORDER BY MIN(capture.created_at) ASC`,
+    ).bind(site.org_id, site.repo, site.id, start, end),
     db.prepare(
       `SELECT COUNT(*) AS count
          FROM issues issue
@@ -205,8 +204,8 @@ export async function loadNoxSpotDailyDigestData(db: D1Database, site: SpotSite,
                AND json_extract(capture.payload_json, '$.siteId') = ?
                AND CAST(json_extract(capture.payload_json, '$.githubIssueNumber') AS INTEGER) = issue.number
           )
-        ORDER BY issue.closed_at ASC LIMIT ?`,
-    ).bind(site.id, site.org_id, site.repo, start, end, site.id, MAX_ISSUES_PER_STATE),
+        ORDER BY issue.closed_at ASC`,
+    ).bind(site.id, site.org_id, site.repo, start, end, site.id),
     db.prepare(
       `SELECT merged.payload_json, pr.number, pr.title, pr.html_url
          FROM events merged

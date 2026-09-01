@@ -21,6 +21,7 @@ import { createNoxSpotGitHubIssue } from "../../functions/lib/noxspot.js";
 import { deliverSlackOutbox, markOutboxFailed, recoverOutboxDeliveries, requeueBlockedForOrg } from "../../functions/lib/delivery-outbox.js";
 import { checkSlackOrgHealth } from "../../functions/lib/slack.js";
 import { runNoxCueDigests } from "./noxcue-digests.js";
+import { runNoxSpotDailyDigests } from "./noxspot-digests.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -129,6 +130,12 @@ async function runTick(env, nowMs = Date.now()) {
     await runNoxCueDigests(env, nowMs);
   } catch (err) {
     console.error("[noxconnect-cron] NoxCue digest sweep failed:", err?.message ?? err);
+  }
+
+  try {
+    await runNoxSpotDailyDigests(env, nowMs);
+  } catch (err) {
+    console.error("[noxconnect-cron] NoxSpot daily digest sweep failed:", err?.message ?? err);
   }
 
   // Process at most one explicitly-requested source-of-truth audit per tick.

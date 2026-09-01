@@ -25,6 +25,16 @@ export async function getNoxSpotTestResponse(env, orgLogin) {
   return validateSlackResponse(await service.buildTestResponse(orgLogin));
 }
 
+export async function getNoxSpotDailyDigestResponse(env, siteName, period, filed, solved, totals) {
+  const service = env?.NOXSPOT_RESPONSE;
+  if (!service || typeof service.buildDailyDigestResponse !== "function") {
+    throw new Error("NoxSpot daily digest response service binding is unavailable");
+  }
+  return validateSlackResponse(
+    await service.buildDailyDigestResponse(siteName, period, filed, solved, totals),
+  );
+}
+
 function requireResponseService(env) {
   const service = env?.NOXSPOT_RESPONSE;
   if (!service || typeof service.buildIssueResponse !== "function" || typeof service.buildSlackResponse !== "function") {

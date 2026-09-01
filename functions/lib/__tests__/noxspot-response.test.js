@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getNoxSpotIssueResponse, getNoxSpotSlackResponse } from "../noxspot-response.js";
+import { getNoxSpotDailyDigestResponse, getNoxSpotIssueResponse, getNoxSpotSlackResponse } from "../noxspot-response.js";
 
 const capture = {
   captureId: "capture-1",
@@ -29,6 +29,11 @@ function responseService() {
       contract: "noxspot.response",
       version: 1,
       message: { text: "New issue", blocks: [{ type: "section", text: { type: "mrkdwn", text: "Broken" } }] },
+    })),
+    buildDailyDigestResponse: vi.fn(async () => ({
+      contract: "noxspot.response",
+      version: 1,
+      message: { text: "Daily summary", blocks: [{ type: "section", text: { type: "mrkdwn", text: "Daily" } }] },
     })),
   };
 }
@@ -64,5 +69,19 @@ describe("NoxSpot response service adapter", () => {
     service.buildIssueResponse.mockResolvedValue({ version: 2 });
     await expect(getNoxSpotIssueResponse({ NOXSPOT_RESPONSE: service }, capture))
       .rejects.toThrow("Unsupported NoxSpot response contract");
+  });
+
+  it("validates the daily digest from the product response service", async () => {
+    const service = responseService();
+    const filed = [{ number: 1, title: "Open", url: "https://github.com/acme/web/issues/1" }];
+    const solved = [{ number: 2, title: "Done", url: "https://github.com/acme/web/issues/2" }];
+    const result = await getNoxSpotDailyDigestResponse(
+      { NOXSPOT_RESPONSE: service }, "Website", "2026-08-31", filed, solved, { filed: 1, solved: 1 },
+    );
+
+    expect(result.message.text).toBe("Daily summary");
+    expect(service.buildDailyDigestResponse).toHaveBeenCalledWith(
+      "Website", "2026-08-31", filed, solved, { filed: 1, solved: 1 },
+    );
   });
 });

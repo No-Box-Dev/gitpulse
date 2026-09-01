@@ -23,7 +23,7 @@ interface DigestEnv {
   NOXSPOT_RESPONSE: NoxSpotResponseService;
 }
 
-interface SpotSite {
+export interface SpotSite {
   id: string;
   org_id: number;
   owner_id: string;
@@ -73,6 +73,10 @@ export function dailyDigestPeriod(nowMs: number, timezone = "UTC", time = "09:00
   const local = localDateTime(nowMs, safeTimezone(timezone));
   if (local.minutes < configuredMinutes(time)) return null;
   return previousPeriod(local.period);
+}
+
+export function completedDailyDigestPeriod(nowMs: number, timezone = "UTC") {
+  return previousPeriod(localDateTime(nowMs, safeTimezone(timezone)).period);
 }
 
 export function closingIssueNumbers(payload: unknown, owner: string, repo: string): number[] {
@@ -132,7 +136,7 @@ function safeTimezone(value: string) {
   catch { return "UTC"; }
 }
 
-function dailySettings(site: SpotSite) {
+export function dailySettings(site: Pick<SpotSite, "widget_config">) {
   try {
     const config = JSON.parse(String(site.widget_config || "{}"));
     return {
@@ -187,7 +191,7 @@ function pullRequestNumber(payload: unknown) {
   } catch { return null; }
 }
 
-async function loadDigestData(db: D1Database, site: SpotSite, period: string, timezone: string) {
+export async function loadNoxSpotDailyDigestData(db: D1Database, site: SpotSite, period: string, timezone: string) {
   const { start, end } = timezone === "UTC" ? periodBounds(period) : periodBoundsInTimezone(period, timezone);
   const [filedCountResult, filedResult, solvedCountResult, solvedResult, mergeResult] = await db.batch([
     db.prepare(
@@ -282,7 +286,7 @@ async function createDigest(env: DigestEnv, site: SpotSite, period: string, time
     "noxspot",
     site.slack_channel_id ? site.slack_connection_id || "" : "",
   );
-  const digest = await loadDigestData(env.DB, site, period, timezone);
+  const digest = await loadNoxSpotDailyDigestData(env.DB, site, period, timezone);
   const response = await getNoxSpotDailyDigestResponse(
     env,
     site.name,

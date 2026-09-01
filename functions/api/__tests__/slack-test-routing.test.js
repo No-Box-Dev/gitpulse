@@ -27,6 +27,10 @@ function context(body) {
         buildIssueResponse: vi.fn(),
         buildSlackResponse: vi.fn(),
         buildTestResponse: vi.fn(async (org) => ({ contract: "noxspot.response", version: 1, message: { text: `NoxSpot delivery test for ${org}`, blocks: [{ type: "section" }] } })),
+        buildDailyDigestResponse: vi.fn(async (name, period, filed, solved, totals) => ({
+          contract: "noxspot.response", version: 1,
+          message: { text: `${name} ${period}: ${totals.filed} filed, ${totals.solved} solved`, blocks: [{ type: "section" }] },
+        })),
       },
       NOXFEED_RESPONSE: {
         buildPrompt: vi.fn(),
@@ -41,9 +45,17 @@ function context(body) {
         })),
       },
       DB: {
+        batch: async () => [
+          { results: [{ count: 0 }] }, { results: [] },
+          { results: [{ count: 0 }] }, { results: [] }, { results: [] },
+        ],
         prepare: (sql) => ({
           bind: (...binds) => ({
-            first: async () => null,
+            first: async () => sql.includes("FROM spot_sites site") ? {
+              id: "site-playnist", org_id: 7, project_id: "project-1", repo: "playnist", name: "Playnist",
+              widget_config: JSON.stringify({ dailySummaryTimezone: "Asia/Kuala_Lumpur" }),
+              slack_channel_id: "C-ALERT", slack_connection_id: "conn-2", owner_id: "acme",
+            } : null,
             run: async () => { calls.push({ sql, binds }); return { success: true }; },
           }),
         }),
@@ -69,6 +81,18 @@ describe("Slack route tests", () => {
       "xoxb-test",
       "C-ALERT",
       expect.objectContaining({ text: "NoxCue delivery test for acme" }),
+    );
+  });
+
+  it("sends the real NoxSpot daily-summary format for a selected site", async () => {
+    const response = await onRequestPost(context({
+      kind: "noxspot", sourceId: "site-playnist", connectionId: "conn-2", channelId: "C-ALERT",
+    }));
+    expect(response.status).toBe(200);
+    expect(postSlackMessage).toHaveBeenCalledWith(
+      "xoxb-test",
+      "C-ALERT",
+      expect.objectContaining({ text: expect.stringMatching(/^Playnist — test \d{4}-\d{2}-\d{2}: 0 filed, 0 solved$/) }),
     );
   });
 

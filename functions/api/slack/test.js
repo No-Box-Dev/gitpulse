@@ -5,7 +5,12 @@ import { appForSlackKind, isAppEnabled, serviceDisabledResponse } from "../../li
 import { getNoxCueDigestResponse, getNoxCueTestResponse } from "../../lib/noxcue-response.js";
 import { completedPeriodAt, loadNoxCueDigestData } from "../../lib/noxcue-digest-data.js";
 import { loadEnabledNoxCueMetricKeys, selectNoxCueDigestMetrics } from "../../lib/noxcue-project-metrics.js";
-import { getNoxSpotTestResponse } from "../../lib/noxspot-response.js";
+import { getNoxSpotDailyDigestResponse, getNoxSpotTestResponse } from "../../lib/noxspot-response.js";
+import {
+  completedDailyDigestPeriod,
+  dailySettings,
+  loadNoxSpotDailyDigestData,
+} from "../../../cron/src/noxspot-digests.js";
 import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
 import { buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
@@ -76,7 +81,29 @@ export async function onRequestPost(context) {
         payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
       }
     } else if (kind === "noxspot") {
-      payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
+      if (sourceId) {
+        const site = await context.env.DB.prepare(
+          `SELECT site.id, site.org_id, site.project_id, site.repo, site.name, site.widget_config,
+                  site.slack_channel_id, site.slack_connection_id, org.github_login AS owner_id
+             FROM spot_sites site
+             JOIN orgs org ON org.id = site.org_id
+            WHERE site.id = ? AND site.org_id = ? LIMIT 1`,
+        ).bind(sourceId, orgId).first();
+        if (!site) return errorResponse("This NoxSpot site no longer exists. Refresh NoxConnect and try again.", 404);
+        const settings = dailySettings(site);
+        const period = completedDailyDigestPeriod(Date.now(), settings.timezone);
+        const digest = await loadNoxSpotDailyDigestData(context.env.DB, site, period, settings.timezone);
+        payload = (await getNoxSpotDailyDigestResponse(
+          context.env,
+          `${site.name} — test`,
+          period,
+          digest.filed,
+          digest.solved,
+          digest.totals,
+        )).message;
+      } else {
+        payload = (await getNoxSpotTestResponse(context.env, orgLogin)).message;
+      }
     } else if (kind === "noxticket") {
       payload = buildNoxTicketTestResponse(orgLogin).message;
     } else if (kind === "noxfeed" || kind === "noxfeed_posts" || kind === "noxfeed_release_notes") {

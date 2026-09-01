@@ -128,6 +128,39 @@ describe("PUT /api/config/:key", () => {
   });
 });
 
+describe("PUT /api/config/settings — NoxFeed daily summary", () => {
+  it("saves a valid local time and IANA timezone", async () => {
+    const db = makeDb();
+    const res = await onRequestPut(makeCtx({
+      db,
+      params: { key: "settings" },
+      method: "PUT",
+      body: { noxfeedDailySummary: { enabled: true, timeLocal: "17:30", timezone: "Asia/Kuala_Lumpur" } },
+    }));
+    expect(res.status).toBe(200);
+    expect(JSON.parse(db._calls.run[0].binds[2]).noxfeedDailySummary).toEqual({
+      enabled: true,
+      timeLocal: "17:30",
+      timezone: "Asia/Kuala_Lumpur",
+    });
+  });
+
+  it.each([
+    [{ enabled: "yes", timeLocal: "17:00", timezone: "UTC" }, "on or off"],
+    [{ enabled: true, timeLocal: "29:00", timezone: "UTC" }, "valid daily summary time"],
+    [{ enabled: true, timeLocal: "17:00", timezone: "Not/AZone" }, "valid daily summary timezone"],
+  ])("rejects invalid daily summary settings", async (noxfeedDailySummary, message) => {
+    const res = await onRequestPut(makeCtx({
+      db: makeDb(),
+      params: { key: "settings" },
+      method: "PUT",
+      body: { noxfeedDailySummary },
+    }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain(message);
+  });
+});
+
 describe("PUT /api/config/settings — boardStages validation", () => {
   const validStages = [
     { id: "todo", label: "To do", color: "#94a3b8" },

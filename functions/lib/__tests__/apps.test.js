@@ -37,6 +37,7 @@ describe("server app state", () => {
     expect(appForApiPath("/api/cues/sources")).toBe("noxcue");
     expect(appForApiPath("/api/repos")).toBeNull();
     expect(appForDeliverySource("release_notes")).toBe("noxfeed");
+    expect(appForDeliverySource("noxfeed_daily_summary")).toBe("noxfeed");
     expect(appForDeliverySource("noxticket")).toBe("noxticket");
     expect(appForDeliverySource(["un", "ticket"].join(""))).toBe("noxticket");
     expect(appForSlackKind("noxticket")).toBe("noxticket");

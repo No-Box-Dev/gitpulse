@@ -253,6 +253,11 @@ export interface OrgSettings {
   // functions/lib/prompt.js). The LLM provider/model is NOT configurable
   // per-feed — both Posts and Release notes share the org's LLM config.
   releaseNotesPrompt?: string;
+  noxfeedDailySummary?: {
+    enabled: boolean;
+    timeLocal: string;
+    timezone: string;
+  };
   // Service-specific Slack routing. The bot install (token + team metadata)
   // lives in slack_settings; config stores public channel IDs only.
   slack?: {

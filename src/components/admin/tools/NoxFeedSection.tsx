@@ -8,6 +8,7 @@ import { PostsBackfillSection } from "@/components/admin/PostsBackfillSection";
 import { LlmSettingsSection } from "@/components/admin/LlmSettingsSection";
 import { ToolSectionNav } from "@/components/admin/ToolSectionNav";
 import { NoxFeedProjectDelivery } from "@/components/admin/tools/NoxFeedProjectDelivery";
+import { NoxFeedDailySummary } from "@/components/admin/tools/NoxFeedDailySummary";
 
 const SECTIONS = [
   { id: "feed-delivery", label: "Delivery" },
@@ -61,6 +62,7 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
                     kind="noxfeed_release_notes"
                     routeKey="releaseNotesChannelId"
                   />
+                  <NoxFeedDailySummary />
                 </div>
               ) : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">Connect Slack in NoxConnect before choosing channels.</p>}
             </div>

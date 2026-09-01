@@ -22,6 +22,7 @@ import { deliverSlackOutbox, markOutboxFailed, recoverOutboxDeliveries, requeueB
 import { checkSlackOrgHealth } from "../../functions/lib/slack.js";
 import { runNoxCueDigests } from "./noxcue-digests.js";
 import { runNoxSpotDailyDigests } from "./noxspot-digests.js";
+import { runNoxFeedDailySummaries } from "./noxfeed-daily-summaries.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -136,6 +137,12 @@ async function runTick(env, nowMs = Date.now()) {
     await runNoxSpotDailyDigests(env, nowMs);
   } catch (err) {
     console.error("[noxconnect-cron] NoxSpot daily digest sweep failed:", err?.message ?? err);
+  }
+
+  try {
+    await runNoxFeedDailySummaries(env, nowMs);
+  } catch (err) {
+    console.error("[noxconnect-cron] NoxFeed daily summary sweep failed:", err?.message ?? err);
   }
 
   // Process at most one explicitly-requested source-of-truth audit per tick.

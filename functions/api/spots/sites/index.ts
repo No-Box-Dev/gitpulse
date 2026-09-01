@@ -54,6 +54,11 @@ function siteDto(row: Record<string, unknown>) {
     slackPendingCount: pendingCount,
     slackBlockedCount: blockedCount + failedCount,
     slackLastError: row.slack_last_error ?? null,
+    dailySummaryEnabled: config.dailySummaryEnabled !== false,
+    dailySummaryTime: typeof config.dailySummaryTime === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(config.dailySummaryTime)
+      ? config.dailySummaryTime : "09:00",
+    dailySummaryTimezone: typeof config.dailySummaryTimezone === "string" && config.dailySummaryTimezone
+      ? config.dailySummaryTimezone : "UTC",
     externalShare: row.external_share_id ? {
       id: row.external_share_id,
       slug: row.external_share_slug,
@@ -160,6 +165,9 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
       buttonText: input.buttonText ?? "Report issue",
       widgetMode: input.widgetMode ?? "development",
       autoErrorLogging: input.autoErrorLogging === true,
+      dailySummaryEnabled: true,
+      dailySummaryTime: "09:00",
+      dailySummaryTimezone: "UTC",
       environments: [],
       blocks: [],
     }),

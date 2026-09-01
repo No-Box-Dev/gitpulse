@@ -2,9 +2,8 @@ import { stageSlackDelivery, queueOutboxDelivery } from "../../functions/lib/del
 import { isAppEnabled } from "../../functions/lib/apps.js";
 import { getNoxSpotDailyDigestResponse } from "../../functions/lib/noxspot-response.js";
 import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } from "../../functions/lib/slack.js";
-import { previousPeriod } from "./noxcue-digests.js";
+import { localDateTime, previousPeriod } from "./noxcue-digests.js";
 
-const DAILY_SEND_HOUR_UTC = 9;
 const MAX_SITES_PER_TICK = 100;
 const MAX_ISSUES_PER_STATE = 20;
 
@@ -31,6 +30,7 @@ interface SpotSite {
   project_id: string;
   repo: string;
   name: string;
+  widget_config: string | null;
   slack_channel_id: string | null;
   slack_connection_id: string | null;
 }
@@ -69,9 +69,10 @@ interface MergeRow {
 
 interface CountRow { count: number | string | null }
 
-export function dailyDigestPeriod(nowMs: number) {
-  const sendBoundary = nowMs - DAILY_SEND_HOUR_UTC * 60 * 60 * 1000;
-  return previousPeriod(new Date(sendBoundary).toISOString().slice(0, 10));
+export function dailyDigestPeriod(nowMs: number, timezone = "UTC", time = "09:00") {
+  const local = localDateTime(nowMs, safeTimezone(timezone));
+  if (local.minutes < configuredMinutes(time)) return null;
+  return previousPeriod(local.period);
 }
 
 export function closingIssueNumbers(payload: unknown, owner: string, repo: string): number[] {
@@ -91,10 +92,55 @@ export function closingIssueNumbers(payload: unknown, owner: string, repo: strin
 }
 
 function periodBounds(period: string) {
-  const start = `${period}T00:00:00Z`;
-  const endDate = new Date(start);
-  endDate.setUTCDate(endDate.getUTCDate() + 1);
-  return { start, end: endDate.toISOString() };
+  return periodBoundsInTimezone(period, "UTC");
+}
+
+function periodBoundsInTimezone(period: string, timezone: string) {
+  const next = new Date(`${period}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return {
+    start: localMidnightUtc(period, timezone),
+    end: localMidnightUtc(next.toISOString().slice(0, 10), timezone),
+  };
+}
+
+function localMidnightUtc(period: string, timezone: string) {
+  const [year, month, day] = period.split("-").map(Number);
+  const target = Date.UTC(year, month - 1, day);
+  let guess = target;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: safeTimezone(timezone), year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = formatter.formatToParts(new Date(guess));
+    const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+    const represented = Date.UTC(value("year"), value("month") - 1, value("day"), value("hour"), value("minute"), value("second"));
+    guess += target - represented;
+  }
+  return new Date(guess).toISOString();
+}
+
+function configuredMinutes(value: string) {
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return 9 * 60;
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function safeTimezone(value: string) {
+  try { new Intl.DateTimeFormat("en", { timeZone: value }); return value; }
+  catch { return "UTC"; }
+}
+
+function dailySettings(site: SpotSite) {
+  try {
+    const config = JSON.parse(String(site.widget_config || "{}"));
+    return {
+      enabled: config.dailySummaryEnabled !== false,
+      time: typeof config.dailySummaryTime === "string" ? config.dailySummaryTime : "09:00",
+      timezone: typeof config.dailySummaryTimezone === "string" ? safeTimezone(config.dailySummaryTimezone) : "UTC",
+    };
+  } catch { return { enabled: true, time: "09:00", timezone: "UTC" }; }
 }
 
 function parseCapture(payload: unknown) {
@@ -141,8 +187,8 @@ function pullRequestNumber(payload: unknown) {
   } catch { return null; }
 }
 
-async function loadDigestData(db: D1Database, site: SpotSite, period: string) {
-  const { start, end } = periodBounds(period);
+async function loadDigestData(db: D1Database, site: SpotSite, period: string, timezone: string) {
+  const { start, end } = timezone === "UTC" ? periodBounds(period) : periodBoundsInTimezone(period, timezone);
   const [filedCountResult, filedResult, solvedCountResult, solvedResult, mergeResult] = await db.batch([
     db.prepare(
       `SELECT COUNT(DISTINCT CAST(json_extract(capture.payload_json, '$.githubIssueNumber') AS INTEGER)) AS count
@@ -221,7 +267,7 @@ async function loadDigestData(db: D1Database, site: SpotSite, period: string) {
   };
 }
 
-async function createDigest(env: DigestEnv, site: SpotSite, period: string) {
+async function createDigest(env: DigestEnv, site: SpotSite, period: string, timezone: string) {
   const sourceId = `daily-digest:${site.id}:${period}`;
   const existing = await env.DB.prepare(
     "SELECT id FROM delivery_outbox WHERE source = 'noxspot' AND destination = 'slack' AND source_id = ? LIMIT 1",
@@ -236,7 +282,7 @@ async function createDigest(env: DigestEnv, site: SpotSite, period: string) {
     "noxspot",
     site.slack_channel_id ? site.slack_connection_id || "" : "",
   );
-  const digest = await loadDigestData(env.DB, site, period);
+  const digest = await loadDigestData(env.DB, site, period, timezone);
   const response = await getNoxSpotDailyDigestResponse(
     env,
     site.name,
@@ -260,9 +306,8 @@ async function createDigest(env: DigestEnv, site: SpotSite, period: string) {
 }
 
 export async function runNoxSpotDailyDigests(env: DigestEnv, nowMs = Date.now()) {
-  const period = dailyDigestPeriod(nowMs);
   const { results } = await env.DB.prepare(
-    `SELECT site.id, site.org_id, site.project_id, site.repo, site.name,
+    `SELECT site.id, site.org_id, site.project_id, site.repo, site.name, site.widget_config,
             site.slack_channel_id, site.slack_connection_id,
             org.github_login AS owner_id
        FROM spot_sites site
@@ -274,8 +319,12 @@ export async function runNoxSpotDailyDigests(env: DigestEnv, nowMs = Date.now())
   let failed = 0;
   for (const site of results ?? []) {
     try {
+      const settings = dailySettings(site);
+      if (!settings.enabled) { skipped += 1; continue; }
+      const period = dailyDigestPeriod(nowMs, settings.timezone, settings.time);
+      if (!period) { skipped += 1; continue; }
       if (!(await isAppEnabled(env.DB, site.org_id, "noxspot"))) { skipped += 1; continue; }
-      const result = await createDigest(env, site, period);
+      const result = await createDigest(env, site, period, settings.timezone);
       if (result.created) created += 1;
       else skipped += 1;
     } catch (error) {
@@ -283,7 +332,6 @@ export async function runNoxSpotDailyDigests(env: DigestEnv, nowMs = Date.now())
       console.error(JSON.stringify({
         event: "noxspot_daily_digest_failed",
         siteId: site.id,
-        period,
         error: error instanceof Error ? error.message : String(error),
       }));
     }

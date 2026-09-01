@@ -223,8 +223,9 @@ surface lives in Admin -> NoxSpot. Admins manage sites, installation snippets,
 appearance, reporter mode, automatic errors, enabled origin environments,
 environment overrides, ordered report-form blocks, and per-site Slack routing.
 The cron Worker posts one idempotent daily NoxSpot summary per site to that
-same Slack route after 09:00 UTC. It lists issues filed during the completed
-UTC day and issues solved that day, links each item, attributes it to the
+same Slack route. Admins enable or disable it and set its local delivery time
+and IANA timezone inside the site's Slack delivery panel (defaults: enabled,
+09:00 UTC). It lists issues filed during the completed local day and issues solved that day, links each item, attributes it to the
 captured submitter, and explains the closing pull request when one is linked.
 NoxSpot owns the concise, plain-language Slack presentation through the private
 `NOXSPOT_RESPONSE` service binding; NoxConnect owns data matching, routing,

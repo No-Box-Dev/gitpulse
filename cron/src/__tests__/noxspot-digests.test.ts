@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { closingIssueNumbers, dailyDigestPeriod, runNoxSpotDailyDigests } from "../noxspot-digests.js";
 
 describe("NoxSpot daily Slack summaries", () => {
-  it("moves to the next completed UTC day at 09:00 UTC", () => {
-    expect(dailyDigestPeriod(Date.parse("2026-09-01T08:59:00Z"))).toBe("2026-08-30");
+  it("waits for the configured local time and selects the completed local day", () => {
+    expect(dailyDigestPeriod(Date.parse("2026-09-01T08:59:00Z"))).toBeNull();
     expect(dailyDigestPeriod(Date.parse("2026-09-01T09:00:00Z"))).toBe("2026-08-31");
+    expect(dailyDigestPeriod(Date.parse("2026-09-01T00:59:00Z"), "Asia/Kuala_Lumpur", "09:00")).toBeNull();
+    expect(dailyDigestPeriod(Date.parse("2026-09-01T01:00:00Z"), "Asia/Kuala_Lumpur", "09:00")).toBe("2026-08-31");
   });
 
   it("finds only issue references that a pull request closes in this repository", () => {
@@ -13,7 +15,7 @@ describe("NoxSpot daily Slack summaries", () => {
   });
 
   it("stages one retry-safe site summary and uses the captured submitter", async () => {
-    const statements: Array<{ sql: string; args: unknown[] }> = [];
+    const statements: Array<{ sql: string; statement: { args: unknown[] } }> = [];
     const prepare = (sql: string) => {
       const statement = {
         args: [] as unknown[],
@@ -21,6 +23,7 @@ describe("NoxSpot daily Slack summaries", () => {
         async all() {
           if (sql.includes("FROM spot_sites site")) return { results: [{
             id: "site-1", org_id: 7, project_id: "project-1", repo: "web", name: "Storefront",
+            widget_config: JSON.stringify({ dailySummaryEnabled: true, dailySummaryTime: "09:00", dailySummaryTimezone: "Asia/Kuala_Lumpur" }),
             owner_id: "acme", slack_channel_id: "C123", slack_connection_id: "connection-1",
           }] };
           return { results: [] };
@@ -35,7 +38,7 @@ describe("NoxSpot daily Slack summaries", () => {
         },
         async run() { return { success: true, meta: { changes: 1 } }; },
       };
-      statements.push({ sql, args: statement.args });
+      statements.push({ sql, statement });
       return statement;
     };
     const db = {
@@ -67,7 +70,7 @@ describe("NoxSpot daily Slack summaries", () => {
 
     const result = await runNoxSpotDailyDigests(
       { DB: db, TASK_QUEUE: queue, NOXSPOT_RESPONSE: service } as never,
-      Date.parse("2026-09-01T09:05:00Z"),
+      Date.parse("2026-09-01T01:05:00Z"),
     );
 
     expect(result).toEqual({ created: 1, skipped: 0, failed: 0 });
@@ -80,5 +83,9 @@ describe("NoxSpot daily Slack summaries", () => {
     );
     expect(queue.send).toHaveBeenCalledWith(expect.objectContaining({ outboxId: "delivery-1" }));
     expect(statements.some(({ sql }) => sql.includes("source_id = ?"))).toBe(true);
+    const filedQuery = statements.find(({ sql }) => sql.includes("COUNT(DISTINCT"));
+    expect(filedQuery?.statement.args).toEqual([
+      "site-1", "2026-08-30T16:00:00.000Z", "2026-08-31T16:00:00.000Z",
+    ]);
   });
 });

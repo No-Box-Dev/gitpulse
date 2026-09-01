@@ -253,8 +253,90 @@ function SiteCard({
           {testSlack.isError ? <p className="text-red-600">{testSlack.error instanceof Error ? testSlack.error.message : "Slack test failed"}</p> : null}
         </div>
       ) : null}
+      <NoxSpotDailySummarySettings
+        key={`${site.id}:${site.dailySummaryEnabled}:${site.dailySummaryTime}:${site.dailySummaryTimezone}`}
+        site={site}
+      />
       </details>
     </div>
+  );
+}
+
+export function NoxSpotDailySummarySettings({ site }: { site: NoxSpotSite }) {
+  const update = useUpdateNoxSpotSite();
+  const [enabled, setEnabled] = useState(site.dailySummaryEnabled);
+  const [time, setTime] = useState(site.dailySummaryTime);
+  const [timezone, setTimezone] = useState(site.dailySummaryTimezone);
+
+  return (
+    <form
+      className="mt-4 border-t border-stone-100 pt-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        update.mutate({
+          id: site.id,
+          dailySummaryEnabled: enabled,
+          dailySummaryTime: time,
+          dailySummaryTimezone: timezone.trim(),
+        });
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto min-w-52">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-stone-700">
+            <Clock3 size={13} /> Daily issue summary
+          </p>
+          <p className="mt-1 text-[11px] leading-4 text-stone-400">
+            Posts filed and solved issues for the previous day, including how each solved issue was closed.
+          </p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-xs font-medium text-stone-600">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) => setEnabled(event.target.checked)}
+          />
+          Enabled
+        </label>
+        <label className="text-[11px] font-medium text-stone-500">
+          Send at
+          <input
+            aria-label={`Daily summary time for ${site.name}`}
+            type="time"
+            required
+            disabled={!enabled}
+            value={time}
+            onChange={(event) => setTime(event.target.value)}
+            className="ml-1.5 rounded-lg border border-stone-200 px-2 py-1.5 text-xs disabled:bg-stone-50 disabled:text-stone-400"
+          />
+        </label>
+        <label className="text-[11px] font-medium text-stone-500">
+          Timezone
+          <input
+            aria-label={`Daily summary timezone for ${site.name}`}
+            required
+            disabled={!enabled}
+            value={timezone}
+            onChange={(event) => setTimezone(event.target.value)}
+            placeholder="Asia/Kuala_Lumpur"
+            className="ml-1.5 w-40 rounded-lg border border-stone-200 px-2 py-1.5 text-xs disabled:bg-stone-50 disabled:text-stone-400"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={update.isPending || (enabled && (!time || !timezone.trim()))}
+          className="rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+        >
+          {update.isPending ? "Saving…" : "Save summary"}
+        </button>
+      </div>
+      {update.isSuccess ? <p className="mt-2 text-[11px] text-green-700">Daily summary settings saved.</p> : null}
+      {update.isError ? (
+        <p role="alert" className="mt-2 text-[11px] text-red-600">
+          {update.error instanceof Error ? update.error.message : "Daily summary settings could not be saved."}
+        </p>
+      ) : null}
+    </form>
   );
 }
 

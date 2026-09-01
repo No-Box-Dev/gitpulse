@@ -89,6 +89,9 @@ export interface NoxSpotSite {
   slackPendingCount: number;
   slackBlockedCount: number;
   slackLastError: string | null;
+  dailySummaryEnabled: boolean;
+  dailySummaryTime: string;
+  dailySummaryTimezone: string;
   issueCount: number;
   openIssueCount: number;
   externalShare: { id: string; slug: string; enabled: boolean } | null;

@@ -21,28 +21,22 @@ const site = {
   id: "site-1",
   name: "Playnist",
   dailySummaryEnabled: true,
-  dailySummaryTime: "09:00",
-  dailySummaryTimezone: "UTC",
 } as NoxSpotSite;
 
 describe("NoxSpot daily summary settings", () => {
   beforeEach(() => mutate.mockReset());
 
-  it("saves the selected local time and timezone", async () => {
+  it("shows the fixed UTC schedule and saves the enabled state", async () => {
     const user = userEvent.setup();
     render(<NoxSpotDailySummarySettings site={site} />);
 
-    await user.clear(screen.getByLabelText("Daily summary time for Playnist"));
-    await user.type(screen.getByLabelText("Daily summary time for Playnist"), "14:30");
-    await user.clear(screen.getByLabelText("Daily summary timezone for Playnist"));
-    await user.type(screen.getByLabelText("Daily summary timezone for Playnist"), "Asia/Kuala_Lumpur");
+    expect(screen.getByText(/previous 24 hours/i)).toBeInTheDocument();
+    expect(screen.getByText(/00:00 UTC/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save summary" }));
 
     expect(mutate).toHaveBeenCalledWith({
       id: "site-1",
       dailySummaryEnabled: true,
-      dailySummaryTime: "14:30",
-      dailySummaryTimezone: "Asia/Kuala_Lumpur",
     });
   });
 

@@ -48,11 +48,6 @@ const UpdateSite = z.object({
   slackChannelId: z.string().trim().max(80).nullable().optional(),
   slackConnectionId: z.string().trim().min(1).max(120).nullable().optional(),
   dailySummaryEnabled: z.boolean().optional(),
-  dailySummaryTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional(),
-  dailySummaryTimezone: z.string().trim().min(1).max(100).refine((value) => {
-    try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; }
-    catch { return false; }
-  }, "Use an IANA timezone such as Asia/Kuala_Lumpur").optional(),
   autoErrorLogging: z.boolean().optional(),
   widgetMode: z.enum(["development", "release"]).optional(),
   buttonColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
@@ -119,7 +114,7 @@ export async function onRequestPatch(context: Ctx): Promise<Response> {
       : [],
   )[0];
   if (missingEnvironment) return errorResponse(`Block references unknown environment: ${missingEnvironment}`, 400);
-  for (const key of ["buttonColor", "buttonText", "widgetMode", "autoErrorLogging", "dailySummaryEnabled", "dailySummaryTime", "dailySummaryTimezone", "environments", "blocks"] as const) {
+  for (const key of ["buttonColor", "buttonText", "widgetMode", "autoErrorLogging", "dailySummaryEnabled", "environments", "blocks"] as const) {
     if (input[key] !== undefined) config[key] = input[key];
   }
   const updateStatement = db.prepare(

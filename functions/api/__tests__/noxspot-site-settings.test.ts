@@ -126,26 +126,23 @@ describe("NoxSpot widget configuration", () => {
 });
 
 describe("NoxSpot daily summary settings", () => {
-  it("stores an enabled local delivery time and IANA timezone", async () => {
+  it("stores whether the fixed midnight UTC summary is enabled", async () => {
     const db = database();
     const response = await onRequestPatch(context(db, {
       dailySummaryEnabled: true,
-      dailySummaryTime: "14:30",
-      dailySummaryTimezone: "Asia/Kuala_Lumpur",
     }) as never);
     expect(response.status).toBe(200);
     const update = db.runs.find((run) => run.sql.includes("UPDATE spot_sites SET"));
     expect(JSON.parse(String(update?.binds[2]))).toMatchObject({
       dailySummaryEnabled: true,
-      dailySummaryTime: "14:30",
-      dailySummaryTimezone: "Asia/Kuala_Lumpur",
     });
   });
 
-  it("rejects invalid times and timezones", async () => {
-    const invalidTime = await onRequestPatch(context(database(), { dailySummaryTime: "25:00" }) as never);
-    expect(invalidTime.status).toBe(400);
-    const invalidTimezone = await onRequestPatch(context(database(), { dailySummaryTimezone: "Moon/Base" }) as never);
-    expect(invalidTimezone.status).toBe(400);
+  it("rejects the removed custom schedule fields", async () => {
+    const response = await onRequestPatch(context(database(), {
+      dailySummaryTime: "14:30",
+      dailySummaryTimezone: "Asia/Kuala_Lumpur",
+    }) as never);
+    expect(response.status).toBe(400);
   });
 });

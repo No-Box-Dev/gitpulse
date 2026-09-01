@@ -53,7 +53,7 @@ function context(body) {
           bind: (...binds) => ({
             first: async () => sql.includes("FROM spot_sites site") ? {
               id: "site-playnist", org_id: 7, project_id: "project-1", repo: "playnist", name: "Playnist",
-              widget_config: JSON.stringify({ dailySummaryTimezone: "Asia/Kuala_Lumpur" }),
+              widget_config: JSON.stringify({ dailySummaryEnabled: true }),
               slack_channel_id: "C-ALERT", slack_connection_id: "conn-2", owner_id: "acme",
             } : null,
             run: async () => { calls.push({ sql, binds }); return { success: true }; },

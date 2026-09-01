@@ -43,7 +43,7 @@ function database(authenticated: boolean) {
         }] };
         if (sql.includes("type = 'spot:issue_created'")) return { results: [
           {
-            actor_id: "Ada",
+            actor_id: "noxbot[bot]",
             payload_json: JSON.stringify({
               githubIssueNumber: 12,
               siteId: "playnist-staging",
@@ -53,7 +53,7 @@ function database(authenticated: boolean) {
             }),
           },
           {
-            actor_id: "Lin",
+            actor_id: "noxbot[bot]",
             payload_json: JSON.stringify({
               githubIssueNumber: 13,
               siteId: "playnist-staging",
@@ -119,6 +119,7 @@ describe("GET external NoxSpot project portal", () => {
         releaseNotes: "Release details",
       },
     });
+    expect(body.issues.map((issue: { submittedBy: string | null }) => issue.submittedBy)).not.toContain("noxbot[bot]");
   });
 
   it("reads historical capture details from the NoxSpot issue body", () => {

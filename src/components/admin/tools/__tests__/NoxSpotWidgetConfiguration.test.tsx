@@ -33,8 +33,6 @@ const site: NoxSpotSite = {
   slackBlockedCount: 0,
   slackLastError: null,
   dailySummaryEnabled: true,
-  dailySummaryTime: "09:00",
-  dailySummaryTimezone: "UTC",
   issueCount: 0,
   openIssueCount: 0,
   externalShare: null,

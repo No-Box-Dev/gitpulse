@@ -26,7 +26,7 @@ export function useUpdateNoxSpotSite() {
   const { selectedOrg } = useAuth();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...changes }: { id: string; slackChannelId?: string | null; slackConnectionId?: string | null; dailySummaryEnabled?: boolean; dailySummaryTime?: string; dailySummaryTimezone?: string; autoErrorLogging?: boolean; widgetMode?: "development" | "release"; buttonColor?: string; buttonText?: string; environments?: NoxSpotEnvironment[]; blocks?: NoxSpotBlock[] }) =>
+    mutationFn: ({ id, ...changes }: { id: string; slackChannelId?: string | null; slackConnectionId?: string | null; dailySummaryEnabled?: boolean; autoErrorLogging?: boolean; widgetMode?: "development" | "release"; buttonColor?: string; buttonText?: string; environments?: NoxSpotEnvironment[]; blocks?: NoxSpotBlock[] }) =>
       apiPatch<{ ok: true }>(`/api/spots/sites/${encodeURIComponent(id)}`, changes),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });

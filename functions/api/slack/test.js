@@ -8,7 +8,6 @@ import { loadEnabledNoxCueMetricKeys, selectNoxCueDigestMetrics } from "../../li
 import { getNoxSpotDailyDigestResponse, getNoxSpotTestResponse } from "../../lib/noxspot-response.js";
 import {
   completedDailyDigestPeriod,
-  dailySettings,
   loadNoxSpotDailyDigestData,
 } from "../../../cron/src/noxspot-digests.js";
 import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
@@ -90,9 +89,8 @@ export async function onRequestPost(context) {
             WHERE site.id = ? AND site.org_id = ? LIMIT 1`,
         ).bind(sourceId, orgId).first();
         if (!site) return errorResponse("This NoxSpot site no longer exists. Refresh NoxConnect and try again.", 404);
-        const settings = dailySettings(site);
-        const period = completedDailyDigestPeriod(Date.now(), settings.timezone);
-        const digest = await loadNoxSpotDailyDigestData(context.env.DB, site, period, settings.timezone);
+        const period = completedDailyDigestPeriod(Date.now());
+        const digest = await loadNoxSpotDailyDigestData(context.env.DB, site, period);
         payload = (await getNoxSpotDailyDigestResponse(
           context.env,
           `${site.name} — test`,

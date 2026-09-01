@@ -1,6 +1,7 @@
 import { stageSlackDelivery, queueOutboxDelivery } from "../../functions/lib/delivery-outbox.js";
 import { isAppEnabled } from "../../functions/lib/apps.js";
 import { getNoxSpotDailyDigestResponse } from "../../functions/lib/noxspot-response.js";
+import { summarizeNoxSpotResolutions } from "../../functions/lib/noxspot-digest-ai.js";
 import { resolveSlackChannels, resolveSlackConnectionId, resolveSlackRoute } from "../../functions/lib/slack.js";
 import { localDateTime, previousPeriod } from "./noxcue-digests.js";
 
@@ -46,6 +47,8 @@ interface PullRequestResolution {
   number: number;
   title: string;
   url: string | null;
+  body: string | null;
+  summary?: string;
 }
 
 interface SolvedDigestIssue extends DigestIssue {
@@ -139,11 +142,19 @@ function resolutionsFromMerges(rows: MergeRow[], owner: string, repo: string) {
           number: prNumber,
           title: String(row.title || `Pull request #${prNumber}`),
           url: row.html_url ? String(row.html_url) : null,
+          body: pullRequestBody(row.payload_json),
         });
       }
     }
   }
   return resolutions;
+}
+
+function pullRequestBody(payload: unknown) {
+  try {
+    const parsed = JSON.parse(String(payload || "{}"));
+    return typeof parsed?.pr?.body === "string" && parsed.pr.body.trim() ? parsed.pr.body.trim() : null;
+  } catch { return null; }
 }
 
 function pullRequestNumber(payload: unknown) {
@@ -250,12 +261,13 @@ async function createDigest(env: DigestEnv, site: SpotSite, period: string) {
     site.slack_channel_id ? site.slack_connection_id || "" : "",
   );
   const digest = await loadNoxSpotDailyDigestData(env.DB, site, period);
+  const solved = await summarizeNoxSpotResolutions(env, site.org_id, digest.solved);
   const response = await getNoxSpotDailyDigestResponse(
     env,
     site.name,
     period,
     digest.filed,
-    digest.solved,
+    solved,
     digest.totals,
   );
   const delivery = await stageSlackDelivery(env.DB, {

@@ -6,6 +6,7 @@ import { getNoxCueDigestResponse, getNoxCueTestResponse } from "../../lib/noxcue
 import { completedPeriodAt, loadNoxCueDigestData } from "../../lib/noxcue-digest-data.js";
 import { loadEnabledNoxCueMetricKeys, selectNoxCueDigestMetrics } from "../../lib/noxcue-project-metrics.js";
 import { getNoxSpotDailyDigestResponse, getNoxSpotTestResponse } from "../../lib/noxspot-response.js";
+import { summarizeNoxSpotResolutions } from "../../lib/noxspot-digest-ai.js";
 import {
   completedDailyDigestPeriod,
   loadNoxSpotDailyDigestData,
@@ -91,12 +92,13 @@ export async function onRequestPost(context) {
         if (!site) return errorResponse("This NoxSpot site no longer exists. Refresh NoxConnect and try again.", 404);
         const period = completedDailyDigestPeriod(Date.now());
         const digest = await loadNoxSpotDailyDigestData(context.env.DB, site, period);
+        const solved = await summarizeNoxSpotResolutions(context.env, orgId, digest.solved);
         payload = (await getNoxSpotDailyDigestResponse(
           context.env,
           `${site.name} — test`,
           period,
           digest.filed,
-          digest.solved,
+          solved,
           digest.totals,
         )).message;
       } else {

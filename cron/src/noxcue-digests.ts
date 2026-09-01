@@ -16,6 +16,7 @@ interface DigestResponseService {
       sampleDays: number;
       history: Array<{ period: string; value: number }>;
     }>,
+    metricLabels?: Record<string, string>,
   ): Promise<unknown>;
 }
 
@@ -102,10 +103,10 @@ async function createDigest(
     await storeNoxCueDerivedMetrics(env.DB, source.org_id, source.id, period, metrics);
   }
 
-  const enabledKeys = await loadEnabledNoxCueMetricKeys(env.DB, source.org_id, source.project_id);
+  const enabledKeys = await loadEnabledNoxCueMetricKeys(env.DB, source.org_id, source.project_id, source.id);
   const selected = selectNoxCueDigestMetrics(digest, enabledKeys);
 
-  const response = await getNoxCueDigestResponse(env, source.name, period, selected.metrics, selected.comparisons);
+  const response = await getNoxCueDigestResponse(env, source.name, period, selected.metrics, selected.comparisons, selected.metricLabels);
   const delivery = await stageSlackDelivery(env.DB, {
     orgId: source.org_id,
     source: "noxcue",

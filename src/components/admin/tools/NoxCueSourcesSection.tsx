@@ -5,20 +5,27 @@ import { useSlackChannels } from "@/components/admin/slack/useSlackChannels";
 import { ConfirmDialog, useConfirm } from "@/components/ui/ConfirmDialog";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import {
+  useCreateNoxCueFeature,
+  useCreateNoxCueCustomMetric,
   useCreateNoxCueKey,
   useCreateNoxCueSource,
+  useDeleteNoxCueFeature,
+  useDeleteNoxCueCustomMetric,
   useDeleteNoxCueSource,
   useNoxCueMetrics,
+  useNoxCueCustomMetrics,
   useNoxCueFeatures,
   useNoxCueProjectMetrics,
   useNoxCueSources,
   useRevokeNoxCueKey,
+  useSaveNoxCueFeature,
+  useSaveNoxCueCustomMetric,
   useSaveNoxCueSource,
   useSaveNoxCueProjectMetrics,
 } from "@/hooks/useNoxCue";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { apiPost } from "@/lib/api";
-import type { NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
+import type { NoxCueCustomMetricsResponse, NoxCueFeaturesResponse, NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 
 const EMPTY_SOURCE: NoxCueSourceInput = {
@@ -182,6 +189,8 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         onCheck={() => void checkForEvents()}
       /> : null}
       {!creating && selected ? <KeySection source={selected} /> : null}
+      {!creating && selected ? <CustomMetricRegistry source={selected} /> : null}
+      {!creating && selected ? <CustomFeatureRegistry source={selected} /> : null}
       {!creating && selected ? <AuthHealthPanel source={selected} /> : null}
       {!creating && selected ? <ProjectMetricControls
         key={selected.projectId ?? "project-metrics"}
@@ -497,30 +506,140 @@ function BrowserExample({ ingestKey }: { ingestKey: string }) {
 // One wrapper around the auth call. The original result is unchanged.
 const result = await noxcue.auth.signup(() => auth.signUp(input));
 
+// Registered custom features use the same one-line wrapper.
+await noxcue.observe("custom.journal.publish", () => publishJournal(input));
+
 // Run once during setup, then click “Check now” in NoxConnect.
 await noxcue.test();`;
   return <div className="mt-3 space-y-2">
     <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold text-amber-900">Wrap each auth action</p><p className="mt-0.5 text-[11px] text-amber-800">Available: signup, login, passwordReset, emailVerification, oauth, mfa, sessionRefresh, logout.</p></div><button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => setCopied(true)); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button></div>
     <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
-    <p className="text-[11px] leading-5 text-amber-800">Only the feature, success/rejection/system failure, fixed reason, duration, and event ID leave the browser. NoxCue never receives account data or credentials.</p>
+    <p className="text-[11px] leading-5 text-amber-800">Failures include the bounded technical error returned by the operation. NoxCue never receives account data, credentials, tokens, request bodies, or headers.</p>
   </div>;
+}
+
+function CustomMetricRegistry({ source }: { source: NoxCueSource }) {
+  const state = useNoxCueCustomMetrics(source.id);
+  const create = useCreateNoxCueCustomMetric(source.id);
+  const [adding, setAdding] = useState(false);
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    create.mutate({ key, label }, { onSuccess: () => { setAdding(false); setKey(""); setLabel(""); } });
+  };
+  return <Panel>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div><div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Custom activity metrics</h3></div><p className="mt-1 text-xs leading-5 text-stone-500">Register each name before the app sends it. One event produces a cumulative total and a per-registered-user statistic; NoxCue does the aggregation.</p></div>
+      <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium"><Plus size={13} /> Register metric</button>
+    </div>
+    {adding ? <form onSubmit={submit} className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 sm:grid-cols-2">
+      <label className="text-xs font-medium text-stone-700">Metric key<input required pattern="custom\.[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){0,4}" value={key} onChange={(event) => setKey(event.target.value)} placeholder="custom.journals.added" className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" /></label>
+      <label className="text-xs font-medium text-stone-700">Display label<input required maxLength={80} value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Journals added" className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" /></label>
+      <div className="flex items-center gap-3 sm:col-span-2"><button disabled={create.isPending} className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{create.isPending ? "Registering…" : "Register metric"}</button><button type="button" onClick={() => setAdding(false)} className="px-2 py-2 text-xs text-stone-500">Cancel</button></div>
+      {create.isError ? <p className="text-xs text-red-600 sm:col-span-2">{create.error instanceof Error ? create.error.message : "Could not register this metric."}</p> : null}
+    </form> : null}
+    {state.isError ? <p className="text-xs text-red-600">Could not load custom metrics.</p> : state.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : state.data?.metrics.length ? <div className="space-y-3">{state.data.metrics.map((metric) => <CustomMetricRow key={metric.key} sourceId={source.id} metric={metric} />)}</div> : <p className="rounded-lg border border-dashed border-stone-200 px-4 py-5 text-center text-xs text-stone-400">No custom activity metrics yet.</p>}
+  </Panel>;
+}
+
+function CustomMetricRow({ sourceId, metric }: { sourceId: string; metric: NoxCueCustomMetricsResponse["metrics"][number] }) {
+  const save = useSaveNoxCueCustomMetric(sourceId);
+  const remove = useDeleteNoxCueCustomMetric(sourceId);
+  const { confirm, dialogProps } = useConfirm();
+  const deleteMetric = async () => {
+    if (await confirm({ title: `Delete ${metric.label}?`, message: "Future events using this key will be reported as unregistered. Historical activity remains stored.", confirmLabel: "Delete metric", variant: "danger" })) remove.mutate(metric.key);
+  };
+  return <><div className={`rounded-lg border p-4 ${metric.enabled ? "border-stone-200 bg-white" : "border-stone-200 bg-stone-50"}`}>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-stone-800">{metric.label}</span><MetricActivity active={metric.active} /></div><code className="mt-1 block text-[11px] text-stone-400">{metric.key}</code><p className="mt-2 text-xs text-stone-500">Outputs: {metric.outputs.map((output) => output.label).join(" · ")}</p>{metric.lastEventAt ? <p className="mt-1 text-[11px] text-stone-400">Last event {new Date(metric.lastEventAt).toLocaleString()}</p> : null}</div>
+      <div className="flex items-center gap-2"><label className="inline-flex items-center gap-1.5 text-xs text-stone-600"><input type="checkbox" checked={metric.enabled} disabled={save.isPending} onChange={(event) => save.mutate({ key: metric.key, input: { label: metric.label, enabled: event.target.checked } })} /> Include in reports</label><button type="button" onClick={() => void deleteMetric()} className="p-1.5 text-red-600" aria-label={`Delete ${metric.label}`}><Trash2 size={13} /></button></div></div>
+    {save.isError || remove.isError ? <p className="mt-2 text-xs text-red-600">Could not update this custom metric.</p> : null}
+  </div><ConfirmDialog {...dialogProps} /></>;
+}
+
+function CustomFeatureRegistry({ source }: { source: NoxCueSource }) {
+  const health = useNoxCueFeatures(source.id);
+  const create = useCreateNoxCueFeature(source.id);
+  const [adding, setAdding] = useState(false);
+  const [suffix, setSuffix] = useState("");
+  const [label, setLabel] = useState("");
+  const [failureMessage, setFailureMessage] = useState("");
+  const custom = health.data?.features.filter((feature) => feature.kind === "custom") ?? [];
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalized = suffix.trim().toLowerCase().replace(/^custom\./, "").replace(/[^a-z0-9_.]+/g, "_");
+    create.mutate({ key: `custom.${normalized}`, label, failureMessage }, { onSuccess: () => {
+      setAdding(false);
+      setSuffix("");
+      setLabel("");
+      setFailureMessage("");
+    } });
+  };
+  const scope = health.data?.scope;
+  return <Panel>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Custom features</h3></div>
+        <p className="mt-1 text-xs leading-5 text-stone-500">Register a name before the app sends it. Unknown names become one unregistered-feature error and never create metrics.</p>
+        {scope ? <p className="mt-1 text-[11px] text-stone-400">{scope.type === "project" ? <>Shared by every source linked to project <span className="font-medium text-stone-500">{scope.name}</span>.</> : <>Available only to source <span className="font-medium text-stone-500">{scope.name}</span>.</>}</p> : null}
+      </div>
+      <button type="button" onClick={() => setAdding((value) => !value)} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700"><Plus size={13} /> Register feature</button>
+    </div>
+    {adding ? <form onSubmit={submit} className="space-y-3 rounded-lg border border-accent/20 bg-accent/5 p-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-medium text-stone-700">Feature name
+          <div className="mt-1 flex rounded-lg border border-stone-200 bg-white focus-within:border-accent"><span className="border-r border-stone-200 px-3 py-2 font-mono text-xs text-stone-400">custom.</span><input required value={suffix} onChange={(event) => setSuffix(event.target.value.toLowerCase().replace(/^custom\./, "").replace(/[^a-z0-9_.]+/g, "_"))} pattern="[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){0,4}" placeholder="journal.publish" className="min-w-0 flex-1 rounded-r-lg px-3 py-2 font-mono text-xs outline-none" /></div>
+        </label>
+        <label className="text-xs font-medium text-stone-700">Display label
+          <input required maxLength={80} value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Publish journal" className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+        </label>
+      </div>
+      <label className="block text-xs font-medium text-stone-700">User impact when it fails
+        <input required maxLength={500} value={failureMessage} onChange={(event) => setFailureMessage(event.target.value)} placeholder="A user was prevented from publishing a journal entry." className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+      </label>
+      <div className="flex items-center gap-3"><button disabled={create.isPending} className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{create.isPending ? "Registering…" : "Register feature"}</button><button type="button" onClick={() => setAdding(false)} className="px-2 py-2 text-xs text-stone-500">Cancel</button></div>
+      {create.isError ? <p className="text-xs text-red-600">{create.error instanceof Error ? create.error.message : "Could not register this feature."}</p> : null}
+    </form> : null}
+    {health.isError ? <p className="text-xs text-red-600">Could not load the feature catalog.</p> : health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : custom.length ? <div className="space-y-3">{custom.map((feature) => <CustomFeatureRow key={feature.key} sourceId={source.id} feature={feature} />)}</div> : <p className="rounded-lg border border-dashed border-stone-200 px-4 py-5 text-center text-xs text-stone-400">No custom features registered yet. NoxCue standards remain available below.</p>}
+  </Panel>;
+}
+
+function CustomFeatureRow({ sourceId, feature }: { sourceId: string; feature: NoxCueFeaturesResponse["features"][number] }) {
+  const save = useSaveNoxCueFeature(sourceId);
+  const remove = useDeleteNoxCueFeature(sourceId);
+  const { confirm, dialogProps } = useConfirm();
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(feature.label);
+  const [failureMessage, setFailureMessage] = useState(feature.failureMessage);
+  const update = (enabled = feature.enabled) => save.mutate({ key: feature.key, input: { label, failureMessage, enabled } }, { onSuccess: () => setEditing(false) });
+  const deleteFeature = async () => {
+    if (await confirm({ title: `Delete ${feature.label}?`, message: "Future events using this key will be recorded as unregistered-feature errors. Historical results remain stored.", confirmLabel: "Delete feature", variant: "danger" })) remove.mutate(feature.key);
+  };
+  return <><div className={`rounded-lg border p-4 ${feature.enabled ? "border-stone-200 bg-white" : "border-stone-200 bg-stone-50"}`}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-stone-800">{feature.label}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${feature.enabled ? "bg-green-100 text-green-700" : "bg-stone-200 text-stone-600"}`}>{feature.enabled ? "Active" : "Paused"}</span></div><code className="mt-1 block truncate text-[11px] text-stone-400">{feature.key}</code><p className="mt-2 text-xs text-stone-500">{feature.failureMessage}</p></div>
+      <div className="flex items-center gap-2"><label className="inline-flex items-center gap-1.5 text-xs text-stone-600"><input type="checkbox" checked={feature.enabled} disabled={save.isPending} onChange={(event) => update(event.target.checked)} /> Accept events</label><button type="button" onClick={() => setEditing((value) => !value)} className="rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600">Edit</button><button type="button" onClick={() => void deleteFeature()} className="p-1.5 text-red-600" aria-label={`Delete ${feature.label}`}><Trash2 size={13} /></button></div>
+    </div>
+    {editing ? <div className="mt-3 grid gap-3 border-t border-stone-100 pt-3"><label className="text-xs font-medium text-stone-600">Display label<input maxLength={80} value={label} onChange={(event) => setLabel(event.target.value)} className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-stone-600">User impact<input maxLength={500} value={failureMessage} onChange={(event) => setFailureMessage(event.target.value)} className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" /></label><div><button type="button" onClick={() => update()} disabled={save.isPending || !label.trim() || !failureMessage.trim()} className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Save</button></div></div> : null}
+    {save.isError || remove.isError ? <p className="mt-2 text-xs text-red-600">Could not update this custom feature.</p> : null}
+  </div><ConfirmDialog {...dialogProps} /></>;
 }
 
 function AuthHealthPanel({ source }: { source: NoxCueSource }) {
   const health = useNoxCueFeatures(source.id);
   const publishable = source.keys.some((key) => key.kind === "publishable" && !key.revokedAt);
   const testedAt = health.data?.features.map((feature) => feature.lastTestAt).filter(Boolean).sort().at(-1) ?? null;
-  const issueCount = health.data?.features.filter((feature) => feature.status === "issue").length ?? 0;
+  const issueCount = health.data?.features.filter((feature) => feature.enabled && feature.status === "issue").length ?? 0;
   return <Panel>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Auth feature health</h3></div><p className="mt-1 text-xs text-stone-500">Expected user rejections are counted separately. Every system failure is stored as a critical incident and alerts Slack immediately. A later success does not resolve it.</p></div><button type="button" onClick={() => void health.refetch()} disabled={health.isFetching} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{health.isFetching ? <Spinner size="sm" /> : <RefreshCw size={13} />} Check now</button></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Feature health</h3></div><p className="mt-1 text-xs text-stone-500">NoxCue standards and registered custom features use the same outcomes. Every system failure is stored with its message and actual technical error, then alerts Slack immediately.</p></div><button type="button" onClick={() => void health.refetch()} disabled={health.isFetching} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{health.isFetching ? <Spinner size="sm" /> : <RefreshCw size={13} />} Check now</button></div>
     <div className="grid gap-2 sm:grid-cols-3">
       <SetupChip label="Origin saved" complete={source.allowedOrigins.length > 0} detail={source.allowedOrigins[0] ?? "Add the app origin"} />
       <SetupChip label="Publishable key" complete={publishable} detail={publishable ? "Active" : "Create a publishable key"} />
       <SetupChip label="End-to-end test" complete={Boolean(testedAt)} detail={testedAt ? `Received ${new Date(testedAt).toLocaleString()}` : "Run noxcue.test() in the app"} />
     </div>
     {source.healthEnabled ? <div className={`rounded-lg border px-3 py-2 text-xs ${source.healthStatus === "issue" ? "border-red-200 bg-red-50 text-red-800" : source.healthStatus === "healthy" ? "border-green-200 bg-green-50 text-green-800" : "border-stone-200 bg-stone-50 text-stone-600"}`}><span className="font-medium">Endpoint: {source.healthStatus}</span>{source.healthLastCheckedAt ? ` · checked ${new Date(source.healthLastCheckedAt).toLocaleString()}` : " · waiting for first check"}{source.healthLastError ? ` · ${source.healthLastError}` : ""}</div> : null}
-    {issueCount ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{issueCount} auth feature{issueCount === 1 ? " has" : "s have"} an unresolved critical incident. Slack is notified for every system failure.</p> : null}
-    {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : <div className="grid gap-3 sm:grid-cols-2">{health.data?.features.map((feature) => <div key={feature.key} className={`rounded-lg border p-3 ${feature.status === "issue" ? "border-red-200 bg-red-50" : feature.status === "healthy" ? "border-green-200 bg-green-50/50" : "border-stone-200 bg-stone-50"}`}><div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-stone-800">{feature.label}</span><HealthBadge status={feature.status} /></div><p className="mt-1 text-[11px] leading-4 text-stone-500">{feature.description}</p><p className="mt-2 text-[11px] text-stone-500">24h: {feature.successes24h} successful · {feature.rejections24h} rejected · {feature.failures24h} system failures</p>{feature.lastResultAt ? <p className="mt-1 text-[11px] text-stone-400">Last result {new Date(feature.lastResultAt).toLocaleString()}</p> : null}</div>)}</div>}
+    {issueCount ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{issueCount} feature{issueCount === 1 ? " has" : "s have"} an unresolved critical incident. Slack is notified for every system failure.</p> : null}
+    {health.isError ? <p className="text-xs text-red-600">Could not load feature health.</p> : health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : <div className="grid gap-3 sm:grid-cols-2">{health.data?.features.filter((feature) => feature.enabled).map((feature) => <div key={feature.key} className={`rounded-lg border p-3 ${feature.status === "issue" ? "border-red-200 bg-red-50" : feature.status === "healthy" ? "border-green-200 bg-green-50/50" : "border-stone-200 bg-stone-50"}`}><div className="flex items-center justify-between gap-2"><span className="min-w-0"><span className="text-sm font-medium text-stone-800">{feature.label}</span><span className="ml-2 rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">{feature.kind === "standard" ? "NoxCue standard" : "Custom"}</span></span><HealthBadge status={feature.status} /></div><p className="mt-1 text-[11px] leading-4 text-stone-500">{feature.description}</p><p className="mt-2 text-[11px] text-stone-500">24h: {feature.successes24h} successful · {feature.rejections24h} rejected · {feature.failures24h} system failures</p>{feature.lastResultAt ? <p className="mt-1 text-[11px] text-stone-400">Last result {new Date(feature.lastResultAt).toLocaleString()}</p> : null}</div>)}</div>}
   </Panel>;
 }
 
@@ -556,20 +675,21 @@ function RequestExample() {
 function DailyUserStats({ source }: { source: NoxCueSource }) {
   const health = useNoxCueMetrics(source.id);
   const latest = health.data?.days[0];
-  const labels = new Map(health.data?.catalog.map((metric) => [metric.key, metric.label]) ?? []);
+  const catalog = new Map(health.data?.catalog.map((metric) => [metric.key, metric]) ?? []);
+  const keys = [...USER_STAT_KEYS, ...(health.data?.catalog.filter((metric) => metric.domain === "activity").map((metric) => metric.key) ?? [])];
   const visible = latest
-    ? USER_STAT_KEYS.flatMap((key) => latest.metrics[key] ? [{ key, ...latest.metrics[key] }] : [])
+    ? keys.flatMap((key) => latest.metrics[key] ? [{ key, ...latest.metrics[key] }] : [])
     : [];
   return <Panel>
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-stone-900">Daily user stats</h3><p className="mt-1 text-xs text-stone-500">The latest standardized snapshot retained by NoxCue.</p></div>{latest ? <span className="text-xs text-stone-500">{latest.period} · {health.data?.digests[0]?.status ? `Slack: ${health.data.digests[0].status}` : "Brief not sent yet"}</span> : null}</div>
-    {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : latest && visible.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visible.map((metric) => <div key={metric.key} className="rounded-lg border border-stone-100 bg-stone-50 p-4"><div className="text-xl font-semibold text-stone-900">{formatUserStat(metric.key, metric.value)}</div><div className="mt-1 text-xs text-stone-500">{labels.get(metric.key) ?? metric.key}</div></div>)}</div> : lastUserEventAt(source) ? <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">Events are arriving. The first completed-day snapshot will appear after {source.digestTimeLocal} {source.timezone}.</p> : <p className="text-xs text-stone-400">Waiting for the first user event.</p>}
+    {health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : latest && visible.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{visible.map((metric) => <div key={metric.key} className="rounded-lg border border-stone-100 bg-stone-50 p-4"><div className="text-xl font-semibold text-stone-900">{formatUserStat(catalog.get(metric.key)?.unit, metric.value)}</div><div className="mt-1 text-xs text-stone-500">{catalog.get(metric.key)?.label ?? metric.key}</div></div>)}</div> : lastUserEventAt(source) ? <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">Events are arriving. The first completed-day snapshot will appear after {source.digestTimeLocal} {source.timezone}.</p> : <p className="text-xs text-stone-400">Waiting for the first user event.</p>}
   </Panel>;
 }
 
-function formatUserStat(key: string, value: number) {
-  return key === "users.stickiness.dau_mau"
+function formatUserStat(unit: "count" | "ratio" | "decimal" | undefined, value: number) {
+  return unit === "ratio"
     ? `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
-    : value.toLocaleString();
+    : value.toLocaleString(undefined, { maximumFractionDigits: unit === "decimal" ? 2 : 0 });
 }
 
 function DeleteSourceButton({ sourceId, sourceName, mutation, onDeleted }: { sourceId: string; sourceName: string; mutation: ReturnType<typeof useDeleteNoxCueSource>; onDeleted: () => void }) {

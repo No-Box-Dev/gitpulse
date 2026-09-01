@@ -199,10 +199,10 @@
     "/api/cues/sources/{sourceId}/keys": {
       "post": {
         "operationId": "createNoxCueKey",
-        "summary": "Create a one-time NoxCue server ingest key",
+        "summary": "Create a one-time NoxCue browser or server ingest key",
         "description": "The key value is returned once. Do not log it.",
         "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "kind"], "properties": { "name": { "type": "string" }, "kind": { "const": "secret" } } } } } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["name", "kind"], "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 }, "kind": { "type": "string", "enum": ["publishable", "secret"] } } } } } },
         "responses": { "201": { "description": "Key created" } }
       }
     },
@@ -212,6 +212,67 @@
         "summary": "Revoke a NoxCue ingest key",
         "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/keyId" }],
         "responses": { "200": { "description": "Key revoked" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}/features": {
+      "get": {
+        "operationId": "listNoxCueFeatures",
+        "summary": "List standard and registered custom features with health",
+        "description": "Linked sources share their project's custom catalog. Unlinked sources have an isolated source catalog.",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "responses": { "200": { "description": "Feature catalog and current health" }, "403": { "description": "Admin required" } }
+      },
+      "post": {
+        "operationId": "createNoxCueCustomFeature",
+        "summary": "Register a custom NoxCue feature before ingest",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueCustomFeatureInput" } } } },
+        "responses": { "201": { "description": "Feature registered" }, "400": { "description": "Invalid custom feature" }, "403": { "description": "Admin required" }, "409": { "description": "Feature key already registered in this scope" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}/features/{featureKey}": {
+      "put": {
+        "operationId": "updateNoxCueCustomFeature",
+        "summary": "Update or pause a registered custom feature",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/featureKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueCustomFeatureUpdate" } } } },
+        "responses": { "200": { "description": "Feature updated" }, "403": { "description": "Admin required" }, "404": { "description": "Feature or source not found" } }
+      },
+      "delete": {
+        "operationId": "deleteNoxCueCustomFeature",
+        "summary": "Delete a custom feature definition while retaining historical results",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/featureKey" }],
+        "responses": { "200": { "description": "Feature deleted" }, "403": { "description": "Admin required" }, "404": { "description": "Feature or source not found" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}/custom-metrics": {
+      "get": {
+        "operationId": "listNoxCueCustomMetrics",
+        "summary": "List registered custom activity metrics and event status",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "responses": { "200": { "description": "Custom metric catalog" }, "403": { "description": "Admin required" } }
+      },
+      "post": {
+        "operationId": "createNoxCueCustomMetric",
+        "summary": "Register a custom activity metric before ingest",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueCustomMetricInput" } } } },
+        "responses": { "201": { "description": "Metric registered" }, "400": { "description": "Invalid custom metric" }, "403": { "description": "Admin required" }, "409": { "description": "Metric key already registered in this scope" } }
+      }
+    },
+    "/api/cues/sources/{sourceId}/custom-metrics/{metricKey}": {
+      "put": {
+        "operationId": "updateNoxCueCustomMetric",
+        "summary": "Rename or pause a registered custom activity metric",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/metricKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NoxCueCustomMetricUpdate" } } } },
+        "responses": { "200": { "description": "Metric updated" }, "403": { "description": "Admin required" }, "404": { "description": "Metric or source not found" } }
+      },
+      "delete": {
+        "operationId": "deleteNoxCueCustomMetric",
+        "summary": "Delete a custom metric definition while retaining historical events",
+        "parameters": [{ "$ref": "#/components/parameters/sourceId" }, { "$ref": "#/components/parameters/metricKey" }],
+        "responses": { "200": { "description": "Metric deleted" }, "403": { "description": "Admin required" }, "404": { "description": "Metric or source not found" } }
       }
     },
     "/api/cues/projects/{projectId}/metrics": {
@@ -248,7 +309,9 @@
       "projectId": { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
       "sourceId": { "name": "sourceId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "siteId": { "name": "siteId", "in": "path", "required": true, "schema": { "type": "string" } },
-      "keyId": { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string" } }
+      "keyId": { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "featureKey": { "name": "featureKey", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^custom\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){0,4}$" } },
+      "metricKey": { "name": "metricKey", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^custom\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){0,4}$" } }
     },
     "schemas": {
       "SetupPlan": {
@@ -402,7 +465,48 @@
           "digestEnabled": { "type": "boolean" },
           "digestTimeLocal": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$" },
           "slackChannelId": { "type": ["string", "null"] },
-          "slackConnectionId": { "type": ["string", "null"] }
+          "slackConnectionId": { "type": ["string", "null"] },
+          "allowedOrigins": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "format": "uri", "description": "Exact HTTPS origin; localhost HTTP is allowed for development." } },
+          "healthEnabled": { "type": "boolean", "default": false },
+          "healthUrl": { "type": ["string", "null"], "format": "uri", "maxLength": 2048 }
+        }
+      },
+      "NoxCueCustomFeatureInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "failureMessage"],
+        "properties": {
+          "key": { "type": "string", "minLength": 8, "maxLength": 120, "pattern": "^custom\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){0,4}$" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "failureMessage": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Default user-impact text shown with the actual bounded technical error." }
+        }
+      },
+      "NoxCueCustomFeatureUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "failureMessage", "enabled"],
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "failureMessage": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "enabled": { "type": "boolean" }
+        }
+      },
+      "NoxCueCustomMetricInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label"],
+        "properties": {
+          "key": { "type": "string", "minLength": 8, "maxLength": 120, "pattern": "^custom\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){0,4}$" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 80 }
+        }
+      },
+      "NoxCueCustomMetricUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "enabled"],
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "enabled": { "type": "boolean", "description": "Accept new events and include both derived outputs in reports." }
         }
       },
       "ProjectDestination": {

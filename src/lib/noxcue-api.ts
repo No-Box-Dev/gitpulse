@@ -18,8 +18,8 @@ export interface NoxCueMetricsResponse {
   catalog: Array<{
     key: string;
     label: string;
-    domain: "users" | "auth" | "errors";
-    unit: "count" | "ratio";
+    domain: "users" | "auth" | "errors" | "activity";
+    unit: "count" | "ratio" | "decimal";
     origin: "reported" | "calculated";
     description: string;
     formulaKey: string | null;
@@ -67,15 +67,43 @@ export interface NoxCueSource extends NoxCueSourceInput {
 }
 
 export interface NoxCueFeaturesResponse {
+  scope: { type: "project" | "source"; id: string; name: string };
   features: Array<{
-    key: "auth.signup" | "auth.login" | "auth.password_reset" | "auth.email_verification" |
-      "auth.oauth" | "auth.mfa" | "auth.session_refresh" | "auth.logout";
-    label: string; description: string; status: "waiting" | "healthy" | "issue";
+    key: string; kind: "standard" | "custom"; enabled: boolean;
+    label: string; description: string; failureMessage: string;
+    status: "waiting" | "healthy" | "issue";
     consecutiveFailures: number; lastResultAt: string | null; lastSuccessAt: string | null;
     lastFailureAt: string | null; lastReason: string | null; incidentStartedAt: string | null;
     successes24h: number; rejections24h: number; failures24h: number; lastTestAt: string | null;
   }>;
 }
+
+export interface NoxCueCustomFeatureInput {
+  key: string;
+  label: string;
+  failureMessage: string;
+}
+
+export interface NoxCueCustomFeatureUpdate {
+  label: string;
+  failureMessage: string;
+  enabled: boolean;
+}
+
+export interface NoxCueCustomMetricsResponse {
+  scope: { type: "project" | "source"; id: string; name: string };
+  metrics: Array<{
+    key: string;
+    label: string;
+    enabled: boolean;
+    active: boolean;
+    lastEventAt: string | null;
+    outputs: Array<{ key: string; label: string; unit: "count" | "decimal" }>;
+  }>;
+}
+
+export interface NoxCueCustomMetricInput { key: string; label: string }
+export interface NoxCueCustomMetricUpdate { label: string; enabled: boolean }
 
 export interface NoxCueSourcesResponse {
   projects: Array<{ id: string; name: string; repo: string | null }>;

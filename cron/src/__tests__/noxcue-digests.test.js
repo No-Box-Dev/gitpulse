@@ -93,6 +93,7 @@ describe("NoxCue daily digest periods", () => {
           ],
         },
       },
+      {},
     );
     expect(queue.send).toHaveBeenCalledWith(expect.objectContaining({ type: "deliver_slack", outboxId: "delivery-1" }));
     expect(statements.find(({ sql }) => sql.includes("FROM cue_sources source"))?.sql).toContain("project_slack_routes");

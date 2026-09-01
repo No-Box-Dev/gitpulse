@@ -76,7 +76,7 @@ An optional `channelId` tests a candidate channel before saving it.
 After connections and organization routes are ready, feature-specific resources remain API-first:
 
 - NoxSpot sites: `GET`/`POST /api/spots/sites` and `PATCH /api/spots/sites/{siteId}`.
-- NoxCue sources: `GET/POST /api/cues/sources`, project metrics: `GET/PUT /api/cues/projects/{projectId}/metrics`, and keys: `POST /api/cues/sources/{sourceId}/keys`. A source destination overrides its linked project's `noxCue` route; otherwise the organization route is used. A newly created ingest key is returned only once; transfer it securely and never log it.
+- NoxCue sources: `GET/POST /api/cues/sources`, project metrics: `GET/PUT /api/cues/projects/{projectId}/metrics`, keys: `POST /api/cues/sources/{sourceId}/keys`, custom feature health under `/features`, and custom activity statistics under `/custom-metrics`. Register every `custom.*` name before ingest; linked staging and production sources share the project catalog, while an unlinked source stays isolated. Feature failures retain their actual technical error. Each custom activity event is idempotent and NoxCue derives total plus total per registered user. Unknown or paused names become bounded unregistered errors instead of creating definitions. A source destination overrides its linked project's `noxCue` route; otherwise the organization route is used. A newly created ingest key is returned only once; transfer it securely and never log it.
 - NoxFeed resolves each GitHub repository through NoxConnect project routing before using the organization `noxfeed_posts` or `noxfeed_release_notes` route.
 - NoxTicket uses the `noxticket` route.
 

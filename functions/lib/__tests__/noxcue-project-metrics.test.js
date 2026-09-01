@@ -45,6 +45,16 @@ describe("NoxCue project metric settings", () => {
     expect([...await loadEnabledNoxCueMetricKeys(db, 2, "playnist")]).toEqual(NOXCUE_USER_METRIC_KEYS);
   });
 
+  it("includes both outputs for enabled registered custom activity metrics", async () => {
+    let call = 0;
+    const db = { prepare: () => statement("settings", { all: async () => ({
+      results: call++ === 0 ? [{ metric_key: "custom.journals.added" }] : [],
+    }) }) };
+    const enabled = await loadEnabledNoxCueMetricKeys(db, 2, "playnist", "source-1");
+    expect(enabled).toContain("custom.journals.added");
+    expect(enabled).toContain("custom.journals.added.per_user");
+  });
+
   it("writes an explicit row for every supported metric", async () => {
     const captured = [];
     const db = {

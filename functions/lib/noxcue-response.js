@@ -10,12 +10,12 @@ export async function getNoxCueTestResponse(env, orgLogin) {
   return validateResponse(await service.buildTestResponse(orgLogin));
 }
 
-export async function getNoxCueDigestResponse(env, sourceName, period, metrics, comparisons = {}) {
+export async function getNoxCueDigestResponse(env, sourceName, period, metrics, comparisons = {}, metricLabels = {}) {
   const service = env?.NOXCUE_RESPONSE;
   if (!service || typeof service.buildDigestResponse !== "function") {
     throw new Error("NoxCue response service binding is unavailable");
   }
-  const response = validateResponse(await service.buildDigestResponse(sourceName, period, metrics, comparisons));
+  const response = validateResponse(await service.buildDigestResponse(sourceName, period, metrics, comparisons, metricLabels));
   if (response.kind !== "daily_digest") throw new Error("Invalid NoxCue digest response");
   return response;
 }
@@ -41,4 +41,3 @@ function validateResponse(response) {
 function plainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
-

@@ -15,8 +15,8 @@ import {
 import { Spinner } from "@/components/Spinner";
 import { PeopleManagement } from "@/components/settings/PeopleManagement";
 import {
-  AdminSectionTabs,
-  type AdminSectionDef,
+  AdminServiceNav,
+  type AdminServiceDef,
 } from "@/components/admin/AdminSectionNav";
 import { AdminGate } from "@/components/admin/AdminGate";
 import { GithubConnectionCard } from "@/components/admin/GithubConnectionCard";
@@ -24,11 +24,7 @@ import {
   SlackConnectionCard,
   SlackConnectionSummaryCard,
 } from "@/components/admin/slack/SlackConnectionCard";
-import { NoxTicketSection } from "@/components/admin/tools/NoxTicketSection";
-import { NoxFeedSection } from "@/components/admin/tools/NoxFeedSection";
-import { NoxSpotSection } from "@/components/admin/tools/NoxSpotSection";
-import { NoxCueSection } from "@/components/admin/tools/NoxCueSection";
-import { ServiceActivationCard, ServiceToggle } from "@/components/admin/ServiceActivationCard";
+import { ServiceToggle } from "@/components/admin/ServiceActivationCard";
 import { NewReposSection } from "@/components/admin/NewReposSection";
 import { TrackedReposSection } from "@/components/admin/TrackedReposSection";
 import { ProjectRoutingSection } from "@/components/admin/ProjectRoutingSection";
@@ -36,13 +32,17 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const ReposTab = lazy(() => import("@/components/tabs/ReposTab").then((module) => ({ default: module.ReposTab })));
 const MaintenanceSection = lazy(() => import("@/components/admin/MaintenanceSection").then((module) => ({ default: module.MaintenanceSection })));
+const NoxTicketAdminPage = lazy(() => import("@/components/admin/pages/NoxTicketAdminPage").then((module) => ({ default: module.NoxTicketAdminPage })));
+const NoxFeedAdminPage = lazy(() => import("@/components/admin/pages/NoxFeedAdminPage").then((module) => ({ default: module.NoxFeedAdminPage })));
+const NoxSpotAdminPage = lazy(() => import("@/components/admin/pages/NoxSpotAdminPage").then((module) => ({ default: module.NoxSpotAdminPage })));
+const NoxCueAdminPage = lazy(() => import("@/components/admin/pages/NoxCueAdminPage").then((module) => ({ default: module.NoxCueAdminPage })));
 
-const ADMIN_SECTIONS: AdminSectionDef[] = [
-  { id: "admin-noxconnect", label: "NoxConnect" },
-  { id: "admin-noxticket", label: "NoxTicket" },
-  { id: "admin-noxfeed", label: "NoxFeed" },
-  { id: "admin-noxspot", label: "NoxSpot" },
-  { id: "admin-noxcue", label: "NoxCue" },
+const ADMIN_SERVICES: AdminServiceDef[] = [
+  { id: "noxconnect", label: "NoxConnect" },
+  { id: "noxticket", label: "NoxTicket" },
+  { id: "noxfeed", label: "NoxFeed" },
+  { id: "noxspot", label: "NoxSpot" },
+  { id: "noxcue", label: "NoxCue" },
 ];
 
 const NOXCONNECT_PANELS = [
@@ -70,19 +70,21 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
   const saveSettings = useSaveSettings();
   const [pendingDisable, setPendingDisable] = useState<OptionalNoxAppId | null>(null);
   const focus = searchParams.get("focus");
+  const requestedService = searchParams.get("service");
   const rawRequestedSection = searchParams.get("section");
   const requestedNoxConnectPanel = searchParams.get("panel");
   const isLegacyReposLink = rawRequestedSection === "admin-repos" || searchParams.get("tab") === "repos";
   const isLegacyAiLink = rawRequestedSection === "admin-noxconnect" && requestedNoxConnectPanel === "ai";
-  const requestedSection = isLegacyReposLink ? "admin-noxconnect" : isLegacyAiLink ? "admin-noxfeed" : rawRequestedSection;
-  const focusedSection = focus === "aiProvider"
-    ? "admin-noxfeed"
+  const legacyService = rawRequestedSection?.startsWith("admin-") ? rawRequestedSection.slice(6) : null;
+  const routedService = isLegacyReposLink ? "noxconnect" : isLegacyAiLink ? "noxfeed" : requestedService ?? legacyService;
+  const focusedService = focus === "aiProvider"
+    ? "noxfeed"
     : focus === "newRepos" && isNoxAppEnabled(settings, "noxticket")
-      ? "admin-noxticket"
-      : "admin-noxconnect";
-  const activeSection = ADMIN_SECTIONS.some((section) => section.id === requestedSection)
-    ? requestedSection!
-    : focus ? focusedSection : "admin-noxconnect";
+      ? "noxticket"
+      : "noxconnect";
+  const activeService = ADMIN_SERVICES.some((section) => section.id === routedService)
+    ? routedService!
+    : focus ? focusedService : "noxconnect";
   const activeNoxConnectPanel: NoxConnectPanelId = isLegacyReposLink
     ? "repositories"
     : isNoxConnectPanel(requestedNoxConnectPanel)
@@ -110,10 +112,11 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
     setPendingDisable(null);
   }
 
-  function selectSection(section: string) {
+  function selectService(service: string) {
     const params = new URLSearchParams(searchParams);
     params.set("tab", "admin");
-    params.set("section", section);
+    params.set("service", service);
+    params.delete("section");
     params.delete("focus");
     params.delete("panel");
     setSearchParams(params, { replace: true });
@@ -122,7 +125,8 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
   function selectNoxConnectPanel(panel: NoxConnectPanelId) {
     const params = new URLSearchParams(searchParams);
     params.set("tab", "admin");
-    params.set("section", "admin-noxconnect");
+    params.set("service", "noxconnect");
+    params.delete("section");
     if (panel === "overview") params.delete("panel");
     else params.set("panel", panel);
     params.delete("focus");
@@ -158,23 +162,12 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6" data-tab="admin">
-      <div>
-        <h1 className="text-xl font-semibold text-stone-900">Admin</h1>
-        <p className="mt-1 text-sm text-stone-500">
-          {ADMIN_INTRO}
-        </p>
-      </div>
+      <AdminServiceNav sections={ADMIN_SERVICES} activeId={activeService} onChange={selectService} />
 
-      <AdminSectionTabs sections={ADMIN_SECTIONS} activeId={activeSection} onChange={selectSection} />
-
-      <div
-        id={`${activeSection}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${activeSection}-tab`}
-        className="min-w-0"
-      >
+      <div className="min-w-0">
           {/* NoxConnect — visible to everyone; controls gated per card */}
-          {activeSection === "admin-noxconnect" ? <section className="space-y-6">
+          {activeService === "noxconnect" ? <section className="space-y-6">
+            <div><h1 className="text-xl font-semibold text-stone-900">NoxConnect</h1><p className="mt-1 text-sm text-stone-500">{ADMIN_INTRO}</p></div>
             <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
               <NoxConnectNavigation activeId={activeNoxConnectPanel} onChange={selectNoxConnectPanel} />
 
@@ -228,7 +221,7 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
                               <div className="min-w-0">
                                 <button
                                   type="button"
-                                  onClick={() => selectSection(`admin-${app.id}`)}
+                                  onClick={() => selectService(app.id)}
                                   className="text-left text-sm font-medium text-stone-800 hover:text-accent hover:underline"
                                 >
                                   {app.name}
@@ -318,79 +311,12 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
             </div>
           </section> : null}
 
-          {activeSection === "admin-noxticket" ? <section className="space-y-6">
-            <ServiceActivationCard
-              app={getNoxApp("noxticket")}
-              enabled={noxTicketEnabled}
-              isAdmin={isAdmin}
-              isSaving={!settingsReady || saveSettings.isPending}
-              hasError={saveSettings.isError}
-              offText={SERVICE_OFF_TEXT.noxticket}
-              onToggle={toggleApp}
-            />
-            {settingsReady && noxTicketEnabled ? <AdminGate
-              title="NoxTicket settings"
-              description="Set the feature repo, board stages, repo rules, and Slack route."
-            >
-              {status ? <NoxTicketSection noxConnect={status} /> : connectionsLoading}
-            </AdminGate> : null}
-          </section> : null}
-
-          {activeSection === "admin-noxfeed" ? <section className="space-y-6">
-            <ServiceActivationCard
-              app={getNoxApp("noxfeed")}
-              enabled={noxFeedEnabled}
-              isAdmin={isAdmin}
-              isSaving={!settingsReady || saveSettings.isPending}
-              hasError={saveSettings.isError}
-              offText={SERVICE_OFF_TEXT.noxfeed}
-              onToggle={toggleApp}
-            />
-            {settingsReady && noxFeedEnabled ? <AdminGate
-              title="NoxFeed settings"
-              description="Set Slack routes, narration, models, and feed backfills."
-            >
-              {status ? <NoxFeedSection noxConnect={status} /> : connectionsLoading}
-            </AdminGate> : null}
-          </section> : null}
-
-          {activeSection === "admin-noxspot" ? <section className="space-y-6">
-            <ServiceActivationCard
-              app={getNoxApp("noxspot")}
-              enabled={noxSpotEnabled}
-              isAdmin={isAdmin}
-              isSaving={!settingsReady || saveSettings.isPending}
-              hasError={saveSettings.isError}
-              offText={SERVICE_OFF_TEXT.noxspot}
-              onToggle={toggleApp}
-            />
-            {settingsReady && noxSpotEnabled ? <AdminGate
-              title="NoxSpot settings"
-              description="Set up sites, widgets, reports, and Slack routes."
-            >
-              {status
-                ? <NoxSpotSection noxConnect={status} />
-                : connectionsLoading}
-            </AdminGate> : null}
-          </section> : null}
-
-          {activeSection === "admin-noxcue" ? <section className="space-y-6">
-            <ServiceActivationCard
-              app={getNoxApp("noxcue")}
-              enabled={noxCueEnabled}
-              isAdmin={isAdmin}
-              isSaving={!settingsReady || saveSettings.isPending}
-              hasError={saveSettings.isError}
-              offText={SERVICE_OFF_TEXT.noxcue}
-              onToggle={toggleApp}
-            />
-            {settingsReady && noxCueEnabled ? <AdminGate
-              title="NoxCue settings"
-              description="Choose project metrics, schedules, publishable and secret keys, and Slack channels."
-            >
-              {status ? <NoxCueSection noxConnect={status} /> : connectionsLoading}
-            </AdminGate> : null}
-          </section> : null}
+          <Suspense fallback={connectionsLoading}>
+            {activeService === "noxticket" ? <NoxTicketAdminPage enabled={noxTicketEnabled} isAdmin={isAdmin} settingsReady={settingsReady} isSaving={saveSettings.isPending} hasError={saveSettings.isError} status={status} loading={connectionsLoading} onToggle={(enabled) => toggleApp("noxticket", enabled)} /> : null}
+            {activeService === "noxfeed" ? <NoxFeedAdminPage enabled={noxFeedEnabled} isAdmin={isAdmin} settingsReady={settingsReady} isSaving={saveSettings.isPending} hasError={saveSettings.isError} status={status} loading={connectionsLoading} onToggle={(enabled) => toggleApp("noxfeed", enabled)} /> : null}
+            {activeService === "noxspot" ? <NoxSpotAdminPage enabled={noxSpotEnabled} isAdmin={isAdmin} settingsReady={settingsReady} isSaving={saveSettings.isPending} hasError={saveSettings.isError} status={status} loading={connectionsLoading} onToggle={(enabled) => toggleApp("noxspot", enabled)} /> : null}
+            {activeService === "noxcue" ? <NoxCueAdminPage enabled={noxCueEnabled} isAdmin={isAdmin} settingsReady={settingsReady} isSaving={saveSettings.isPending} hasError={saveSettings.isError} status={status} loading={connectionsLoading} onToggle={(enabled) => toggleApp("noxcue", enabled)} /> : null}
+          </Suspense>
 
       </div>
       <ConfirmDialog

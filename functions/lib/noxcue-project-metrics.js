@@ -93,16 +93,32 @@ export async function saveNoxCueProjectMetrics(db, orgId, projectId, enabledMetr
   ).bind(orgId, projectId, metricKey, enabled.has(metricKey) ? 1 : 0, updatedBy)));
 }
 
-export async function loadEnabledNoxCueMetricKeys(db, orgId, projectId) {
-  if (!projectId) return new Set(NOXCUE_USER_METRIC_KEYS);
+/**
+ * @param {D1Database} db
+ * @param {number} orgId
+ * @param {string|null} projectId
+ * @param {string|null} [sourceId]
+ */
+export async function loadEnabledNoxCueMetricKeys(db, orgId, projectId, sourceId = null) {
+  const custom = await db.prepare(
+    `SELECT metric_key FROM cue_custom_metrics
+      WHERE org_id = ? AND enabled = 1
+        AND ((? IS NOT NULL AND project_id = ?)
+          OR (? IS NULL AND source_id = ?))`,
+  ).bind(orgId, projectId, projectId, projectId, sourceId).all();
+  const customKeys = (custom.results ?? []).flatMap((row) => {
+    const key = String(row.metric_key);
+    return [key, `${key}.per_user`];
+  });
+  if (!projectId) return new Set([...NOXCUE_USER_METRIC_KEYS, ...customKeys]);
   const result = await db.prepare(
     `SELECT metric_key, enabled FROM cue_project_metric_settings
       WHERE org_id = ? AND project_id = ?`,
   ).bind(orgId, projectId).all();
-  if ((result.results ?? []).length === 0) return new Set(NOXCUE_USER_METRIC_KEYS);
-  return new Set((result.results ?? [])
+  if ((result.results ?? []).length === 0) return new Set([...NOXCUE_USER_METRIC_KEYS, ...customKeys]);
+  return new Set([...(result.results ?? [])
     .filter((row) => Number(row.enabled) === 1 && isNoxCueUserMetricKey(row.metric_key))
-    .map((row) => String(row.metric_key)));
+    .map((row) => String(row.metric_key)), ...customKeys]);
 }
 
 export function selectNoxCueDigestMetrics(digest, enabledKeys) {
@@ -110,5 +126,6 @@ export function selectNoxCueDigestMetrics(digest, enabledKeys) {
     ...digest,
     metrics: Object.fromEntries(Object.entries(digest.metrics).filter(([key]) => enabledKeys.has(key))),
     comparisons: Object.fromEntries(Object.entries(digest.comparisons).filter(([key]) => enabledKeys.has(key))),
+    metricLabels: Object.fromEntries(Object.entries(digest.metricLabels ?? {}).filter(([key]) => enabledKeys.has(key))),
   };
 }

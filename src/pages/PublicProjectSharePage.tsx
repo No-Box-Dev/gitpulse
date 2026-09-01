@@ -83,6 +83,7 @@ export function PublicProjectSharePage() {
       }
       if (!response.ok) throw new Error(body.error || "This project portal is unavailable.");
       setData(body);
+      setSubmitterFilter("");
       setProjectName(body.project.name);
       setPasswordRequired(false);
     } catch (cause) {

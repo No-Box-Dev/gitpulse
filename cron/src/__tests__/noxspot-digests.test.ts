@@ -87,5 +87,13 @@ describe("NoxSpot daily Slack summaries", () => {
     expect(filedQuery?.statement.args).toEqual([
       "site-1", "2026-08-31T00:00:00.000Z", "2026-09-01T00:00:00.000Z",
     ]);
+    const issueQueries = statements.filter(({ sql }) => sql.includes("SELECT issue.number"));
+    expect(issueQueries).toHaveLength(2);
+    expect(issueQueries[0].statement.args).toEqual([
+      7, "web", "site-1", "2026-08-31T00:00:00.000Z", "2026-09-01T00:00:00.000Z",
+    ]);
+    expect(issueQueries[1].statement.args).toEqual([
+      "site-1", 7, "web", "2026-08-31T00:00:00.000Z", "2026-09-01T00:00:00.000Z", "site-1",
+    ]);
   });
 });

@@ -233,7 +233,7 @@ environment overrides, ordered report-form blocks, and per-site Slack routing.
 The cron Worker posts one idempotent daily NoxSpot summary per site to that
 same Slack route. Admins can enable or disable it inside the site's Slack
 delivery panel. At 00:00 UTC it lists issues filed and solved during the
-previous 24-hour UTC window, links each item, attributes it to the
+previous 24-hour UTC window without truncating either list, links each item, attributes it to the
 captured submitter, and explains the closing pull request when one is linked.
 NoxSpot owns the concise, plain-language Slack presentation through the private
 `NOXSPOT_RESPONSE` service binding; NoxConnect owns data matching, routing,

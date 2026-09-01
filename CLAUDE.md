@@ -225,8 +225,11 @@ environment overrides, ordered report-form blocks, and per-site Slack routing.
 Each project can also expose one external stakeholder portal from its NoxSpot
 site card. The portal uses an opaque URL plus a PBKDF2-hashed password, revokes
 sessions on password rotation, and shows only that project's NoxSpot-labelled
-issues in simple Open and Solved groups. Each issue expands to its captured
-image, title, description, and submitter. A solved issue shows related NoxFeed
+issues in simple Open and Solved groups. Visitors can filter both groups by a
+submitter list derived from the captured issues. Submitter attribution always
+comes from NoxSpot's captured reporter data, never from the bot account that
+created the GitHub issue. Each issue expands to its captured image, title,
+description, and submitter. A solved issue shows related NoxFeed
 post/release data as the card's primary content, with the original issue and
 capture details beneath it. Issues sharing a closing PR are grouped under one
 resolution so its NoxFeed post and release notes are not repeated. The

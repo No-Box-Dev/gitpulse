@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { IssueCard, SolvedIssueGroup } from "../PublicProjectSharePage";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { IssueCard, PublicProjectSharePage, SolvedIssueGroup } from "../PublicProjectSharePage";
 
 const baseIssue = {
   number: 12,
@@ -26,6 +27,36 @@ const merge = {
 };
 
 describe("external project portal issue history", () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("filters open and solved issues by the captured submitters", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      project: { name: "Playnist", repo: "playnist" },
+      counts: { open: 2, closed: 1 },
+      issues: [
+        { ...baseIssue, number: 11, title: "Ada open issue", state: "open", closedAt: null, submittedBy: "Ada", resolution: null },
+        { ...baseIssue, number: 12, title: "Ada mention issue", state: "open", closedAt: null, submittedBy: "@ada", resolution: null },
+        { ...baseIssue, number: 13, title: "Lin solved issue", submittedBy: "Lin", resolution: { merge, post: null, releaseNotes: null } },
+      ],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    render(
+      <MemoryRouter initialEntries={["/share/portal-token"]}>
+        <Routes><Route path="/share/:slug" element={<PublicProjectSharePage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    const filter = await screen.findByRole("combobox", { name: "Filter by submitter" });
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["All submitters", "Ada", "Lin"]);
+    fireEvent.change(filter, { target: { value: "ada" } });
+
+    expect(screen.getByText("Ada open issue")).toBeInTheDocument();
+    expect(screen.getByText("Ada mention issue")).toBeInTheDocument();
+    expect(screen.queryByText("Lin solved issue")).not.toBeInTheDocument();
+    expect(screen.getByText("No solved issues from this submitter.")).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("Playnist · NoxSpot portal"));
+  });
+
   it("shows captured details and NoxFeed data on a solved issue", () => {
     const { getByTestId } = render(<IssueCard issue={{
       ...baseIssue,

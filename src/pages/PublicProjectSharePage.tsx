@@ -45,6 +45,20 @@ function labelName(label: Issue["labels"][number]): string {
   return typeof label === "string" ? label : label.name ?? "";
 }
 
+function submitterKey(value: string | null): string {
+  return value?.trim().replace(/^@/, "").toLowerCase() ?? "";
+}
+
+function availableSubmitters(issues: Issue[]): Array<{ value: string; label: string }> {
+  const available = new Map<string, string>();
+  for (const issue of issues) {
+    const key = submitterKey(issue.submittedBy);
+    const label = issue.submittedBy?.trim();
+    if (key && label && !available.has(key)) available.set(key, label);
+  }
+  return [...available].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
 export function PublicProjectSharePage() {
   const { slug = "" } = useParams();
   const [data, setData] = useState<PortalData | null>(null);
@@ -53,6 +67,7 @@ export function PublicProjectSharePage() {
   const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [submitterFilter, setSubmitterFilter] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,8 +154,13 @@ export function PublicProjectSharePage() {
     return <main className="flex min-h-screen items-center justify-center bg-[#f6f3e8] px-5"><p className="max-w-md text-center text-stone-600">{error || "This project portal is unavailable."}</p></main>;
   }
 
-  const openIssues = data.issues.filter((issue) => issue.state === "open");
-  const closedIssues = data.issues.filter((issue) => issue.state === "closed");
+  const submitters = availableSubmitters(data.issues);
+  const visibleIssues = submitterFilter
+    ? data.issues.filter((issue) => submitterKey(issue.submittedBy) === submitterFilter)
+    : data.issues;
+  const openIssues = visibleIssues.filter((issue) => issue.state === "open");
+  const closedIssues = visibleIssues.filter((issue) => issue.state === "closed");
+  const filtered = Boolean(submitterFilter);
 
   return (
     <main className="min-h-screen bg-[#f6f3e8] text-[#191a18]">
@@ -169,9 +189,25 @@ export function PublicProjectSharePage() {
       </header>
 
       <div className="mx-auto max-w-4xl px-5 py-10 sm:px-8 lg:py-14">
-        <div className="mb-8"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c92e08]">NoxSpot</p><h2 className="mt-1 font-display text-3xl">Issues</h2></div>
-        <IssueGroup title="Open" issues={openIssues} total={data.counts.open} empty="No open issues." />
-        <div className="mt-12"><SolvedIssueSection issues={closedIssues} total={data.counts.closed} /></div>
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c92e08]">NoxSpot</p><h2 className="mt-1 font-display text-3xl">Issues</h2></div>
+          {submitters.length > 0 ? (
+            <label className="min-w-52 text-xs font-medium text-stone-600">
+              Submitted by
+              <select
+                aria-label="Filter by submitter"
+                value={submitterFilter}
+                onChange={(event) => setSubmitterFilter(event.target.value)}
+                className="mt-1 block w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 outline-none transition focus:border-[#c92e08] focus:ring-2 focus:ring-[#c92e08]/15"
+              >
+                <option value="">All submitters</option>
+                {submitters.map((submitter) => <option key={submitter.value} value={submitter.value}>{submitter.label}</option>)}
+              </select>
+            </label>
+          ) : null}
+        </div>
+        <IssueGroup title="Open" issues={openIssues} total={filtered ? openIssues.length : data.counts.open} empty={filtered ? "No open issues from this submitter." : "No open issues."} />
+        <div className="mt-12"><SolvedIssueSection issues={closedIssues} total={filtered ? closedIssues.length : data.counts.closed} empty={filtered ? "No solved issues from this submitter." : "No solved issues yet."} /></div>
       </div>
       <footer className="border-t border-black/10 px-5 py-7 text-center text-xs text-stone-500">Protected read-only project view powered by NoxSpot + NoxFeed</footer>
     </main>
@@ -206,7 +242,7 @@ function groupSolvedIssues(issues: Issue[]): Issue[][] {
   return [...groups.values()];
 }
 
-function SolvedIssueSection({ issues, total }: { issues: Issue[]; total: number }) {
+function SolvedIssueSection({ issues, total, empty }: { issues: Issue[]; total: number; empty: string }) {
   const groups = groupSolvedIssues(issues);
   return (
     <section>
@@ -216,7 +252,7 @@ function SolvedIssueSection({ issues, total }: { issues: Issue[]; total: number 
         <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs text-stone-600">{total}</span>
       </div>
       <div className="space-y-3">
-        {groups.length === 0 ? <p className="rounded-2xl border border-dashed border-stone-300 p-5 text-sm text-stone-500">No solved issues yet.</p> : groups.map((group) => (
+        {groups.length === 0 ? <p className="rounded-2xl border border-dashed border-stone-300 p-5 text-sm text-stone-500">{empty}</p> : groups.map((group) => (
           <SolvedIssueGroup key={group[0].resolution?.merge?.number ? `pr:${group[0].resolution.merge.number}` : `issue:${group[0].number}`} issues={group} />
         ))}
       </div>

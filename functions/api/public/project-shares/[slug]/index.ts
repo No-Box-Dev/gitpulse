@@ -222,7 +222,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         ORDER BY created_at DESC LIMIT 250`,
     ).bind(share.owner_id, share.project_id, share.repo),
     context.env.DB.prepare(
-      `SELECT actor_id, payload_json
+      `SELECT payload_json
          FROM events
         WHERE owner_id = ? AND project_id = ? AND repo = ? AND type = 'spot:issue_created'
         ORDER BY created_at DESC LIMIT 500`,
@@ -269,18 +269,19 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     if (capture.structured) structuredCaptureIssues.add(capture.issueNumber);
     captureDetailsByIssue.set(capture.issueNumber, {
       ...capture.details,
-      submittedBy: capture.details.submittedBy ?? stringOrNull(event.actor_id),
       screenshotUrl: screenshotProxyUrl(capture.details.screenshotUrl, context.params.slug, capture.siteId),
     });
   }
-  const missingDetails = issueNumbers.filter((number) => !structuredCaptureIssues.has(number));
+  const missingDetails = issueNumbers.filter((number) =>
+    !structuredCaptureIssues.has(number) || !captureDetailsByIssue.get(number)?.submittedBy,
+  );
   const historicalDetails = await historicalCaptureDetails(context, share, missingDetails);
   for (const [number, details] of historicalDetails) {
     const stored = captureDetailsByIssue.get(number);
     captureDetailsByIssue.set(number, {
       description: details.description ?? stored?.description ?? null,
       submittedBy: details.submittedBy ?? stored?.submittedBy ?? null,
-      screenshotUrl: screenshotProxyUrl(details.screenshotUrl, context.params.slug),
+      screenshotUrl: screenshotProxyUrl(details.screenshotUrl, context.params.slug) ?? stored?.screenshotUrl ?? null,
     });
   }
   const mergesByNumber = new Map<number, {

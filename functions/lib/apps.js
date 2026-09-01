@@ -53,7 +53,7 @@ export function appForApiPath(pathname) {
 
 export function appForDeliverySource(source) {
   if (source === "noxticket" || source === LEGACY_NOXTICKET_SOURCE) return "noxticket";
-  if (source === "posts" || source === "release_notes") return "noxfeed";
+  if (source === "posts" || source === "release_notes" || source === "noxfeed_daily_summary") return "noxfeed";
   if (source === "noxspot") return "noxspot";
   if (source === "noxcue") return "noxcue";
   return null;

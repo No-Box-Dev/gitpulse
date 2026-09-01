@@ -26,7 +26,7 @@ const SLACK_ROUTES = [
 const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxcue"];
 const APP_DELIVERY_SOURCES = {
   noxticket: ["noxticket", LEGACY_NOXTICKET_SOURCE],
-  noxfeed: ["posts", "release_notes"],
+  noxfeed: ["posts", "release_notes", "noxfeed_daily_summary"],
   noxspot: ["noxspot"],
   noxcue: ["noxcue"],
 };
@@ -96,6 +96,24 @@ export async function onRequestPut(context) {
       return errorResponse("Release-notes prompt must be at most 20,000 characters.", 422);
     }
     if (!body.releaseNotesPrompt.trim()) delete body.releaseNotesPrompt;
+  }
+
+  if (key === "settings" && body && typeof body === "object" && body.noxfeedDailySummary !== undefined) {
+    const summary = body.noxfeedDailySummary;
+    if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+      return errorResponse("Daily summary settings must be an object.", 422);
+    }
+    if (typeof summary.enabled !== "boolean") {
+      return errorResponse("Choose whether the daily summary is on or off.", 422);
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(summary.timeLocal ?? "")) {
+      return errorResponse("Choose a valid daily summary time.", 422);
+    }
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: summary.timezone }).format();
+    } catch {
+      return errorResponse("Choose a valid daily summary timezone.", 422);
+    }
   }
 
   const slackWasSupplied = key === "settings"
@@ -217,7 +235,7 @@ export async function onRequestPut(context) {
     const fallbackConnectionId = clean(slack.fallbackConnectionId) || null;
     const routes = [
       { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.postsConnectionId) || fallbackConnectionId },
-      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || fallbackConnectionId },
+      { sources: ["release_notes", "noxfeed_daily_summary"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || clean(slack.postsConnectionId) || fallbackConnectionId },
       { sources: ["noxcue"], channelId: clean(slack.noxCueChannelId) || fallbackChannelId, connectionId: clean(slack.noxCueConnectionId) || fallbackConnectionId },
       { sources: ["noxticket", LEGACY_NOXTICKET_SOURCE], channelId: clean(slack.noxTicketChannelId) || fallbackChannelId, connectionId: clean(slack.noxTicketConnectionId) || fallbackConnectionId },
     ];

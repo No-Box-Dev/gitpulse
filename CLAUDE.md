@@ -222,6 +222,13 @@ installation records. NoxSpot has no product tab: its complete management
 surface lives in Admin -> NoxSpot. Admins manage sites, installation snippets,
 appearance, reporter mode, automatic errors, enabled origin environments,
 environment overrides, ordered report-form blocks, and per-site Slack routing.
+The cron Worker posts one idempotent daily NoxSpot summary per site to that
+same Slack route after 09:00 UTC. It lists issues filed during the completed
+UTC day and issues solved that day, links each item, attributes it to the
+captured submitter, and explains the closing pull request when one is linked.
+NoxSpot owns the concise, plain-language Slack presentation through the private
+`NOXSPOT_RESPONSE` service binding; NoxConnect owns data matching, routing,
+outbox persistence, queueing, and retries.
 Each project can also expose one external stakeholder portal from its NoxSpot
 site card. The portal uses an opaque URL plus a PBKDF2-hashed password, revokes
 sessions on password rotation, and shows only that project's NoxSpot-labelled

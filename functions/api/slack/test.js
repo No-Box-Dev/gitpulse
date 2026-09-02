@@ -15,7 +15,7 @@ import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
 import { buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
 // POST /api/slack/test
-// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxcue" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes", sourceId?: string }
+// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxcue" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes" | "noxfeed_daily_summary", sourceId?: string }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -35,7 +35,7 @@ export async function onRequestPost(context) {
   const legacyKinds = { narrative: "noxfeed_posts", release_notes: "noxfeed_release_notes" };
   const allowedKinds = new Set([
     "connection", "fallback", "noxcue", "noxspot", "noxticket", "noxfeed",
-    "noxfeed_posts", "noxfeed_release_notes",
+    "noxfeed_posts", "noxfeed_release_notes", "noxfeed_daily_summary",
   ]);
   const kind = legacyKinds[body?.kind] ?? (allowedKinds.has(body?.kind) ? body.kind : null);
   if (!kind) return errorResponse("This Slack test type is not supported. Refresh NoxConnect and run the test again.", 400);
@@ -106,6 +106,14 @@ export async function onRequestPost(context) {
       }
     } else if (kind === "noxticket") {
       payload = buildNoxTicketTestResponse(orgLogin).message;
+    } else if (kind === "noxfeed_daily_summary") {
+      payload = {
+        text: `NoxFeed daily summary delivery test for ${orgLogin}`,
+        blocks: [
+          { type: "header", text: { type: "plain_text", text: "What happened today — test", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Daily summaries for *${orgLogin}* will be delivered to this channel at the saved local time.` } },
+        ],
+      };
     } else if (kind === "noxfeed" || kind === "noxfeed_posts" || kind === "noxfeed_release_notes") {
       const stream = kind === "noxfeed_posts" ? "posts" : kind === "noxfeed_release_notes" ? "release_notes" : "all";
       payload = (await getNoxFeedTestResponse(context.env, orgLogin, stream)).message;

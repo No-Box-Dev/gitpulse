@@ -113,6 +113,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         noxFeed: slackChannels.noxFeedChannelId || null,
         noxFeedPosts: slackChannels.postsChannelId || null,
         noxFeedReleaseNotes: slackChannels.releaseNotesChannelId || null,
+        noxFeedDailySummary: slackChannels.dailySummaryChannelId || null,
       },
       health: !slackMetadata ? "disconnected" : !slackInstall ? "degraded" : slackMetadata.health_status ?? "unknown",
       lastCheckedAt: slackMetadata?.last_checked_at ?? null,

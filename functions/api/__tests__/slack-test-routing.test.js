@@ -145,4 +145,15 @@ describe("Slack route tests", () => {
       expect.objectContaining({ text }),
     );
   });
+
+  it("sends a dedicated daily-summary test payload", async () => {
+    vi.mocked(postSlackMessage).mockResolvedValueOnce({ ok: true, channel: "C-SUMMARY", ts: "1.3" });
+    const response = await onRequestPost(context({ kind: "noxfeed_daily_summary", channelId: "C-SUMMARY" }));
+    expect(response.status).toBe(200);
+    expect(postSlackMessage).toHaveBeenCalledWith(
+      "xoxb-test",
+      "C-SUMMARY",
+      expect.objectContaining({ text: "NoxFeed daily summary delivery test for acme" }),
+    );
+  });
 });

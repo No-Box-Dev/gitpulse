@@ -182,16 +182,12 @@ export async function runNoxFeedDailySummaries(env: DailySummaryEnv, nowMs = Dat
     `SELECT org.id, org.github_login,
             COALESCE(NULLIF(json_extract(config.data, '$.noxfeedDailySummary.timezone'), ''), 'UTC') AS timezone,
             COALESCE(NULLIF(json_extract(config.data, '$.noxfeedDailySummary.timeLocal'), ''), '17:00') AS time_local,
+            NULLIF(json_extract(config.data, '$.slack.dailySummaryChannelId'), '') AS channel_id,
             COALESCE(
-              NULLIF(json_extract(config.data, '$.slack.releaseNotesChannelId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.noxFeedChannelId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.postsChannelId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '')
-            ) AS channel_id,
-            COALESCE(
-              NULLIF(json_extract(config.data, '$.slack.releaseNotesConnectionId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.postsConnectionId'), ''),
-              NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '')
+              NULLIF(json_extract(config.data, '$.slack.dailySummaryConnectionId'), ''),
+              (SELECT connection.id FROM slack_connections connection
+                WHERE connection.org_id = org.id
+                ORDER BY connection.is_default DESC, connection.installed_at LIMIT 1)
             ) AS connection_id
        FROM orgs org
        JOIN config ON config.org_id = org.id AND config.key = 'settings'

@@ -17,6 +17,7 @@ const ROUTES: Record<string, string> = {
   noxticket: "noxTicketChannelId",
   noxfeed_posts: "postsChannelId",
   noxfeed_release_notes: "releaseNotesChannelId",
+  noxfeed_daily_summary: "dailySummaryChannelId",
 };
 
 const RoutingPatch = z.object({
@@ -35,6 +36,7 @@ function routingResponse(settings: Record<string, unknown>) {
       noxticket: ["noxticket", "fallback"],
       noxfeed_posts: ["noxfeed_posts", "fallback"],
       noxfeed_release_notes: ["noxfeed_release_notes", "fallback"],
+      noxfeed_daily_summary: ["noxfeed_daily_summary"],
       noxspot: ["site channel", "fallback"],
     },
   };

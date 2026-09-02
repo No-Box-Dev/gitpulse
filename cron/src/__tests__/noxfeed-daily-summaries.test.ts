@@ -93,6 +93,9 @@ describe("NoxFeed daily Slack summaries", () => {
     }));
     expect(queueOutboxDelivery).toHaveBeenCalledWith(expect.anything(), "delivery-1", "acme");
     expect(statements.find(({ sql }) => sql.includes("FROM events"))?.args).toContain("api");
+    const orgQuery = statements.find(({ sql }) => sql.includes("FROM orgs org"))?.sql ?? "";
+    expect(orgQuery).toContain("dailySummaryChannelId");
+    expect(orgQuery).not.toContain("releaseNotesChannelId");
   });
 
   it("skips days without tracked activity without calling AI", async () => {

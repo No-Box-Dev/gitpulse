@@ -17,7 +17,8 @@ export type SlackKind =
   | "noxspot"
   | "noxticket"
   | "noxfeed_posts"
-  | "noxfeed_release_notes";
+  | "noxfeed_release_notes"
+  | "noxfeed_daily_summary";
 
 // OrgSettings.slack keys, one per routable service stream.
 export type SlackRouteKey =
@@ -25,7 +26,8 @@ export type SlackRouteKey =
   | "noxCueChannelId"
   | "noxTicketChannelId"
   | "postsChannelId"
-  | "releaseNotesChannelId";
+  | "releaseNotesChannelId"
+  | "dailySummaryChannelId";
 
 const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack"]>> = {
   fallbackChannelId: "fallbackConnectionId",
@@ -33,6 +35,7 @@ const CONNECTION_KEY: Record<SlackRouteKey, keyof NonNullable<OrgSettings["slack
   noxTicketChannelId: "noxTicketConnectionId",
   postsChannelId: "postsConnectionId",
   releaseNotesChannelId: "releaseNotesConnectionId",
+  dailySummaryChannelId: "dailySummaryConnectionId",
 };
 
 // NoxFeed now exposes one channel. Adopt any older combined or split route so
@@ -105,10 +108,12 @@ export function SlackRouteField({
     setSaveStatus(null);
     try {
       const slack = { ...(settings.slack ?? {}) };
-      // Keep the legacy split fields synchronized while older clients remain
-      // supported. The UI exposes only one NoxFeed route and Slack sends only
-      // the release-note message.
-      delete slack.noxFeedChannelId;
+      // Retire the legacy combined NoxFeed route only when one of its two
+      // original split routes is edited. The daily summary is independent and
+      // must not disturb an older release-notes selection.
+      if (routeKey === "postsChannelId" || routeKey === "releaseNotesChannelId") {
+        delete slack.noxFeedChannelId;
+      }
       const trimmed = value.trim();
       if (trimmed) {
         slack[routeKey] = trimmed;
@@ -135,7 +140,9 @@ export function SlackRouteField({
       const channelName = options.find((option) => option.value === trimmed)?.label ?? "the selected channel";
       setSaveStatus(trimmed
         ? `Saved. New ${label.toLowerCase()} messages will go to ${channelName} in ${workspaceName}.`
-        : `Saved. ${label} will use the organization fallback route.`);
+        : routeKey === "dailySummaryChannelId"
+          ? "Saved. Automatic daily summaries are paused until you select a channel."
+          : `Saved. ${label} will use the organization fallback route.`);
     } catch (err) {
       setError(actionableSlackFeedback(err, "Review the workspace and channel, then save again."));
     } finally {

@@ -14,6 +14,7 @@ const SLACK_CHANNEL_KEYS = [
   // Accepted during the compatibility window for older clients.
   "postsChannelId",
   "releaseNotesChannelId",
+  "dailySummaryChannelId",
 ];
 const SLACK_ROUTES = [
   ["fallbackChannelId", "fallbackConnectionId"],
@@ -21,6 +22,7 @@ const SLACK_ROUTES = [
   ["noxTicketChannelId", "noxTicketConnectionId"],
   ["postsChannelId", "postsConnectionId"],
   ["releaseNotesChannelId", "releaseNotesConnectionId"],
+  ["dailySummaryChannelId", "dailySummaryConnectionId"],
   ["noxFeedChannelId", null],
 ];
 const OPTIONAL_APP_KEYS = ["noxticket", "noxfeed", "noxspot", "noxcue"];
@@ -235,7 +237,8 @@ export async function onRequestPut(context) {
     const fallbackConnectionId = clean(slack.fallbackConnectionId) || null;
     const routes = [
       { sources: ["posts"], channelId: clean(slack.postsChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.postsConnectionId) || fallbackConnectionId },
-      { sources: ["release_notes", "noxfeed_daily_summary"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || clean(slack.postsConnectionId) || fallbackConnectionId },
+      { sources: ["release_notes"], channelId: clean(slack.releaseNotesChannelId) || clean(slack.noxFeedChannelId) || fallbackChannelId, connectionId: clean(slack.releaseNotesConnectionId) || clean(slack.postsConnectionId) || fallbackConnectionId },
+      { sources: ["noxfeed_daily_summary"], channelId: clean(slack.dailySummaryChannelId), connectionId: clean(slack.dailySummaryConnectionId) || null },
       { sources: ["noxcue"], channelId: clean(slack.noxCueChannelId) || fallbackChannelId, connectionId: clean(slack.noxCueConnectionId) || fallbackConnectionId },
       { sources: ["noxticket", LEGACY_NOXTICKET_SOURCE], channelId: clean(slack.noxTicketChannelId) || fallbackChannelId, connectionId: clean(slack.noxTicketConnectionId) || fallbackConnectionId },
     ];

@@ -41,6 +41,7 @@ export interface IntegrationsStatus {
       noxFeed: string | null;
       noxFeedPosts: string | null;
       noxFeedReleaseNotes: string | null;
+      noxFeedDailySummary: string | null;
     };
     health: "disconnected" | "unknown" | "ok" | "degraded";
     lastCheckedAt: string | null;

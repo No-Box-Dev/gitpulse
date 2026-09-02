@@ -530,7 +530,7 @@ function CustomMetricRegistry({ source }: { source: NoxCueSource }) {
   };
   return <Panel>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Custom activity metrics</h3></div><p className="mt-1 text-xs leading-5 text-stone-500">Register each name before the app sends it. One event produces a cumulative total and a per-registered-user statistic; NoxCue does the aggregation.</p></div>
+      <div><div className="flex items-center gap-2"><Activity size={16} /><h3 className="text-sm font-semibold text-stone-900">Custom activity metrics</h3></div><p className="mt-1 text-xs leading-5 text-stone-500">Register each name before the app sends it. NoxCue turns individual events into a daily count and a daily per-registered-user statistic.</p></div>
       <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium"><Plus size={13} /> Register metric</button>
     </div>
     {adding ? <form onSubmit={submit} className="grid gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 sm:grid-cols-2">

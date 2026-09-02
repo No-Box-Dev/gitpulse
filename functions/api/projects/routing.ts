@@ -69,6 +69,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
         noxfeedPosts: routes?.get("noxfeed_posts") ?? empty(),
         noxfeedReleaseNotes: routes?.get("noxfeed_release_notes") ?? empty(),
         noxCue: routes?.get("noxcue") ?? empty(),
+        noxCueAlerts: routes?.get("noxcue_alerts") ?? empty(),
       },
     };
   });

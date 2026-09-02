@@ -17,6 +17,7 @@ vi.mock("@/hooks/useProjectRouting", () => ({
             noxfeedPosts: { connectionId: "connection-a", channelId: "C-A" },
             noxfeedReleaseNotes: { connectionId: "connection-a", channelId: "C-A" },
             noxCue: { connectionId: "", channelId: "" },
+            noxCueAlerts: { connectionId: "", channelId: "" },
           },
         },
         {
@@ -29,6 +30,7 @@ vi.mock("@/hooks/useProjectRouting", () => ({
             noxfeedPosts: { connectionId: "", channelId: "" },
             noxfeedReleaseNotes: { connectionId: "", channelId: "" },
             noxCue: { connectionId: "connection-b", channelId: "C-CUE" },
+            noxCueAlerts: { connectionId: "", channelId: "" },
           },
         },
         {
@@ -41,6 +43,7 @@ vi.mock("@/hooks/useProjectRouting", () => ({
             noxfeedPosts: { connectionId: "", channelId: "" },
             noxfeedReleaseNotes: { connectionId: "", channelId: "" },
             noxCue: { connectionId: "", channelId: "" },
+            noxCueAlerts: { connectionId: "", channelId: "" },
           },
         },
       ],
@@ -85,6 +88,7 @@ describe("NoxFeedProjectDelivery", () => {
           noxfeedPosts: { connectionId: "connection-project-b", channelId: "C-FEED" },
           noxfeedReleaseNotes: { connectionId: "connection-project-b", channelId: "C-FEED" },
           noxCue: { connectionId: "connection-b", channelId: "C-CUE" },
+          noxCueAlerts: { connectionId: "", channelId: "" },
         },
       },
     }));

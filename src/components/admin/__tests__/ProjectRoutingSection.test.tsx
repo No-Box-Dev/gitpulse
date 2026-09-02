@@ -16,6 +16,7 @@ vi.mock("@/hooks/useProjectRouting", () => ({
           noxfeedPosts: { connectionId: "conn-1", channelId: "C-POSTS" },
           noxfeedReleaseNotes: { connectionId: "conn-1", channelId: "C-RELEASES" },
           noxCue: { connectionId: "", channelId: "" },
+          noxCueAlerts: { connectionId: "", channelId: "" },
         },
       }],
       repositories: ["api", "web"],
@@ -47,6 +48,8 @@ describe("ProjectRoutingSection", () => {
 
   it("assigns several repositories and all product routes to one core project", async () => {
     render(<ProjectRoutingSection />);
+    expect(screen.getByText("NoxCue stats")).toBeInTheDocument();
+    expect(screen.getByText("NoxCue alerts")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /web/ })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: /api/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save project" }));
@@ -60,6 +63,7 @@ describe("ProjectRoutingSection", () => {
           noxfeedPosts: { connectionId: "conn-1", channelId: "C-POSTS" },
           noxfeedReleaseNotes: { connectionId: "conn-1", channelId: "C-RELEASES" },
           noxCue: { connectionId: "", channelId: "" },
+          noxCueAlerts: { connectionId: "", channelId: "" },
         },
       },
     }));

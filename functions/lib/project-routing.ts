@@ -2,6 +2,7 @@ export const PROJECT_ROUTE_KEYS = [
   "noxfeed_posts",
   "noxfeed_release_notes",
   "noxcue",
+  "noxcue_alerts",
 ] as const;
 
 export type ProjectRouteKey = typeof PROJECT_ROUTE_KEYS[number];

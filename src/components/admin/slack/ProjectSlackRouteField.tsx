@@ -14,7 +14,7 @@ export function ProjectSlackRouteField({
 }: {
   projectId: string;
   label: string;
-  kind: "noxfeed_posts" | "noxfeed_release_notes" | "noxcue";
+  kind: "noxfeed_posts" | "noxfeed_release_notes" | "noxcue" | "noxcue_alerts";
   value: ProjectDestination;
   onChange: (value: ProjectDestination) => void;
 }) {

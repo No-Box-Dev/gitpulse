@@ -5,7 +5,8 @@ import { useProjectRouting, useSaveProjectRouting } from "@/hooks/useProjectRout
 import type { ProjectRouting } from "@/lib/project-routing-api";
 
 const ROUTES = [
-  { field: "noxCue", label: "NoxCue digest", kind: "noxcue" },
+  { field: "noxCue", label: "NoxCue stats", kind: "noxcue" },
+  { field: "noxCueAlerts", label: "NoxCue alerts", kind: "noxcue_alerts" },
 ] as const;
 
 export function ProjectRoutingSection() {

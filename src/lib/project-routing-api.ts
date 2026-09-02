@@ -15,6 +15,7 @@ export interface ProjectRouting {
     noxfeedPosts: ProjectDestination;
     noxfeedReleaseNotes: ProjectDestination;
     noxCue: ProjectDestination;
+    noxCueAlerts: ProjectDestination;
   };
 }
 

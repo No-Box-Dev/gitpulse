@@ -30,6 +30,10 @@ function NoxFeedDailySummaryForm({ settings }: { settings: OrgSettings }) {
   const [timeLocal, setTimeLocal] = useState(persisted?.timeLocal ?? DEFAULT_TIME);
   const [timezone, setTimezone] = useState(persisted?.timezone ?? browserTimezone());
   const [saved, setSaved] = useState(false);
+  const channelConfigured = Boolean(
+    settings.slack?.dailySummaryChannelId?.trim()
+    && settings.slack?.dailySummaryConnectionId?.trim(),
+  );
 
   const timezoneOptions = useMemo(
     () => Array.from(new Set([timezone, ...timezones()])).map((value) => ({ value, label: value.replaceAll("_", " ") })),
@@ -55,7 +59,7 @@ function NoxFeedDailySummaryForm({ settings }: { settings: OrgSettings }) {
           {enabled ? "On" : "Off"}
         </span>
       </div>
-      <p className="text-xs text-stone-400">Post one short AI summary of today’s PRs, reviews, issues, releases, and pushes to the default channel above. Days without activity are skipped.</p>
+      <p className="text-xs text-stone-400">Post one short AI summary of today’s PRs, reviews, issues, releases, and pushes to the daily summary channel above. Days without activity are skipped.</p>
     </div>
     <div className="grid gap-3 sm:grid-cols-[auto_140px_minmax(220px,1fr)_auto] sm:items-end">
       <label className="flex min-h-9 items-center gap-2 text-xs font-medium text-stone-700">
@@ -88,13 +92,14 @@ function NoxFeedDailySummaryForm({ settings }: { settings: OrgSettings }) {
         />
       </label>
       <div className="flex min-h-9 items-center gap-2">
-        <button type="button" onClick={() => void submit()} disabled={!dirty || save.isPending} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-50">
+        <button type="button" onClick={() => void submit()} disabled={!dirty || save.isPending || (enabled && !channelConfigured)} className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-50">
           {save.isPending ? <Loader2 size={12} className="animate-spin" /> : null} Save
         </button>
         {saved && !dirty ? <span className="inline-flex items-center gap-1 text-xs text-green-600"><Check size={12} /> Saved</span> : null}
       </div>
     </div>
     {save.isError ? <p className="text-xs text-red-500">{save.error instanceof Error ? save.error.message : "Daily summary settings could not be saved."}</p> : null}
+    {enabled && !channelConfigured ? <p className="text-xs text-amber-600">Choose and save a daily summary channel above before turning on automatic posting.</p> : null}
     {enabled ? <p className="text-xs text-stone-400">The scheduler runs every 30 minutes, so delivery can occur up to 30 minutes after the selected time.</p> : null}
   </div>;
 }

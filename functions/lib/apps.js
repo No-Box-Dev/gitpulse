@@ -61,7 +61,7 @@ export function appForDeliverySource(source) {
 
 export function appForSlackKind(kind) {
   if (kind === "noxticket") return "noxticket";
-  if (kind === "noxfeed" || kind === "noxfeed_posts" || kind === "noxfeed_release_notes" || kind === "narrative" || kind === "release_notes") {
+  if (kind === "noxfeed" || kind === "noxfeed_posts" || kind === "noxfeed_release_notes" || kind === "noxfeed_daily_summary" || kind === "narrative" || kind === "release_notes") {
     return "noxfeed";
   }
   if (kind === "noxspot") return "noxspot";

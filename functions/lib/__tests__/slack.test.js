@@ -349,7 +349,8 @@ describe("resolveSlackChannels", () => {
     expect(await resolveSlackChannels(mkDb(null), "org-1")).toEqual({
       fallbackChannelId: "", noxCueChannelId: "", noxTicketChannelId: "", noxFeedChannelId: "",
       postsChannelId: "", releaseNotesChannelId: "", fallbackConnectionId: "", noxCueConnectionId: "",
-      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "", noxFeedProjectId: "",
+      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
+      dailySummaryChannelId: "", dailySummaryConnectionId: "", noxFeedProjectId: "",
     });
   });
   it("adopts a combined NoxFeed route for both streams", async () => {
@@ -359,7 +360,8 @@ describe("resolveSlackChannels", () => {
     expect(await resolveSlackChannels(mkDb(row), "org-1")).toEqual({
       fallbackChannelId: "C0", noxCueChannelId: "CA", noxTicketChannelId: "CU", noxFeedChannelId: "CF",
       postsChannelId: "CF", releaseNotesChannelId: "CF", fallbackConnectionId: "", noxCueConnectionId: "",
-      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "", noxFeedProjectId: "",
+      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
+      dailySummaryChannelId: "", dailySummaryConnectionId: "", noxFeedProjectId: "",
     });
   });
   it("keeps dedicated NoxFeed routes distinct", async () => {
@@ -385,7 +387,8 @@ describe("resolveSlackChannels", () => {
     expect(await resolveSlackChannels(mkDb({ data: "not json" }), "org-1")).toEqual({
       fallbackChannelId: "", noxCueChannelId: "", noxTicketChannelId: "", noxFeedChannelId: "",
       postsChannelId: "", releaseNotesChannelId: "", fallbackConnectionId: "", noxCueConnectionId: "",
-      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "", noxFeedProjectId: "",
+      noxTicketConnectionId: "", postsConnectionId: "", releaseNotesConnectionId: "",
+      dailySummaryChannelId: "", dailySummaryConnectionId: "", noxFeedProjectId: "",
     });
   });
 
@@ -397,13 +400,14 @@ describe("resolveSlackChannels", () => {
   it("uses service-specific channels before the organization fallback", () => {
     const channels = {
       fallbackChannelId: "C0", noxCueChannelId: "CA", noxTicketChannelId: "CU",
-      postsChannelId: "CP", releaseNotesChannelId: "CR",
+      postsChannelId: "CP", releaseNotesChannelId: "CR", dailySummaryChannelId: "CD",
     };
     expect(resolveSlackRoute(channels, "noxcue", "CS")).toBe("CA");
     expect(resolveSlackRoute(channels, "noxspot", "CS")).toBe("CS");
     expect(resolveSlackRoute(channels, "noxticket")).toBe("CU");
     expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("CP");
     expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("CR");
+    expect(resolveSlackRoute(channels, "noxfeed_daily_summary")).toBe("CD");
   });
 
   it("falls back independently for every service", () => {
@@ -413,6 +417,7 @@ describe("resolveSlackChannels", () => {
     expect(resolveSlackRoute(channels, "noxticket")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxfeed_posts")).toBe("C0");
     expect(resolveSlackRoute(channels, "noxfeed_release_notes")).toBe("C0");
+    expect(resolveSlackRoute(channels, "noxfeed_daily_summary")).toBe("");
   });
 
   it("resolves each service workspace independently from its channel", () => {
@@ -420,9 +425,11 @@ describe("resolveSlackChannels", () => {
       fallbackConnectionId: "conn-default",
       noxCueConnectionId: "conn-alerts",
       postsConnectionId: "conn-feed",
+      dailySummaryConnectionId: "conn-summary",
     };
     expect(resolveSlackConnectionId(channels, "noxcue")).toBe("conn-alerts");
     expect(resolveSlackConnectionId(channels, "noxfeed_posts")).toBe("conn-feed");
+    expect(resolveSlackConnectionId(channels, "noxfeed_daily_summary")).toBe("conn-summary");
     expect(resolveSlackConnectionId(channels, "noxticket")).toBe("conn-default");
     expect(resolveSlackConnectionId(channels, "noxspot", "conn-site")).toBe("conn-site");
   });

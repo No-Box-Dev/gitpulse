@@ -16,6 +16,7 @@ const ROUTES = {
   noxticket: { field: "noxTicketChannelId", kind: "noxticket" },
   noxfeed_posts: { field: "postsChannelId", kind: "noxfeed_posts" },
   noxfeed_release_notes: { field: "releaseNotesChannelId", kind: "noxfeed_release_notes" },
+  noxfeed_daily_summary: { field: "dailySummaryChannelId", kind: "noxfeed_daily_summary" },
 } as const;
 
 const ROUTE_NAMES = Object.keys(ROUTES) as [keyof typeof ROUTES, ...(keyof typeof ROUTES)[]];
@@ -43,7 +44,10 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   let channelId = typeof body.channelId === "string" ? body.channelId.trim() : "";
   if (!channelId) {
     try {
-      channelId = resolveSavedSlackChannel((await readSlackSettings(context.env.DB, orgId)).slack, route.field);
+      const slack = (await readSlackSettings(context.env.DB, orgId)).slack;
+      channelId = body.route === "noxfeed_daily_summary"
+        ? String(slack[route.field] || "").trim()
+        : resolveSavedSlackChannel(slack, route.field);
     } catch (error) {
       return errorResponse(error instanceof Error ? error.message : String(error), 500);
     }

@@ -17,6 +17,7 @@ export interface SlackStatus {
   noxFeedChannelId: string;
   postsChannelId: string;
   releaseNotesChannelId: string;
+  dailySummaryChannelId: string;
   canConfigure: boolean;
   appConfigured: boolean;
   needsReconnect: boolean;

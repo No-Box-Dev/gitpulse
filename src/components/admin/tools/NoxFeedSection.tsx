@@ -62,6 +62,12 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
                     kind="noxfeed_release_notes"
                     routeKey="releaseNotesChannelId"
                   />
+                  <SlackRouteField
+                    label="Daily summary channel"
+                    helpText="The scheduled ‘What happened today’ post is sent only to this channel."
+                    kind="noxfeed_daily_summary"
+                    routeKey="dailySummaryChannelId"
+                  />
                   <NoxFeedDailySummary />
                 </div>
               ) : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">Connect Slack in NoxConnect before choosing channels.</p>}

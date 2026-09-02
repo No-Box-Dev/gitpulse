@@ -43,6 +43,7 @@ export async function onRequestGet(context) {
     noxFeedChannelId: channels.noxFeedChannelId,
     postsChannelId: channels.postsChannelId,
     releaseNotesChannelId: channels.releaseNotesChannelId,
+    dailySummaryChannelId: channels.dailySummaryChannelId,
     canConfigure: isAdmin,
     // All three values are required for the complete integration: OAuth uses
     // the client pair, while Slack Events uses the signing secret. Reporting

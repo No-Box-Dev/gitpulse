@@ -206,6 +206,8 @@ export async function resolveSlackChannels(db, orgId) {
     postsConnectionId: channelId(slack.postsConnectionId),
     releaseNotesChannelId,
     releaseNotesConnectionId: channelId(slack.releaseNotesConnectionId),
+    dailySummaryChannelId: channelId(slack.dailySummaryChannelId),
+    dailySummaryConnectionId: channelId(slack.dailySummaryConnectionId),
     noxFeedProjectId: channelId(slack.noxFeedProjectId),
   };
 }
@@ -218,6 +220,7 @@ export function resolveSlackConnectionId(channels, service, siteConnectionId = "
     case "noxticket": return channelId(channels?.noxTicketConnectionId) || fallback;
     case "noxfeed_posts": return channelId(channels?.postsConnectionId) || fallback;
     case "noxfeed_release_notes": return channelId(channels?.releaseNotesConnectionId) || fallback;
+    case "noxfeed_daily_summary": return channelId(channels?.dailySummaryConnectionId);
     default: return fallback;
   }
 }
@@ -239,6 +242,8 @@ export function resolveSlackRoute(channels, service, siteChannelId = "") {
       return channelId(channels?.releaseNotesChannelId)
         || channelId(channels?.noxFeedChannelId)
         || fallback;
+    case "noxfeed_daily_summary":
+      return channelId(channels?.dailySummaryChannelId);
     case "noxfeed":
       return channelId(channels?.noxFeedChannelId)
         || channelId(channels?.postsChannelId)
@@ -262,6 +267,8 @@ function emptySlackChannels() {
     postsConnectionId: "",
     releaseNotesChannelId: "",
     releaseNotesConnectionId: "",
+    dailySummaryChannelId: "",
+    dailySummaryConnectionId: "",
     noxFeedProjectId: "",
   };
 }
@@ -679,6 +686,8 @@ export async function clearSlackChannelsForOrg(db, orgId) {
   delete settings.slack.postsConnectionId;
   delete settings.slack.releaseNotesChannelId;
   delete settings.slack.releaseNotesConnectionId;
+  delete settings.slack.dailySummaryChannelId;
+  delete settings.slack.dailySummaryConnectionId;
   if (Object.keys(settings.slack).length === 0) {
     delete settings.slack;
   }
@@ -718,6 +727,7 @@ async function clearSlackChannelsForConnection(db, orgId, connectionId, wasDefau
     ["noxTicketConnectionId", "noxTicketChannelId"],
     ["postsConnectionId", "postsChannelId"],
     ["releaseNotesConnectionId", "releaseNotesChannelId"],
+    ["dailySummaryConnectionId", "dailySummaryChannelId"],
   ];
   for (const [connectionKey, channelKey] of pairs) {
     if (settings.slack[connectionKey] === connectionId || (wasDefault && !settings.slack[connectionKey])) {

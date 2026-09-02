@@ -271,6 +271,8 @@ export interface OrgSettings {
     postsConnectionId?: string;
     releaseNotesChannelId?: string;
     releaseNotesConnectionId?: string;
+    dailySummaryChannelId?: string;
+    dailySummaryConnectionId?: string;
     /** @deprecated Adopted by both NoxFeed routes until dedicated choices are saved. */
     noxFeedChannelId?: string;
   };

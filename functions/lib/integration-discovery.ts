@@ -13,6 +13,7 @@ export const SLACK_ROUTING_BODY_SCHEMA = {
         noxticket: { type: ["string", "null"] },
         noxfeed_posts: { type: ["string", "null"] },
         noxfeed_release_notes: { type: ["string", "null"] },
+        noxfeed_daily_summary: { type: ["string", "null"] },
       },
     },
   },

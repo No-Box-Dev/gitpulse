@@ -42,5 +42,6 @@ describe("server app state", () => {
     expect(appForDeliverySource(["un", "ticket"].join(""))).toBe("noxticket");
     expect(appForSlackKind("noxticket")).toBe("noxticket");
     expect(appForSlackKind("noxspot")).toBe("noxspot");
+    expect(appForSlackKind("noxfeed_daily_summary")).toBe("noxfeed");
   });
 });

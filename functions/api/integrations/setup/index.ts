@@ -37,7 +37,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   let slack: Record<string, unknown>;
   try { slack = (await readSlackSettings(context.env.DB, orgId)).slack; }
   catch (error) { return errorResponse(error instanceof Error ? error.message : String(error), 500); }
-  const routeFields = ["fallbackChannelId", "noxCueChannelId", "noxTicketChannelId", "postsChannelId", "releaseNotesChannelId"];
+  const routeFields = ["fallbackChannelId", "noxCueChannelId", "noxTicketChannelId", "postsChannelId", "releaseNotesChannelId", "dailySummaryChannelId"];
   const configuredRouteCount = routeFields.filter((field) => {
     const value = slack[field];
     return typeof value === "string" && Boolean(value.trim());
@@ -95,7 +95,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       automatable: true,
       action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing", {
         type: "object",
-        properties: { routes: { type: "object", properties: { noxfeed_posts: { type: ["string", "null"] }, noxfeed_release_notes: { type: ["string", "null"] } } } },
+        properties: { routes: { type: "object", properties: { noxfeed_posts: { type: ["string", "null"] }, noxfeed_release_notes: { type: ["string", "null"] }, noxfeed_daily_summary: { type: ["string", "null"] } } } },
       }) : null,
     },
     configure_noxticket: {

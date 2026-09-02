@@ -88,13 +88,13 @@ describe("agent setup APIs", () => {
     });
     expect(response.status).toBe(200);
     expect(DB.batch).toHaveBeenCalledOnce();
-    expect(DB.batch.mock.calls[0][0]).toHaveLength(6);
+    expect(DB.batch.mock.calls[0][0]).toHaveLength(7);
     const updateCall = DB.prepare.mock.calls.find(([sql]) => sql.includes("WHERE org_id = ? AND key = ? AND data = ?"));
     expect(updateCall).toBeTruthy();
     const dependentSql = DB.prepare.mock.calls
       .map(([sql]) => sql)
       .filter((sql) => sql.includes("UPDATE delivery_outbox"));
-    expect(dependentSql).toHaveLength(5);
+    expect(dependentSql).toHaveLength(6);
     expect(dependentSql.every((sql) => sql.includes("config_guard.key = ?") && sql.includes("config_guard.data = ?"))).toBe(true);
     const updateStatement = DB.prepare.mock.results[DB.prepare.mock.calls.indexOf(updateCall)].value;
     const serialized = updateStatement.bind.mock.calls[0][0];
@@ -139,6 +139,7 @@ describe("agent setup APIs", () => {
     ["noxticket", "noxticket"],
     ["noxfeed_posts", "noxfeed_posts"],
     ["noxfeed_release_notes", "noxfeed_release_notes"],
+    ["noxfeed_daily_summary", "noxfeed_daily_summary"],
   ])("delegates the %s route using the legacy handler's accepted kind", async (route, kind) => {
     const response = await testRoute({
       request: new Request("https://app.unticket.ai/api/integrations/slack/test", {

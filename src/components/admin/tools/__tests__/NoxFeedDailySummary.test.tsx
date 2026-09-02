@@ -3,8 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mutateAsync = vi.fn(async () => ({ ok: true }));
-const settings = {
-  slack: { releaseNotesChannelId: "C123", releaseNotesConnectionId: "connection-1" },
+let settings = {
+  slack: {
+    releaseNotesChannelId: "C-RELEASES",
+    releaseNotesConnectionId: "connection-1",
+    dailySummaryChannelId: "C-SUMMARY",
+    dailySummaryConnectionId: "connection-1",
+  },
 };
 
 vi.mock("@/hooks/useConfigRepo", () => ({
@@ -24,7 +29,17 @@ vi.mock("@/components/ui/SearchableSelect", () => ({
 import { NoxFeedDailySummary } from "../NoxFeedDailySummary";
 
 describe("NoxFeed daily summary settings", () => {
-  beforeEach(() => mutateAsync.mockClear());
+  beforeEach(() => {
+    mutateAsync.mockClear();
+    settings = {
+      slack: {
+        releaseNotesChannelId: "C-RELEASES",
+        releaseNotesConnectionId: "connection-1",
+        dailySummaryChannelId: "C-SUMMARY",
+        dailySummaryConnectionId: "connection-1",
+      },
+    };
+  });
 
   it("starts off and saves the user's local schedule", async () => {
     const user = userEvent.setup();
@@ -42,5 +57,21 @@ describe("NoxFeed daily summary settings", () => {
       noxfeedDailySummary: { enabled: true, timeLocal: "18:30", timezone: "UTC" },
     }));
     expect(screen.getByText(/up to 30 minutes/i)).toBeInTheDocument();
+  });
+
+  it("requires the separate summary channel before enabling delivery", async () => {
+    settings = {
+      slack: {
+        releaseNotesChannelId: "C-RELEASES",
+        releaseNotesConnectionId: "connection-1",
+        dailySummaryChannelId: "",
+        dailySummaryConnectionId: "",
+      },
+    };
+    const user = userEvent.setup();
+    render(<NoxFeedDailySummary />);
+    await user.click(screen.getByRole("checkbox", { name: "Post automatically" }));
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByText(/choose and save a daily summary channel/i)).toBeInTheDocument();
   });
 });

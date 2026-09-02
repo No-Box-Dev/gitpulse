@@ -74,3 +74,20 @@ jobs:
           workingDirectory: workers/noxspot-capture
           wranglerVersion: "4.127.1"
           command: deploy
+
+      - name: Verify public NoxSpot Worker ownership
+        shell: bash
+        run: |
+          for attempt in {1..12}; do
+            health="$(curl --fail --silent --show-error --no-cache https://api.noxspot.dev/health || true)"
+            if HEALTH_JSON="$health" node --input-type=module -e '
+              const health = JSON.parse(process.env.HEALTH_JSON || "{}");
+              if (health.service !== "noxspot-api" || health.owner !== "noxconnect" || health.plane !== "public-capture") process.exit(1);
+            '; then
+              echo "Verified api.noxspot.dev is owned by NoxConnect"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::api.noxspot.dev is not serving the NoxConnect capture Worker"
+          exit 1

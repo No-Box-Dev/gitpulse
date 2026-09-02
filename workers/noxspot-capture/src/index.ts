@@ -7,6 +7,8 @@ import {
   buildIssueResponse,
   buildSlackResponse,
   buildTestResponse,
+  type CaptureInput,
+  type IssueInput,
 } from "./response";
 import { readBoundedJson, RequestBodyTooLargeError } from "./request-json";
 import {
@@ -31,6 +33,11 @@ import {
   requestOrigin,
   type CaptureSite,
 } from "./site-config";
+import {
+  receiveScreenshotFailure,
+  receiveScreenshotOutcome,
+  receiveWidgetInstall,
+} from "./telemetry";
 
 type AppContext = Context<{ Bindings: Env }>;
 
@@ -40,6 +47,7 @@ const REPORT_SITE_LIMIT = 30;
 const ERROR_IP_LIMIT = 5;
 const ERROR_SITE_LIMIT = 60;
 const MAX_ERROR_TITLE_LENGTH = 200;
+const MAX_TELEMETRY_BODY_BYTES = 4_096;
 
 export const app = new Hono<{ Bindings: Env }>();
 
@@ -237,6 +245,23 @@ async function submitErrors(context: AppContext) {
 app.post("/api/spots/public/v1/errors", submitErrors);
 app.post("/errors", submitErrors);
 
+async function telemetryBody(context: AppContext): Promise<unknown | Response> {
+  return boundedBody(context, MAX_TELEMETRY_BODY_BYTES);
+}
+
+app.post("/telemetry/screenshot-failures", async (context) => {
+  const body = await telemetryBody(context);
+  return body instanceof Response ? body : receiveScreenshotFailure(context, body);
+});
+app.post("/telemetry/screenshot-outcomes", async (context) => {
+  const body = await telemetryBody(context);
+  return body instanceof Response ? body : receiveScreenshotOutcome(context, body);
+});
+app.post("/telemetry/widget-installs", async (context) => {
+  const body = await telemetryBody(context);
+  return body instanceof Response ? body : receiveWidgetInstall(context, body);
+});
+
 const EXPIRED_SCREENSHOT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450" role="img" aria-label="Screenshot expired"><rect width="800" height="450" fill="#f4f4f5"/><g fill="#a1a1aa" font-family="sans-serif" text-anchor="middle"><text x="400" y="212" font-size="26" font-weight="600">Screenshot expired</text><text x="400" y="248" font-size="16">Removed after 90 days</text></g></svg>`;
 
 async function serveObject(context: AppContext, key: string) {
@@ -300,7 +325,16 @@ app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   });
 });
 
-app.get("/health", (context) => context.json({ status: "ok", service: "noxspot-api", contractVersion: 1 }));
+app.get("/health", (context) => {
+  context.header("Cache-Control", "no-store");
+  return context.json({
+    status: "ok",
+    service: "noxspot-api",
+    owner: "noxconnect",
+    plane: "public-capture",
+    contractVersion: 1,
+  });
+});
 
 // Compatibility only: Slack may still have the historical api.noxspot.dev
 // redirect allowlisted while installations move to the canonical NoxConnect
@@ -343,7 +377,7 @@ export default class NoxSpotService extends WorkerEntrypoint<Env> {
     return buildIssueResponse(capture);
   }
 
-  buildSlackResponse(capture: CaptureInput, issue: Record<string, unknown>) {
+  buildSlackResponse(capture: CaptureInput, issue: IssueInput) {
     return buildSlackResponse(capture, issue);
   }
 
@@ -351,9 +385,7 @@ export default class NoxSpotService extends WorkerEntrypoint<Env> {
     return buildTestResponse(orgLogin);
   }
 
-  buildDailyDigestResponse(siteName: string, period: string, filed: Record<string, unknown>[], solved: Record<string, unknown>[], totals: Record<string, unknown>, portalUrl: string | null = null) {
+  buildDailyDigestResponse(siteName: string, period: string, filed: IssueInput[], solved: IssueInput[], totals: Record<string, unknown>, portalUrl: string | null = null) {
     return buildDailyDigestResponse(siteName, period, filed, solved, totals, portalUrl);
   }
 }
-
-type CaptureInput = Record<string, any>;

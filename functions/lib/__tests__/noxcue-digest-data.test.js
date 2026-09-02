@@ -23,6 +23,7 @@ describe("NoxCue digest history", () => {
           average30d: 22 / 3,
           sampleDays: 3,
           history: [
+            { period: "2026-07-30", value: 4 },
             { period: "2026-08-27", value: 8 },
             { period: "2026-08-28", value: 10 },
             { period: "2026-08-29", value: 12 },

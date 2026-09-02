@@ -18,7 +18,6 @@ export function completedPeriodAt(timezone, now = new Date()) {
 export function summarizeNoxCueDigestRows(rows, period) {
   const yesterdayPeriod = shiftPeriod(period, -1);
   const historyStart = shiftPeriod(period, -30);
-  const trendStart = shiftPeriod(period, -29);
   const metrics = {};
   const comparisons = {};
   let hasReportedData = false;
@@ -42,7 +41,7 @@ export function summarizeNoxCueDigestRows(rows, period) {
     const yesterday = values.find((row) => row.period === yesterdayPeriod)?.value ?? null;
     const history = values.filter((row) => row.period >= historyStart && row.period < period);
     const trend = values
-      .filter((row) => row.period >= trendStart && row.period <= period)
+      .filter((row) => row.period >= historyStart && row.period <= period)
       .sort((left, right) => left.period.localeCompare(right.period))
       .map(({ period: trendPeriod, value }) => ({ period: trendPeriod, value }));
     comparisons[metricKey] = {

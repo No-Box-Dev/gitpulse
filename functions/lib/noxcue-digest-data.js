@@ -105,7 +105,7 @@ async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
      SELECT periods.period, definitions.metric_key, definitions.label,
        (SELECT COUNT(*) FROM cue_activity_events activity
          WHERE activity.source_id = ? AND activity.metric_key = definitions.metric_key
-           AND activity.period <= periods.period) AS total_events,
+           AND activity.period = periods.period) AS daily_events,
        (SELECT COUNT(*) FROM cue_user_registrations registration
          WHERE registration.source_id = ? AND registration.period <= periods.period) AS total_users
      FROM periods CROSS JOIN definitions
@@ -136,13 +136,13 @@ async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
     }
   }
   for (const row of activityResults ?? []) {
-    const total = Number(row.total_events ?? 0);
+    const total = Number(row.daily_events ?? 0);
     const users = Number(row.total_users ?? 0);
     const metricKey = String(row.metric_key);
     const label = String(row.label);
     if (total > 0) hasFacts = true;
     metricRows.push({ period: row.period, metric_key: metricKey, value: total, origin: "calculated" });
-    metricLabels[metricKey] = `${label} total`;
+    metricLabels[metricKey] = label;
     if (users > 0) {
       metricRows.push({
         period: row.period,
@@ -150,7 +150,7 @@ async function loadEventDerivedNoxCueDigestData(db, sourceId, period) {
         value: total / users,
         origin: "calculated",
       });
-      metricLabels[`${metricKey}.per_user`] = `${label} / user`;
+      metricLabels[`${metricKey}.per_user`] = `${label} / registered user`;
     }
   }
   if (!hasFacts) return null;

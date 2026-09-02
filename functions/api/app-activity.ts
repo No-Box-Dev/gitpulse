@@ -1,0 +1,91 @@
+import { getCtx, errorResponse, jsonResponse } from "../lib/db";
+import { getNoxDb, type NoxDatabaseEnv } from "../lib/nox-db";
+
+interface Env extends NoxDatabaseEnv {
+  NOXCUE_INGEST?: Fetcher;
+  NOXCUE_INGEST_KEY?: string;
+}
+
+interface Ctx {
+  env: Env;
+  data: { userLogin: string };
+}
+
+interface ActivityRow {
+  registered_at: string;
+  last_active_period: string;
+}
+
+function utcPeriod(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+async function sendUserEvent(
+  service: Fetcher,
+  key: string,
+  type: "user.registered" | "user.active",
+  userId: string,
+  occurredAt: string,
+): Promise<void> {
+  const response = await service.fetch("https://noxcue.internal/v1/events", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Nox-Ingest-Key": key,
+    },
+    body: JSON.stringify({ version: 1, type, userId, occurredAt }),
+  });
+  if (!response.ok) {
+    throw new Error(`NoxCue rejected ${type} with status ${response.status}`);
+  }
+}
+
+export async function onRequestPost(context: Ctx): Promise<Response> {
+  const { userLogin } = getCtx(context) as Ctx["data"];
+  if (!userLogin) return errorResponse("Missing user context", 400);
+
+  const service = context.env.NOXCUE_INGEST;
+  const key = context.env.NOXCUE_INGEST_KEY?.trim();
+  if (!service || !key) return errorResponse("NoxCue user tracking is not configured", 503);
+
+  const db = getNoxDb(context.env);
+  const existing = await db.prepare(
+    `SELECT registered_at, last_active_period
+       FROM noxcue_self_user_activity WHERE github_login = ?`,
+  ).bind(userLogin).first<ActivityRow>();
+  const now = new Date();
+  const occurredAt = now.toISOString();
+  const period = utcPeriod(now);
+
+  try {
+    if (!existing) {
+      await sendUserEvent(service, key, "user.registered", userLogin, occurredAt);
+      await db.prepare(
+        `INSERT INTO noxcue_self_user_activity
+           (github_login, registered_at, last_active_period, last_event_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(github_login) DO NOTHING`,
+      ).bind(userLogin, occurredAt, period, occurredAt).run();
+      return jsonResponse({ recorded: "registered", period }, 202);
+    }
+
+    if (existing.last_active_period === period) {
+      return jsonResponse({ recorded: "already_active", period });
+    }
+
+    await sendUserEvent(service, key, "user.active", userLogin, occurredAt);
+    await db.prepare(
+      `UPDATE noxcue_self_user_activity
+          SET last_active_period = ?, last_event_at = ?
+        WHERE github_login = ? AND last_active_period < ?`,
+    ).bind(period, occurredAt, userLogin, period).run();
+    return jsonResponse({ recorded: "active", period }, 202);
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: "NoxConnect user event delivery failed",
+      event: existing ? "user.active" : "user.registered",
+      error: error instanceof Error ? error.message : String(error),
+    }));
+    return errorResponse("NoxCue user tracking is temporarily unavailable", 503);
+  }
+}

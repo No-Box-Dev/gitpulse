@@ -24,6 +24,12 @@ service = "noxspot-api"
 binding = "NOXCUE_RESPONSE"
 service = "noxcue"
 
+# Server-only event ingestion. The corresponding NOXCUE_INGEST_KEY secret is
+# scoped to NoxConnect's NoxCue source and is never exposed to the browser.
+[[services]]
+binding = "NOXCUE_INGEST"
+service = "noxcue"
+
 [[services]]
 binding = "NOXFEED_RESPONSE"
 service = "noxfeed-response"

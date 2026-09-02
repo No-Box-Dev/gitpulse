@@ -38,6 +38,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   storage = {};
 
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ recorded: "already_active" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  ));
+
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => storage[key] ?? null,
     setItem: (key: string, val: string) => { storage[key] = val; },
@@ -109,6 +116,18 @@ describe("useAuth", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("user").textContent).toBe("alice");
+    });
+  });
+
+  it("records app activity after both user and organization are known", async () => {
+    storage.ut_token = "tok";
+    storage.ut_org = "org1";
+    mockFetchUser.mockResolvedValue({ login: "alice", avatar_url: "", name: "Alice" } as any);
+
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith("/api/app-activity", expect.objectContaining({ method: "POST" }));
     });
   });
 

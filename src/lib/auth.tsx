@@ -8,7 +8,7 @@ import {
 } from "react";
 import { fetchUser } from "@/lib/github";
 import { getOAuthLoginUrl } from "@/lib/oauth-proxy";
-import { broadcastError } from "@/lib/api";
+import { apiFetch, broadcastError } from "@/lib/api";
 
 interface User {
   login: string;
@@ -86,6 +86,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("ut:force-logout", handler);
     return () => window.removeEventListener("ut:force-logout", handler);
   }, []);
+
+  // One app-entry signal. The authenticated server decides whether this is a
+  // first registration, today's first activity, or an already-recorded visit.
+  // Tracking must never block or log out the user if NoxCue is unavailable.
+  useEffect(() => {
+    if (!user || !selectedOrg) return;
+    void apiFetch("/api/app-activity", { method: "POST" }).then((response) => {
+      if (!response.ok) {
+        console.warn(`[noxconnect] NoxCue user tracking returned ${response.status}`);
+      }
+    }).catch((error: unknown) => {
+      console.warn("[noxconnect] NoxCue user tracking unavailable", error);
+    });
+  }, [user, selectedOrg]);
 
   // Cross-tab auth sync: a replacement means another tab refreshed the
   // session, while removal is a real logout. Storage events do not fire in

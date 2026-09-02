@@ -88,6 +88,7 @@ describe("NoxCue daily digest periods", () => {
           average30d: 75,
           sampleDays: 2,
           history: [
+            { period: "2026-07-30", value: 70 },
             { period: "2026-08-28", value: 80 },
             { period: "2026-08-29", value: 86 },
           ],

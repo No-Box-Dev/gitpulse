@@ -214,6 +214,8 @@ GitHub App user access tokens expire after ~8 hours, but NoxConnect keeps the br
 
 ## Features
 
+- **Global NoxFeed search** — `GET /api/search?q=...` searches people, pull requests, issues, features, posts, and release notes for the authenticated organization in one batched D1 request. Results share a ranked typed shape for Spotlight-style native clients.
+
 ### NoxConnect setup (`integrations` tab, labelled Setup)
 The organization onboarding surface shows the required GitHub connection, optional shared Slack connection, readiness cards, and service-specific channel routing for NoxFeed, NoxSpot, NoxCue, and NoxConnect. GitHub unlocks NoxFeed and NoxSpot; a NoxCue source plus Slack delivery makes NoxCue ready. Connection and feature states are derived server-side by `/api/integrations/status`, which returns operational metadata and public channel IDs but never credentials.
 

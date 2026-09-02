@@ -27,9 +27,9 @@ function context(body) {
         buildIssueResponse: vi.fn(),
         buildSlackResponse: vi.fn(),
         buildTestResponse: vi.fn(async (org) => ({ contract: "noxspot.response", version: 1, message: { text: `NoxSpot delivery test for ${org}`, blocks: [{ type: "section" }] } })),
-        buildDailyDigestResponse: vi.fn(async (name, period, filed, solved, totals) => ({
+        buildDailyDigestResponse: vi.fn(async (name, period, filed, solved, totals, portalUrl) => ({
           contract: "noxspot.response", version: 1,
-          message: { text: `${name} ${period}: ${totals.filed} filed, ${totals.solved} solved`, blocks: [{ type: "section" }] },
+          message: { text: `${name} ${period}: ${totals.filed} filed, ${totals.solved} solved${portalUrl ? ` — ${portalUrl}` : ""}`, blocks: [{ type: "section" }] },
         })),
       },
       NOXFEED_RESPONSE: {
@@ -55,6 +55,7 @@ function context(body) {
               id: "site-playnist", org_id: 7, project_id: "project-1", repo: "playnist", name: "Playnist",
               widget_config: JSON.stringify({ dailySummaryEnabled: true }),
               slack_channel_id: "C-ALERT", slack_connection_id: "conn-2", owner_id: "acme",
+              external_share_slug: "playnist-portal",
             } : null,
             run: async () => { calls.push({ sql, binds }); return { success: true }; },
           }),
@@ -92,7 +93,7 @@ describe("Slack route tests", () => {
     expect(postSlackMessage).toHaveBeenCalledWith(
       "xoxb-test",
       "C-ALERT",
-      expect.objectContaining({ text: expect.stringMatching(/^Playnist — test \d{4}-\d{2}-\d{2}: 0 filed, 0 solved$/) }),
+      expect.objectContaining({ text: expect.stringMatching(/^Playnist — test \d{4}-\d{2}-\d{2}: 0 filed, 0 solved — https:\/\/app\.unticket\.ai\/share\/playnist-portal$/) }),
     );
   });
 

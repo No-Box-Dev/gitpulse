@@ -237,6 +237,8 @@ previous 24-hour UTC window without truncating either list, links each item, att
 captured submitter, and explains the closing pull request when one is linked. For a closing PR with
 a meaningful description, one batched managed-Anthropic pass writes a short plain-language fix
 summary (target Flesch Reading Ease 80-90); missing or unusable descriptions fall back to the PR title.
+When that project has an enabled external stakeholder portal, the same Slack message also links to
+its password-protected read-only page.
 NoxSpot owns the concise, plain-language Slack presentation through the private
 `NOXSPOT_RESPONSE` service binding; NoxConnect owns data matching, routing,
 outbox persistence, queueing, and retries.

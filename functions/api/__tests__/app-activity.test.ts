@@ -1,0 +1,79 @@
+import { describe, expect, it, vi } from "vitest";
+import { onRequestPost } from "../app-activity";
+
+function makeContext(existing: { registered_at: string; last_active_period: string } | null) {
+  const writes: Array<{ sql: string; binds: unknown[] }> = [];
+  const requests: Request[] = [];
+  const db = {
+    prepare(sql: string) {
+      const statement = {
+        binds: [] as unknown[],
+        bind(...values: unknown[]) { this.binds = values; return this; },
+        async first() { return existing; },
+        async run() { writes.push({ sql, binds: this.binds }); return { success: true }; },
+      };
+      return statement;
+    },
+  };
+  const fetch = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(new Request(request, init));
+    return new Response(JSON.stringify({ accepted: true }), { status: 202 });
+  });
+  return {
+    context: {
+      env: { DB: db, NOXCUE_INGEST_KEY: "nox_secret_test", NOXCUE_INGEST: { fetch } },
+      data: { userLogin: "Alice" },
+    },
+    fetch,
+    requests,
+    writes,
+  };
+}
+
+describe("POST /api/app-activity", () => {
+  it("records a first visit as a registration using the trusted user", async () => {
+    const state = makeContext(null);
+    const response = await onRequestPost(state.context as never);
+
+    expect(response.status).toBe(202);
+    expect(state.fetch).toHaveBeenCalledOnce();
+    expect(await state.requests[0]!.json()).toMatchObject({
+      type: "user.registered",
+      userId: "Alice",
+    });
+    expect(state.requests[0]!.headers.get("X-Nox-Ingest-Key")).toBe("nox_secret_test");
+    expect(state.writes.some(({ sql }) => sql.includes("INSERT INTO noxcue_self_user_activity"))).toBe(true);
+  });
+
+  it("does not emit a duplicate event for an already-active user", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const state = makeContext({ registered_at: new Date().toISOString(), last_active_period: today });
+    const response = await onRequestPost(state.context as never);
+
+    expect(response.status).toBe(200);
+    expect(state.fetch).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({ recorded: "already_active", period: today });
+  });
+
+  it("records activity on the next UTC day", async () => {
+    const state = makeContext({ registered_at: "2026-08-30T00:00:00Z", last_active_period: "2026-08-30" });
+    const response = await onRequestPost(state.context as never);
+
+    expect(response.status).toBe(202);
+    expect(await state.requests[0]!.json()).toMatchObject({ type: "user.active", userId: "Alice" });
+    expect(state.writes.some(({ sql }) => sql.includes("UPDATE noxcue_self_user_activity"))).toBe(true);
+  });
+
+  it("does not advance local state when NoxCue rejects the event", async () => {
+    const state = makeContext(null);
+    state.fetch.mockResolvedValueOnce(new Response("no", { status: 401 }));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const response = await onRequestPost(state.context as never);
+      expect(response.status).toBe(503);
+      expect(state.writes).toHaveLength(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

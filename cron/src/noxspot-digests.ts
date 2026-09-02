@@ -14,6 +14,7 @@ interface NoxSpotResponseService {
     filed: DigestIssue[],
     solved: SolvedDigestIssue[],
     totals: { filed: number; solved: number },
+    portalUrl?: string | null,
   ): Promise<unknown>;
 }
 
@@ -21,6 +22,7 @@ interface DigestEnv {
   DB: D1Database;
   TASK_QUEUE: Queue;
   NOXSPOT_RESPONSE: NoxSpotResponseService;
+  NOXCONNECT_PUBLIC_URL?: string;
 }
 
 export interface SpotSite {
@@ -33,6 +35,7 @@ export interface SpotSite {
   widget_config: string | null;
   slack_channel_id: string | null;
   slack_connection_id: string | null;
+  external_share_slug: string | null;
 }
 
 interface DigestIssue {
@@ -79,6 +82,15 @@ export function dailyDigestPeriod(nowMs: number) {
 
 export function completedDailyDigestPeriod(nowMs: number) {
   return previousPeriod(localDateTime(nowMs, "UTC").period);
+}
+
+export function externalProjectPortalUrl(slug: unknown, publicOrigin = "https://app.unticket.ai") {
+  if (typeof slug !== "string" || !slug.trim()) return null;
+  try {
+    const origin = new URL(publicOrigin);
+    if (origin.protocol !== "https:" && origin.protocol !== "http:") return null;
+    return new URL(`/share/${encodeURIComponent(slug.trim())}`, origin).toString();
+  } catch { return null; }
 }
 
 export function closingIssueNumbers(payload: unknown, owner: string, repo: string): number[] {
@@ -269,6 +281,7 @@ async function createDigest(env: DigestEnv, site: SpotSite, period: string) {
     digest.filed,
     solved,
     digest.totals,
+    externalProjectPortalUrl(site.external_share_slug, env.NOXCONNECT_PUBLIC_URL),
   );
   const delivery = await stageSlackDelivery(env.DB, {
     orgId: site.org_id,
@@ -288,6 +301,9 @@ export async function runNoxSpotDailyDigests(env: DigestEnv, nowMs = Date.now())
   const { results } = await env.DB.prepare(
     `SELECT site.id, site.org_id, site.project_id, site.repo, site.name, site.widget_config,
             site.slack_channel_id, site.slack_connection_id,
+            (SELECT share.slug FROM external_project_shares share
+              WHERE share.org_id = site.org_id AND share.project_id = site.project_id
+                AND share.enabled = 1 LIMIT 1) AS external_share_slug,
             org.github_login AS owner_id
        FROM spot_sites site
        JOIN orgs org ON org.id = site.org_id

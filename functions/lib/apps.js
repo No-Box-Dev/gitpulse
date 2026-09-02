@@ -65,7 +65,7 @@ export function appForSlackKind(kind) {
     return "noxfeed";
   }
   if (kind === "noxspot") return "noxspot";
-  if (kind === "noxcue") return "noxcue";
+  if (kind === "noxcue" || kind === "noxcue_alerts") return "noxcue";
   return null;
 }
 

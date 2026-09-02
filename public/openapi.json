@@ -528,11 +528,12 @@
           "routes": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["noxfeedPosts", "noxfeedReleaseNotes", "noxCue"],
+            "required": ["noxfeedPosts", "noxfeedReleaseNotes", "noxCue", "noxCueAlerts"],
             "properties": {
               "noxfeedPosts": { "$ref": "#/components/schemas/ProjectDestination" },
               "noxfeedReleaseNotes": { "$ref": "#/components/schemas/ProjectDestination" },
-              "noxCue": { "$ref": "#/components/schemas/ProjectDestination" }
+              "noxCue": { "$ref": "#/components/schemas/ProjectDestination" },
+              "noxCueAlerts": { "$ref": "#/components/schemas/ProjectDestination" }
             }
           }
         }

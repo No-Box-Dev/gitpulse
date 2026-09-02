@@ -85,6 +85,16 @@ describe("Slack route tests", () => {
     );
   });
 
+  it("sends a dedicated NoxCue alert-route test", async () => {
+    const response = await onRequestPost(context({ kind: "noxcue_alerts", channelId: "C-ALERT" }));
+    expect(response.status).toBe(200);
+    expect(postSlackMessage).toHaveBeenCalledWith(
+      "xoxb-test",
+      "C-ALERT",
+      expect.objectContaining({ text: "NoxCue alert delivery test for acme" }),
+    );
+  });
+
   it("sends the real NoxSpot daily-summary format for a selected site", async () => {
     const response = await onRequestPost(context({
       kind: "noxspot", sourceId: "site-playnist", connectionId: "conn-2", channelId: "C-ALERT",

@@ -16,7 +16,7 @@ import { getNoxFeedTestResponse } from "../../lib/noxfeed-response.js";
 import { buildNoxTicketTestResponse } from "../../products/noxticket/response.js";
 
 // POST /api/slack/test
-// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxcue" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes" | "noxfeed_daily_summary", sourceId?: string }
+// Body: { connectionId?: string, channelId?: string, kind: "connection" | "fallback" | "noxcue" | "noxcue_alerts" | "noxspot" | "noxticket" | "noxfeed_posts" | "noxfeed_release_notes" | "noxfeed_daily_summary", sourceId?: string }
 //
 // Admin-only. Posts a sample message to the given channel so the admin can
 // verify the bot is installed in the right workspace + the channel routes
@@ -35,7 +35,7 @@ export async function onRequestPost(context) {
   const sourceId = typeof body?.sourceId === "string" ? body.sourceId.trim() : "";
   const legacyKinds = { narrative: "noxfeed_posts", release_notes: "noxfeed_release_notes" };
   const allowedKinds = new Set([
-    "connection", "fallback", "noxcue", "noxspot", "noxticket", "noxfeed",
+    "connection", "fallback", "noxcue", "noxcue_alerts", "noxspot", "noxticket", "noxfeed",
     "noxfeed_posts", "noxfeed_release_notes", "noxfeed_daily_summary",
   ]);
   const kind = legacyKinds[body?.kind] ?? (allowedKinds.has(body?.kind) ? body.kind : null);
@@ -81,6 +81,14 @@ export async function onRequestPost(context) {
       } else {
         payload = (await getNoxCueTestResponse(context.env, orgLogin)).message;
       }
+    } else if (kind === "noxcue_alerts") {
+      payload = {
+        text: `NoxCue alert delivery test for ${orgLogin}`,
+        blocks: [
+          { type: "header", text: { type: "plain_text", text: "🚨 NoxCue alert delivery test", emoji: true } },
+          { type: "section", text: { type: "mrkdwn", text: `Immediate app errors for *${orgLogin}* will be delivered to this channel through NoxConnect.` } },
+        ],
+      };
     } else if (kind === "noxspot") {
       if (sourceId) {
         const site = await context.env.DB.prepare(

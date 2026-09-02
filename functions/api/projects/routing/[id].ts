@@ -31,6 +31,7 @@ const ProjectRouting = z.object({
     noxfeedPosts: Destination,
     noxfeedReleaseNotes: Destination,
     noxCue: Destination,
+    noxCueAlerts: Destination,
   }).strict(),
 }).strict();
 
@@ -38,6 +39,7 @@ const ROUTE_FIELDS: Array<[keyof z.infer<typeof ProjectRouting>["routes"], Proje
   ["noxfeedPosts", "noxfeed_posts"],
   ["noxfeedReleaseNotes", "noxfeed_release_notes"],
   ["noxCue", "noxcue"],
+  ["noxCueAlerts", "noxcue_alerts"],
 ];
 
 export async function onRequestPut(context: Ctx): Promise<Response> {

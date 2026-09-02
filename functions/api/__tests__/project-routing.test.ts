@@ -72,6 +72,7 @@ const validBody = {
     noxfeedPosts: { connectionId: "conn-1", channelId: "C-POSTS" },
     noxfeedReleaseNotes: { connectionId: "conn-1", channelId: "C-RELEASES" },
     noxCue: empty,
+    noxCueAlerts: empty,
   },
 };
 
@@ -84,6 +85,7 @@ describe("GET /api/projects/routing", () => {
       routes: [
         { project_id: "proj-playnist", route_key: "noxfeed_posts", connection_id: "conn-1", channel_id: "C-POSTS" },
         { project_id: "proj-playnist", route_key: "noxcue", connection_id: "conn-1", channel_id: "C-CUE" },
+        { project_id: "proj-playnist", route_key: "noxcue_alerts", connection_id: "conn-1", channel_id: "C-ALERTS" },
       ],
     });
     const response = await onRequestGet(context(db) as never);
@@ -95,6 +97,7 @@ describe("GET /api/projects/routing", () => {
           noxfeedPosts: { connectionId: "conn-1", channelId: "C-POSTS" },
           noxfeedReleaseNotes: empty,
           noxCue: { connectionId: "conn-1", channelId: "C-CUE" },
+          noxCueAlerts: { connectionId: "conn-1", channelId: "C-ALERTS" },
         },
       }],
       repositories: ["api", "web"],
@@ -143,7 +146,7 @@ describe("PUT /api/projects/routing/:id", () => {
 
   it("rejects a channel without its workspace", async () => {
     const response = await onRequestPut(context(makeDb(), { body: {
-      enabled: true, repositories: [], routes: { noxfeedPosts: { connectionId: "", channelId: "C1" }, noxfeedReleaseNotes: empty, noxCue: empty },
+      enabled: true, repositories: [], routes: { noxfeedPosts: { connectionId: "", channelId: "C1" }, noxfeedReleaseNotes: empty, noxCue: empty, noxCueAlerts: empty },
     } }) as never);
     expect(response.status).toBe(400);
   });

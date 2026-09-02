@@ -97,6 +97,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   const { orgId, orgLogin } = getCtx(context) as { orgId: number; orgLogin: string };
   const { q, limit } = parsed.data;
   const needle = q.toLocaleLowerCase().replace(/^@/, "");
+  if (!needle) {
+    const response = jsonResponse({ error: "Query must include search text" }, 400);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
   const like = `%${escapeLike(needle)}%`;
   const numberMatch = needle.match(/^#?(\d+)$/);
   const issueNumber = numberMatch ? Number(numberMatch[1]) : null;
@@ -180,7 +185,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
   for (const raw of events.results ?? []) {
     const row = raw as Row;
     let payload: Record<string, unknown> = {};
-    try { payload = JSON.parse(text(row.payload_json)); } catch { /* malformed legacy event */ }
+    try {
+      const parsedPayload: unknown = JSON.parse(text(row.payload_json));
+      if (parsedPayload && typeof parsedPayload === "object" && !Array.isArray(parsedPayload)) {
+        payload = parsedPayload as Record<string, unknown>;
+      }
+    } catch { /* malformed legacy event */ }
     const prNumber = numeric((payload.pr as Record<string, unknown> | undefined)?.number ?? payload.pr_number);
     const kind: SearchKind = row.type === "release_notes" ? "release_note" : "post";
     results.push({ id: `${kind}:${row.id}`, kind, title: text(row.summary), subtitle: `${text(row.repo)}${prNumber ? ` #${prNumber}` : ""}`, repo: nullableText(row.repo), number: prNumber, state: null, url: null, avatarUrl: null, login: null, createdAt: nullableText(row.created_at) });
@@ -191,5 +201,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     .sort((a, b) => b.score - a.score || (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
     .slice(0, limit);
 
-  return jsonResponse({ query: q, results: ranked });
+  const response = jsonResponse({ query: q, results: ranked });
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }

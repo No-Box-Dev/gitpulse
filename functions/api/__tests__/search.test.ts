@@ -40,6 +40,7 @@ describe("GET /api/search", () => {
     const body = await response.json() as { results: Array<Record<string, unknown>> };
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(body.results.map((result) => result.kind)).toEqual([
       "person", "pull_request", "issue", "feature", "release_note",
     ]);
@@ -65,5 +66,25 @@ describe("GET /api/search", () => {
     const response = await onRequestGet(context(db, "") as never);
     expect(response.status).toBe(400);
     expect(db.statements).toHaveLength(0);
+  });
+
+  it("rejects an at-sign-only query before touching D1", async () => {
+    const db = makeDb([]);
+    const response = await onRequestGet(context(db, "@") as never);
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(db.statements).toHaveLength(0);
+  });
+
+  it("ignores non-object legacy event payloads", async () => {
+    const db = makeDb([[], [], [], [], [{
+      id: "5", repo: "mac", type: "narrative", summary: "Login shipped",
+      payload_json: "null", created_at: "2026-09-03T00:00:00Z",
+    }]]);
+    const response = await onRequestGet(context(db) as never);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      results: [{ kind: "post", number: null }],
+    });
   });
 });

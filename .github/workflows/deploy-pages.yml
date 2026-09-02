@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           for attempt in {1..12}; do
-            health="$(curl --fail --silent --show-error --no-cache https://api.noxspot.dev/health || true)"
+            health="$(curl --fail --silent --show-error -H 'Cache-Control: no-cache' https://api.noxspot.dev/health || true)"
             if HEALTH_JSON="$health" node --input-type=module -e '
               const health = JSON.parse(process.env.HEALTH_JSON || "{}");
               if (health.service !== "noxspot-api" || health.owner !== "noxconnect" || health.plane !== "public-capture") process.exit(1);

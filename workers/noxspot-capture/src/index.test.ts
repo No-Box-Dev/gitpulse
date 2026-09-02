@@ -26,6 +26,18 @@ beforeAll(async () => {
 });
 
 describe("public capture Worker", () => {
+  it("identifies NoxConnect as the sole production owner", async () => {
+    const response = await SELF.fetch("https://capture.test/health");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      status: "ok",
+      service: "noxspot-api",
+      owner: "noxconnect",
+      plane: "public-capture",
+      contractVersion: 1,
+    });
+  });
+
   it("serves effective config only to an allowed origin", async () => {
     const allowed = await SELF.fetch("https://capture.test/api/spots/public/v1/sites/site-1/config", {
       headers: { Origin: "https://app.example.com" },
@@ -37,6 +49,39 @@ describe("public capture Worker", () => {
       headers: { Origin: "https://evil.example" },
     });
     expect(denied.status).toBe(403);
+  });
+
+  it("accepts diagnostic screenshot failures and keeps successful telemetry origin-scoped", async () => {
+    const failure = await SELF.fetch("https://capture.test/telemetry/screenshot-failures", {
+      method: "POST",
+      headers: { Origin: "https://unexpected.example", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: 1,
+        eventId: crypto.randomUUID(),
+        siteId: "site-1",
+        environment: "Production",
+        widgetVersion: "build-1",
+        captureMode: "click",
+        stage: "rasterize",
+        errorType: "SecurityError",
+        errorMessage: "Canvas is tainted",
+        viewport: { width: 1440, height: 900, devicePixelRatio: 2 },
+        page: { nodeCount: 4200, imageCount: 12, fontStatus: "loaded", visibilityState: "visible" },
+        cspViolations: [{ effectiveDirective: "connect-src", blockedResource: "https://i.ytimg.com", disposition: "enforce" }],
+        occurredAt: new Date().toISOString(),
+      }),
+    });
+    expect(failure.status).toBe(202);
+
+    const success = await SELF.fetch("https://capture.test/telemetry/screenshot-outcomes", {
+      method: "POST",
+      headers: { Origin: "https://unexpected.example", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId: crypto.randomUUID(), siteId: "site-1", environment: "Production",
+        widgetVersion: "build-1", captureMode: "click", outcome: "success",
+      }),
+    });
+    expect(success.status).toBe(403);
   });
 
   it("rejects oversized reports before reading their body", async () => {

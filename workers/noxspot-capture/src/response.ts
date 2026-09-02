@@ -3,8 +3,38 @@ const VERSION = 1;
 const MAX_GITHUB_BODY_LENGTH = 64_000;
 const MAX_SECTION_TEXT_LENGTH = 2_900;
 
-type Capture = Record<string, any>;
-type Issue = Record<string, any>;
+export interface CaptureInput extends Record<string, unknown> {
+  captureId: string;
+  siteId: string;
+  title: string;
+  siteName?: string | null;
+  issueType?: string | null;
+  description?: string | null;
+  reporter?: string | null;
+  reporterEmail?: string | null;
+  reporterGithubLogin?: string | null;
+  environment?: string | null;
+  screenshotUrl?: string | null;
+  rating?: number | null;
+  blockValues?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  elements?: Record<string, unknown>[] | null;
+  context?: Record<string, unknown> | null;
+}
+
+export interface IssueInput extends Record<string, unknown> {
+  title?: string;
+  url?: string | null;
+  number?: number | null;
+  submittedBy?: string | null;
+  resolution?: {
+    kind?: string;
+    url?: string | null;
+    number?: number | null;
+    summary?: string | null;
+    title?: string | null;
+  } | null;
+}
 
 const LABELS = Object.freeze({
   noxspot: Object.freeze({ name: "noxspot", color: "FE795D", description: "Captured with NoxSpot" }),
@@ -14,7 +44,7 @@ const LABELS = Object.freeze({
   error: Object.freeze({ name: "error", color: "B60205", description: "Automatically captured browser error" }),
 });
 
-export function buildIssueResponse(capture: Capture) {
+export function buildIssueResponse(capture: CaptureInput) {
   requireCapture(capture);
   const marker = `<!-- noxspot:${capture.captureId} -->`;
   const typeLabel = LABELS[capture.issueType as keyof typeof LABELS] ?? LABELS.bug;
@@ -30,7 +60,7 @@ export function buildIssueResponse(capture: Capture) {
   };
 }
 
-export function buildSlackResponse(capture: Capture, issue: Issue) {
+export function buildSlackResponse(capture: CaptureInput, issue: IssueInput) {
   requireCapture(capture);
   const issueUrl = safeHttpUrl(issue?.url);
   if (!issueUrl) throw new Error("NoxSpot response requires a valid GitHub issue URL");
@@ -78,8 +108,8 @@ export function buildTestResponse(orgLogin: string) {
 export function buildDailyDigestResponse(
   siteName: string,
   period: string,
-  filed: Issue[],
-  solved: Issue[],
+  filed: IssueInput[],
+  solved: IssueInput[],
   totals: Record<string, unknown> = {},
   portalUrl: string | null = null,
 ) {
@@ -104,7 +134,7 @@ export function buildDailyDigestResponse(
   };
 }
 
-function addDigestGroup(blocks: Record<string, unknown>[], label: string, issues: Issue[], total: number, formatter: (issue: Issue) => string) {
+function addDigestGroup(blocks: Record<string, unknown>[], label: string, issues: IssueInput[], total: number, formatter: (issue: IssueInput) => string) {
   if (!total) return;
   blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${label} (${total})*` } });
   let section = "";
@@ -120,13 +150,13 @@ function addDigestGroup(blocks: Record<string, unknown>[], label: string, issues
   if (section) blocks.push({ type: "section", text: { type: "mrkdwn", text: section } });
 }
 
-function formatFiledIssue(issue: Issue) {
+function formatFiledIssue(issue: IssueInput) {
   requireDigestIssue(issue);
   const reporter = issue.submittedBy ? `Filed by ${escapeMrkdwn(issue.submittedBy)}.` : "Filed this day.";
   return `${issueLink(issue)}\n${reporter} It is open.`;
 }
 
-function formatSolvedIssue(issue: Issue) {
+function formatSolvedIssue(issue: IssueInput) {
   requireDigestIssue(issue);
   const resolution = issue.resolution;
   if (resolution?.kind === "pull_request") {
@@ -140,14 +170,14 @@ function formatSolvedIssue(issue: Issue) {
   return `${issueLink(issue)}\nThis issue was closed. No linked fix was found.`;
 }
 
-function issueLink(issue: Issue) {
+function issueLink(issue: IssueInput) {
   const number = Number(issue.number);
   const label = `${truncate(issue.title, 180)}${Number.isInteger(number) && number > 0 ? ` (#${number})` : ""}`;
   const url = safeHttpUrl(issue.url);
   return url ? `*<${url}|${escapeMrkdwn(label)}>*` : `*${escapeMrkdwn(label)}*`;
 }
 
-function buildIssueBody(capture: Capture, marker: string) {
+function buildIssueBody(capture: CaptureInput, marker: string) {
   const lines: string[] = [];
   if (capture.description) lines.push(capture.description, "");
   if (capture.screenshotUrl) lines.push(`![NoxSpot capture](${capture.screenshotUrl})`, "");
@@ -173,13 +203,13 @@ function addJson(lines: string[], label: string, value: unknown) {
   lines.push("", `<details><summary>${label}</summary>`, "", "```json", json.slice(0, 16_000), "```", "</details>");
 }
 
-function requireCapture(capture: Capture) {
+function requireCapture(capture: CaptureInput) {
   for (const field of ["captureId", "siteId", "title"]) {
     if (!capture?.[field] || typeof capture[field] !== "string") throw new Error(`Invalid NoxSpot capture: missing ${field}`);
   }
 }
 
-function requireDigestIssue(issue: Issue) {
+function requireDigestIssue(issue: IssueInput) {
   if (!issue || typeof issue !== "object" || typeof issue.title !== "string" || !issue.title.trim()) throw new Error("Invalid NoxSpot digest issue");
 }
 

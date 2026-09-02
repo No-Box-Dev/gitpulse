@@ -38,6 +38,12 @@
       "bucket_name": "noxspot-assets"
     }
   ],
+  "services": [
+    {
+      "binding": "NOXCUE_INGEST",
+      "service": "noxcue"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {

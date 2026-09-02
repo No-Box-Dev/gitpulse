@@ -1,6 +1,13 @@
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { checkRateLimit, NoxSpotRateLimiter } from "./rate-limiter";
+import { checkRateLimit, RateLimiter } from "./rate-limiter";
+import {
+  buildDailyDigestResponse,
+  buildIssueResponse,
+  buildSlackResponse,
+  buildTestResponse,
+} from "./response";
 import { readBoundedJson, RequestBodyTooLargeError } from "./request-json";
 import {
   buildCaptureTask,
@@ -293,7 +300,7 @@ app.get("/widget/:siteId{.+\\.js$}", async (context) => {
   });
 });
 
-app.get("/health", (context) => context.json({ status: "ok", service: "noxconnect-noxspot-capture", contractVersion: 1 }));
+app.get("/health", (context) => context.json({ status: "ok", service: "noxspot-api", contractVersion: 1 }));
 
 // Compatibility only: Slack may still have the historical api.noxspot.dev
 // redirect allowlisted while installations move to the canonical NoxConnect
@@ -316,16 +323,37 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export { NoxSpotRateLimiter };
+export { RateLimiter };
 
-export default {
-  fetch: app.fetch,
-  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(deleteExpiredScreenshots(env.ASSETS).then((deleted) => {
+export default class NoxSpotService extends WorkerEntrypoint<Env> {
+  fetch(request: Request) {
+    return app.fetch(request, this.env, this.ctx);
+  }
+
+  scheduled() {
+    this.ctx.waitUntil(deleteExpiredScreenshots(this.env.ASSETS).then((deleted) => {
       console.log(JSON.stringify({ event: "noxspot.retention.complete", deleted }));
     }).catch((error) => {
       console.error(JSON.stringify({ event: "noxspot.retention.failed", error: message(error) }));
       throw error;
     }));
-  },
-} satisfies ExportedHandler<Env>;
+  }
+
+  buildIssueResponse(capture: CaptureInput) {
+    return buildIssueResponse(capture);
+  }
+
+  buildSlackResponse(capture: CaptureInput, issue: Record<string, unknown>) {
+    return buildSlackResponse(capture, issue);
+  }
+
+  buildTestResponse(orgLogin: string) {
+    return buildTestResponse(orgLogin);
+  }
+
+  buildDailyDigestResponse(siteName: string, period: string, filed: Record<string, unknown>[], solved: Record<string, unknown>[], totals: Record<string, unknown>, portalUrl: string | null = null) {
+    return buildDailyDigestResponse(siteName, period, filed, solved, totals, portalUrl);
+  }
+}
+
+type CaptureInput = Record<string, any>;

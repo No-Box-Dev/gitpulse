@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "noxconnect-noxspot-capture",
+  "name": "noxspot-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -42,14 +42,14 @@
     "bindings": [
       {
         "name": "RATE_LIMITER",
-        "class_name": "NoxSpotRateLimiter"
+        "class_name": "RateLimiter"
       }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["NoxSpotRateLimiter"]
+      "new_classes": ["RateLimiter"]
     }
   ]
 }

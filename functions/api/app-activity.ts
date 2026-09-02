@@ -4,11 +4,13 @@ import { getNoxDb, type NoxDatabaseEnv } from "../lib/nox-db";
 interface Env extends NoxDatabaseEnv {
   NOXCUE_INGEST?: Fetcher;
   NOXCUE_INGEST_KEY?: string;
+  NOXCUE_NOXFEED_INGEST_KEY?: string;
 }
 
 interface Ctx {
   env: Env;
   data: { userLogin: string };
+  request: Request;
 }
 
 interface ActivityRow {
@@ -18,6 +20,17 @@ interface ActivityRow {
 
 function utcPeriod(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+type TrackedApp = "noxconnect" | "noxfeed";
+
+async function requestedApp(request: Request): Promise<TrackedApp> {
+  if (!request.headers.get("Content-Type")?.toLowerCase().includes("application/json")) {
+    return "noxconnect";
+  }
+  const body = await request.json().catch(() => null) as { app?: unknown } | null;
+  if (body?.app === "noxconnect" || body?.app === "noxfeed") return body.app;
+  throw new Error("invalid_app");
 }
 
 async function sendUserEvent(
@@ -45,14 +58,19 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   if (!userLogin) return errorResponse("Missing user context", 400);
 
   const service = context.env.NOXCUE_INGEST;
-  const key = context.env.NOXCUE_INGEST_KEY?.trim();
+  let appId: TrackedApp;
+  try { appId = await requestedApp(context.request); }
+  catch { return errorResponse("App must be noxconnect or noxfeed", 422); }
+  const key = (appId === "noxfeed"
+    ? context.env.NOXCUE_NOXFEED_INGEST_KEY
+    : context.env.NOXCUE_INGEST_KEY)?.trim();
   if (!service || !key) return errorResponse("NoxCue user tracking is not configured", 503);
 
   const db = getNoxDb(context.env);
   const existing = await db.prepare(
     `SELECT registered_at, last_active_period
-       FROM noxcue_self_user_activity WHERE github_login = ?`,
-  ).bind(userLogin).first<ActivityRow>();
+       FROM noxcue_app_user_activity WHERE app_id = ? AND github_login = ?`,
+  ).bind(appId, userLogin).first<ActivityRow>();
   const now = new Date();
   const occurredAt = now.toISOString();
   const period = utcPeriod(now);
@@ -61,28 +79,29 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
     if (!existing) {
       await sendUserEvent(service, key, "user.registered", userLogin, occurredAt);
       await db.prepare(
-        `INSERT INTO noxcue_self_user_activity
-           (github_login, registered_at, last_active_period, last_event_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(github_login) DO NOTHING`,
-      ).bind(userLogin, occurredAt, period, occurredAt).run();
-      return jsonResponse({ recorded: "registered", period }, 202);
+        `INSERT INTO noxcue_app_user_activity
+           (app_id, github_login, registered_at, last_active_period, last_event_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(app_id, github_login) DO NOTHING`,
+      ).bind(appId, userLogin, occurredAt, period, occurredAt).run();
+      return jsonResponse({ app: appId, recorded: "registered", period }, 202);
     }
 
     if (existing.last_active_period === period) {
-      return jsonResponse({ recorded: "already_active", period });
+      return jsonResponse({ app: appId, recorded: "already_active", period });
     }
 
     await sendUserEvent(service, key, "user.active", userLogin, occurredAt);
     await db.prepare(
-      `UPDATE noxcue_self_user_activity
+      `UPDATE noxcue_app_user_activity
           SET last_active_period = ?, last_event_at = ?
-        WHERE github_login = ? AND last_active_period < ?`,
-    ).bind(period, occurredAt, userLogin, period).run();
-    return jsonResponse({ recorded: "active", period }, 202);
+        WHERE app_id = ? AND github_login = ? AND last_active_period < ?`,
+    ).bind(period, occurredAt, appId, userLogin, period).run();
+    return jsonResponse({ app: appId, recorded: "active", period }, 202);
   } catch (error) {
     console.error(JSON.stringify({
       message: "NoxConnect user event delivery failed",
+      app: appId,
       event: existing ? "user.active" : "user.registered",
       error: error instanceof Error ? error.message : String(error),
     }));

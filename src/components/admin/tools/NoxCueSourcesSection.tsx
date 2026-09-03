@@ -675,7 +675,7 @@ function EndpointHealthPanel({ source }: { source: NoxCueSource }) {
             {source.healthLastError ? <p role="alert" className="mt-2 text-xs font-medium text-amber-800">{source.healthStatus === "issue" ? "Incident: " : "One failed check; confirming: "}{source.healthLastError}</p> : null}
           </div>
           <button type="button" onClick={() => test.mutate(source.id)} disabled={test.isPending || !source.healthUrl || !source.effectiveAlertSlackChannelId} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">
-            {test.isPending ? <Spinner size="sm" /> : <Send size={13} />} Test endpoint and Slack
+            {test.isPending ? <Spinner size="sm" /> : <Send size={13} />} Send latest check to Slack
           </button>
         </div>
       </div>
@@ -684,7 +684,7 @@ function EndpointHealthPanel({ source }: { source: NoxCueSource }) {
         <span>Only status, latency, and timestamps are retained. Bodies and headers are discarded.</span>
       </div>
       {!source.effectiveAlertSlackChannelId ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Choose this project’s NoxCue alerts destination before testing. Endpoint incidents use the alert route, not the daily-stats route.</p> : null}
-      {test.isSuccess ? <p role="status" className={`rounded-lg border px-3 py-2 text-xs ${test.data.healthy ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{test.data.healthy ? `Endpoint returned HTTP ${test.data.statusCode} in ${test.data.latencyMs} ms.` : `Endpoint test failed: ${test.data.error ?? "unknown error"}.`} {test.data.delivered ? `Slack accepted the matching test message${channel ? ` in #${channel.name}` : ""}.` : "The matching Slack message is queued; check the channel to confirm it."}</p> : null}
+      {test.isSuccess ? <p role="status" className={`rounded-lg border px-3 py-2 text-xs ${test.data.healthy ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{test.data.healthy ? `The latest scheduled check returned HTTP ${test.data.statusCode} in ${test.data.latencyMs} ms.` : `The latest scheduled check failed: ${test.data.error ?? "unknown error"}.`} {test.data.delivered ? `Slack accepted the matching test message${channel ? ` in #${channel.name}` : ""}.` : "The matching Slack message is queued; check the channel to confirm it."}</p> : null}
       {test.isError ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{test.error instanceof Error ? test.error.message : "Could not complete the endpoint and Slack test."}</p> : null}
     </>}
   </Panel>;

@@ -61,6 +61,7 @@ export function useTestNoxCueEndpoint() {
       channelConfigured: true;
       deliveryId: string;
       delivered: boolean;
+      checkedAt: string;
     }>(`/api/cues/sources/${encodeURIComponent(sourceId)}/health/test`, {}),
     onSettled: () => client.invalidateQueries({ queryKey: sourcesKey(selectedOrg) }),
   });

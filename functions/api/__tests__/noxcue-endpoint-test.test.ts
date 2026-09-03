@@ -10,6 +10,7 @@ function context(overrides: { admin?: boolean; source?: boolean; service?: boole
     queued: true,
     channelConfigured: overrides.channel ?? true,
     deliveryId: "delivery-1",
+    checkedAt: "2026-09-03T15:30:00.000Z",
   }));
   const prepare = vi.fn((sql: string) => {
     const statement = {

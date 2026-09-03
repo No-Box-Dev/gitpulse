@@ -48,6 +48,24 @@ export function useSaveNoxCueSource() {
   });
 }
 
+export function useTestNoxCueEndpoint() {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceId: string) => apiPost<{
+      healthy: boolean;
+      statusCode: number | null;
+      latencyMs: number;
+      error: string | null;
+      queued: true;
+      channelConfigured: true;
+      deliveryId: string;
+      delivered: boolean;
+    }>(`/api/cues/sources/${encodeURIComponent(sourceId)}/health/test`, {}),
+    onSettled: () => client.invalidateQueries({ queryKey: sourcesKey(selectedOrg) }),
+  });
+}
+
 export function useDeleteNoxCueSource() {
   const { selectedOrg } = useAuth();
   const client = useQueryClient();

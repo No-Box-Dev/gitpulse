@@ -68,9 +68,13 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
          OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN 'waiting' ELSE cue_endpoint_monitors.status END,
        consecutive_failures = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url
          OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN 0 ELSE cue_endpoint_monitors.consecutive_failures END,
+       consecutive_successes = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url
+         OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN 0 ELSE cue_endpoint_monitors.consecutive_successes END,
        incident_started_at = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url
          OR excluded.enabled IS NOT cue_endpoint_monitors.enabled THEN NULL ELSE cue_endpoint_monitors.incident_started_at END,
        last_error = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url THEN NULL ELSE cue_endpoint_monitors.last_error END,
+       last_status_code = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url THEN NULL ELSE cue_endpoint_monitors.last_status_code END,
+       last_latency_ms = CASE WHEN excluded.url IS NOT cue_endpoint_monitors.url THEN NULL ELSE cue_endpoint_monitors.last_latency_ms END,
        enabled = excluded.enabled, url = excluded.url, updated_at = excluded.updated_at`,
   ).bind(orgId, context.params.id, parsed.data.healthEnabled ? 1 : 0, parsed.data.healthUrl).run();
   return jsonResponse({ ok: true });

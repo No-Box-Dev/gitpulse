@@ -22,6 +22,7 @@ import {
   useSaveNoxCueCustomMetric,
   useSaveNoxCueSource,
   useSaveNoxCueProjectMetrics,
+  useTestNoxCueEndpoint,
 } from "@/hooks/useNoxCue";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { apiPost } from "@/lib/api";
@@ -165,7 +166,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
             </label>
             <label className="text-sm font-medium text-stone-700">Public health URL
               <input type="url" value={draft.healthUrl ?? ""} onChange={(event) => setDraft({ ...draft, healthUrl: event.target.value || null })} placeholder="https://app.example.com/health" className="mt-1 block w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" />
-              <span className="mt-1 flex items-center gap-2 text-[11px] font-normal text-stone-500"><input type="checkbox" checked={draft.healthEnabled} onChange={(event) => setDraft({ ...draft, healthEnabled: event.target.checked })} /> Check every five minutes</span>
+              <span className="mt-1 flex items-center gap-2 text-[11px] font-normal text-stone-500"><input type="checkbox" checked={draft.healthEnabled} onChange={(event) => setDraft({ ...draft, healthEnabled: event.target.checked })} /> Check every minute</span>
             </label>
           </div>
           <p className="text-xs text-stone-400">The pulse covers the previous completed day and includes yesterday and trailing-30-day comparisons.</p>
@@ -188,6 +189,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         checkedWithoutEvent={checkedWithoutEvent}
         onCheck={() => void checkForEvents()}
       /> : null}
+      {!creating && selected ? <EndpointHealthPanel source={selected} /> : null}
       {!creating && selected ? <KeySection source={selected} /> : null}
       {!creating && selected ? <CustomMetricRegistry source={selected} /> : null}
       {!creating && selected ? <CustomFeatureRegistry source={selected} /> : null}
@@ -637,9 +639,54 @@ function AuthHealthPanel({ source }: { source: NoxCueSource }) {
       <SetupChip label="Publishable key" complete={publishable} detail={publishable ? "Active" : "Create a publishable key"} />
       <SetupChip label="End-to-end test" complete={Boolean(testedAt)} detail={testedAt ? `Received ${new Date(testedAt).toLocaleString()}` : "Run noxcue.test() in the app"} />
     </div>
-    {source.healthEnabled ? <div className={`rounded-lg border px-3 py-2 text-xs ${source.healthStatus === "issue" ? "border-red-200 bg-red-50 text-red-800" : source.healthStatus === "healthy" ? "border-green-200 bg-green-50 text-green-800" : "border-stone-200 bg-stone-50 text-stone-600"}`}><span className="font-medium">Endpoint: {source.healthStatus}</span>{source.healthLastCheckedAt ? ` · checked ${new Date(source.healthLastCheckedAt).toLocaleString()}` : " · waiting for first check"}{source.healthLastError ? ` · ${source.healthLastError}` : ""}</div> : null}
     {issueCount ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{issueCount} feature{issueCount === 1 ? " has" : "s have"} an unresolved critical incident. Slack is notified for every system failure.</p> : null}
     {health.isError ? <p className="text-xs text-red-600">Could not load feature health.</p> : health.isLoading ? <Spinner className="h-4 w-4 text-accent" /> : <div className="grid gap-3 sm:grid-cols-2">{health.data?.features.filter((feature) => feature.enabled).map((feature) => <div key={feature.key} className={`rounded-lg border p-3 ${feature.status === "issue" ? "border-red-200 bg-red-50" : feature.status === "healthy" ? "border-green-200 bg-green-50/50" : "border-stone-200 bg-stone-50"}`}><div className="flex items-center justify-between gap-2"><span className="min-w-0"><span className="text-sm font-medium text-stone-800">{feature.label}</span><span className="ml-2 rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-medium text-stone-600">{feature.kind === "standard" ? "NoxCue standard" : "Custom"}</span></span><HealthBadge status={feature.status} /></div><p className="mt-1 text-[11px] leading-4 text-stone-500">{feature.description}</p><p className="mt-2 text-[11px] text-stone-500">24h: {feature.successes24h} successful · {feature.rejections24h} rejected · {feature.failures24h} system failures</p>{feature.lastResultAt ? <p className="mt-1 text-[11px] text-stone-400">Last result {new Date(feature.lastResultAt).toLocaleString()}</p> : null}</div>)}</div>}
+  </Panel>;
+}
+
+function EndpointHealthPanel({ source }: { source: NoxCueSource }) {
+  const test = useTestNoxCueEndpoint();
+  const destination = useSlackChannels(source.effectiveAlertSlackConnectionId || undefined);
+  const channel = destination.channels.data?.find((candidate) => candidate.id === source.effectiveAlertSlackChannelId);
+  const lastCheckFailed = Boolean(source.healthLastError);
+  const stateStyle = source.healthStatus === "issue"
+    ? "border-red-200 bg-red-50"
+    : lastCheckFailed ? "border-amber-200 bg-amber-50" : source.healthStatus === "healthy"
+      ? "border-green-200 bg-green-50" : "border-stone-200 bg-stone-50";
+
+  return <Panel>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <div className="flex items-center gap-2"><Server size={16} /><h3 className="text-sm font-semibold text-stone-900">Endpoint health</h3></div>
+        <p className="mt-1 text-xs leading-5 text-stone-500">NoxCue checks the saved public URL every minute. Two failed checks open one incident; two successful checks close it.</p>
+      </div>
+      <HealthBadge status={source.healthStatus} />
+    </div>
+    {!source.healthEnabled ? <div className="rounded-lg border border-dashed border-stone-200 p-4 text-xs leading-5 text-stone-500">Add a public HTTPS health URL above, turn on checks, and save the source. No app-side code or ingest key is needed.</div> : <>
+      <div className={`rounded-lg border p-4 ${stateStyle}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-stone-900">{source.healthUrl}</p>
+            <p className="mt-1 text-xs text-stone-600">
+              {source.healthLastCheckedAt ? `Checked ${new Date(source.healthLastCheckedAt).toLocaleString()}` : "Waiting for the first scheduled check"}
+              {source.healthLastStatusCode ? ` · HTTP ${source.healthLastStatusCode}` : ""}
+              {source.healthLastLatencyMs !== null ? ` · ${source.healthLastLatencyMs} ms` : ""}
+            </p>
+            {source.healthLastError ? <p role="alert" className="mt-2 text-xs font-medium text-amber-800">{source.healthStatus === "issue" ? "Incident: " : "One failed check; confirming: "}{source.healthLastError}</p> : null}
+          </div>
+          <button type="button" onClick={() => test.mutate(source.id)} disabled={test.isPending || !source.healthUrl || !source.effectiveAlertSlackChannelId} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">
+            {test.isPending ? <Spinner size="sm" /> : <Send size={13} />} Test endpoint and Slack
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
+        <span>Alerts: {channel ? `#${channel.name}` : source.effectiveAlertSlackChannelId ? "configured channel" : "no channel configured"} · {routeLabel(source.alertSlackRouteLevel)}</span>
+        <span>Only status, latency, and timestamps are retained. Bodies and headers are discarded.</span>
+      </div>
+      {!source.effectiveAlertSlackChannelId ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Choose this project’s NoxCue alerts destination before testing. Endpoint incidents use the alert route, not the daily-stats route.</p> : null}
+      {test.isSuccess ? <p role="status" className={`rounded-lg border px-3 py-2 text-xs ${test.data.healthy ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{test.data.healthy ? `Endpoint returned HTTP ${test.data.statusCode} in ${test.data.latencyMs} ms.` : `Endpoint test failed: ${test.data.error ?? "unknown error"}.`} {test.data.delivered ? `Slack accepted the matching test message${channel ? ` in #${channel.name}` : ""}.` : "The matching Slack message is queued; check the channel to confirm it."}</p> : null}
+      {test.isError ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{test.error instanceof Error ? test.error.message : "Could not complete the endpoint and Slack test."}</p> : null}
+    </>}
   </Panel>;
 }
 

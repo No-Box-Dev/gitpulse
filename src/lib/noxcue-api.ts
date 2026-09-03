@@ -55,6 +55,11 @@ export interface NoxCueSource extends NoxCueSourceInput {
   healthStatus: "waiting" | "healthy" | "issue";
   healthLastCheckedAt: string | null;
   healthLastError: string | null;
+  healthLastStatusCode: number | null;
+  healthLastLatencyMs: number | null;
+  effectiveAlertSlackChannelId: string | null;
+  effectiveAlertSlackConnectionId: string | null;
+  alertSlackRouteLevel: "source" | "project" | "organization" | "fallback" | null;
   keys: Array<{
     id: string;
     name: string;

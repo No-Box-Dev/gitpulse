@@ -32,6 +32,11 @@ interface SourceRow {
   health_status: "waiting" | "healthy" | "issue" | null;
   health_last_checked_at: string | null;
   health_last_error: string | null;
+  health_last_status_code: number | null;
+  health_last_latency_ms: number | null;
+  effective_alert_slack_channel_id: string | null;
+  effective_alert_slack_connection_id: string | null;
+  alert_slack_route_level: "source" | "project" | "organization" | "fallback" | null;
   created_at: string;
 }
 
@@ -58,7 +63,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
               source.enabled, source.timezone, source.digest_enabled, source.digest_time_local,
               source.allowed_origins_json, monitor.enabled AS health_enabled, monitor.url AS health_url,
               monitor.status AS health_status, monitor.last_checked_at AS health_last_checked_at,
-              monitor.last_error AS health_last_error,
+              monitor.last_error AS health_last_error, monitor.last_status_code AS health_last_status_code,
+              monitor.last_latency_ms AS health_last_latency_ms,
               source.slack_channel_id, source.slack_connection_id,
               COALESCE(NULLIF(source.slack_channel_id, ''), NULLIF(project_route.channel_id, ''),
                 NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), ''),
@@ -79,6 +85,25 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
                 WHEN NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '') IS NOT NULL THEN 'fallback'
                 ELSE NULL
               END AS slack_route_level,
+              COALESCE(NULLIF(alert_route.channel_id, ''), NULLIF(project_route.channel_id, ''),
+                NULLIF(source.slack_channel_id, ''), NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), ''),
+                NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '')) AS effective_alert_slack_channel_id,
+              CASE
+                WHEN NULLIF(alert_route.channel_id, '') IS NOT NULL THEN NULLIF(alert_route.connection_id, '')
+                WHEN NULLIF(project_route.channel_id, '') IS NOT NULL THEN NULLIF(project_route.connection_id, '')
+                WHEN NULLIF(source.slack_channel_id, '') IS NOT NULL THEN NULLIF(source.slack_connection_id, '')
+                WHEN NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), '') IS NOT NULL
+                  THEN NULLIF(json_extract(config.data, '$.slack.noxCueConnectionId'), '')
+                ELSE NULLIF(json_extract(config.data, '$.slack.fallbackConnectionId'), '')
+              END AS effective_alert_slack_connection_id,
+              CASE
+                WHEN NULLIF(alert_route.channel_id, '') IS NOT NULL THEN 'project'
+                WHEN NULLIF(project_route.channel_id, '') IS NOT NULL THEN 'project'
+                WHEN NULLIF(source.slack_channel_id, '') IS NOT NULL THEN 'source'
+                WHEN NULLIF(json_extract(config.data, '$.slack.noxCueChannelId'), '') IS NOT NULL THEN 'organization'
+                WHEN NULLIF(json_extract(config.data, '$.slack.fallbackChannelId'), '') IS NOT NULL THEN 'fallback'
+                ELSE NULL
+              END AS alert_slack_route_level,
               (SELECT MAX(registration.received_at) FROM cue_user_registrations registration
                 WHERE registration.source_id = source.id) AS last_registration_at,
               (SELECT MAX(activity.received_at) FROM cue_user_active_days activity
@@ -97,6 +122,16 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
              WHERE routing_settings.org_id = source.org_id
                AND routing_settings.project_id = source.project_id
                AND routing_settings.enabled = 1
+          )
+         LEFT JOIN project_slack_routes alert_route
+           ON alert_route.org_id = source.org_id
+          AND alert_route.project_id = source.project_id
+          AND alert_route.route_key = 'noxcue_alerts'
+          AND EXISTS (
+            SELECT 1 FROM project_routing_settings alert_routing_settings
+             WHERE alert_routing_settings.org_id = source.org_id
+               AND alert_routing_settings.project_id = source.project_id
+               AND alert_routing_settings.enabled = 1
           )
         WHERE source.org_id = ? AND source.owner_id = ?
         ORDER BY source.created_at DESC`,
@@ -135,6 +170,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       healthStatus: source.health_status ?? "waiting",
       healthLastCheckedAt: source.health_last_checked_at,
       healthLastError: source.health_last_error,
+      healthLastStatusCode: source.health_last_status_code,
+      healthLastLatencyMs: source.health_last_latency_ms,
+      effectiveAlertSlackChannelId: source.effective_alert_slack_channel_id,
+      effectiveAlertSlackConnectionId: source.effective_alert_slack_connection_id,
+      alertSlackRouteLevel: source.alert_slack_route_level,
       slackChannelId: source.slack_channel_id,
       slackConnectionId: source.slack_connection_id,
       effectiveSlackChannelId: source.effective_slack_channel_id,

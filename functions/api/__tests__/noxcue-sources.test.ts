@@ -4,7 +4,9 @@ import { onRequestPut } from "../cues/sources/[id]";
 
 const sourceInput = {
   name: "Playnist",
+  environment: "production",
   enabled: true,
+  alertsEnabled: true,
   projectId: null,
   timezone: "UTC",
   digestEnabled: true,
@@ -23,8 +25,8 @@ function makeDb(projects = [{ id: "playnist", name: "Playnist", repo: "playnist"
         bind(...values: unknown[]) { this.binds = values; return this; },
         async all() {
           if (sql.includes("FROM cue_sources source")) return { results: [{
-            id: "source-1", name: "Playnist", project_id: "playnist", project_name: "Playnist",
-            enabled: 1, timezone: "UTC", digest_enabled: 1, digest_time_local: "03:30",
+            id: "source-1", name: "Playnist", environment: "production", project_id: "playnist", project_name: "Playnist",
+            enabled: 1, alerts_enabled: 1, timezone: "UTC", digest_enabled: 1, digest_time_local: "03:30",
             slack_channel_id: null, slack_connection_id: null,
             effective_slack_channel_id: "C123", effective_slack_connection_id: "conn-1",
             slack_route_level: "project", last_registration_at: "2026-08-30T01:00:00Z",
@@ -33,6 +35,10 @@ function makeDb(projects = [{ id: "playnist", name: "Playnist", repo: "playnist"
           if (sql.includes("FROM cue_source_keys")) return { results: [] };
           if (sql.includes("FROM projects project")) return { results: projects };
           return { results: [] };
+        },
+        async first() {
+          if (sql.includes("SELECT source.environment")) return { environment: "production", has_events: 0 };
+          return null;
         },
         async run() { writes.push({ sql, binds: this.binds }); return { success: true, meta: { changes: 1 } }; },
       };
@@ -91,6 +97,6 @@ describe("NoxCue source onboarding API", () => {
     const db = makeDb();
     const response = await onRequestPut(context(db, "PUT", sourceInput) as never);
     expect(response.status).toBe(200);
-    expect(db.writes.find(({ sql }) => sql.includes("UPDATE cue_sources"))?.binds[1]).toBe("playnist");
+    expect(db.writes.find(({ sql }) => sql.includes("UPDATE cue_sources"))?.binds[2]).toBe("playnist");
   });
 });

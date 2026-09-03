@@ -42,6 +42,7 @@ describe("NoxCue daily digest periods", () => {
         async all() {
           if (sql.includes("FROM cue_sources source")) return { results: [{
             id: "source-1", org_id: 7, owner_id: "acme", project_id: "playnist", name: "Checkout",
+            environment: "production",
             timezone: "Asia/Kuala_Lumpur", digest_time_local: "00:30",
             source_channel_id: "C123", source_connection_id: "connection-1",
             project_channel_id: null, project_connection_id: null,
@@ -79,7 +80,7 @@ describe("NoxCue daily digest periods", () => {
     const result = await runNoxCueDigests(env, Date.parse("2026-08-29T16:45:00Z"));
     expect(result).toEqual({ created: 1, skipped: 0, failed: 0 });
     expect(service.buildDigestResponse).toHaveBeenCalledWith(
-      "Checkout",
+      "Checkout · Production",
       "2026-08-29",
       { "users.new": 86 },
       {

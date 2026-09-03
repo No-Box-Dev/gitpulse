@@ -22,6 +22,18 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
   const parsed = validate(cueSourceInputSchema, raw);
   if (!parsed.ok) return parsed.response;
 
+  const existing = await db.prepare(
+    `SELECT source.environment,
+            EXISTS(SELECT 1 FROM cue_source_keys key
+                    WHERE key.source_id = source.id AND key.last_used_at IS NOT NULL) AS has_events
+       FROM cue_sources source
+      WHERE source.id = ? AND source.org_id = ? AND source.owner_id = ?`,
+  ).bind(context.params.id, orgId, orgLogin).first<{ environment: string; has_events: number }>();
+  if (!existing) return errorResponse("Cue source not found", 404);
+  if (existing.has_events === 1 && parsed.data.environment !== existing.environment) {
+    return errorResponse("Environment cannot change after this source receives events. Create a separate source for the other environment.", 409);
+  }
+
   const activeProjects = await db.prepare(
     `SELECT project.id FROM projects project
       JOIN project_routing_settings routing ON routing.project_id = project.id
@@ -48,13 +60,14 @@ export async function onRequestPut(context: Ctx): Promise<Response> {
     return errorResponse(error instanceof Error ? error.message : "Slack channel is unavailable", 409);
   }
   const result = await db.prepare(
-    `UPDATE cue_sources SET name = ?, project_id = ?, enabled = ?,
+    `UPDATE cue_sources SET name = ?, environment = ?, project_id = ?, enabled = ?, alerts_enabled = ?,
        timezone = ?, digest_enabled = ?, digest_time_local = ?, allowed_origins_json = ?, slack_channel_id = ?,
        slack_connection_id = ?,
        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
      WHERE id = ? AND org_id = ? AND owner_id = ?`,
   ).bind(
-    parsed.data.name, projectId, parsed.data.enabled ? 1 : 0,
+    parsed.data.name, parsed.data.environment, projectId, parsed.data.enabled ? 1 : 0,
+    parsed.data.alertsEnabled ? 1 : 0,
     parsed.data.timezone,
     parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal, JSON.stringify(parsed.data.allowedOrigins),
     parsed.data.slackChannelId, slackConnectionId, context.params.id, orgId, orgLogin,

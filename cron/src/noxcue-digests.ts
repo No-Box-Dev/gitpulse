@@ -32,6 +32,7 @@ interface DigestSource {
   owner_id: string;
   project_id: string | null;
   name: string;
+  environment: string;
   timezone: string;
   digest_time_local: string;
   source_channel_id: string | null;
@@ -106,7 +107,11 @@ async function createDigest(
   const enabledKeys = await loadEnabledNoxCueMetricKeys(env.DB, source.org_id, source.project_id, source.id);
   const selected = selectNoxCueDigestMetrics(digest, enabledKeys);
 
-  const response = await getNoxCueDigestResponse(env, source.name, period, selected.metrics, selected.comparisons, selected.metricLabels);
+  const environment = source.environment.charAt(0).toUpperCase() + source.environment.slice(1);
+  const displayName = source.name.toLowerCase().includes(source.environment.toLowerCase())
+    ? source.name
+    : `${source.name} · ${environment}`;
+  const response = await getNoxCueDigestResponse(env, displayName, period, selected.metrics, selected.comparisons, selected.metricLabels);
   const delivery = await stageSlackDelivery(env.DB, {
     orgId: source.org_id,
     source: "noxcue",
@@ -138,7 +143,7 @@ async function createDigest(
 
 export async function runNoxCueDigests(env: DigestEnv, nowMs = Date.now()) {
   const { results } = await env.DB.prepare(
-    `SELECT source.id, source.org_id, source.owner_id, source.project_id, source.name, source.timezone,
+    `SELECT source.id, source.org_id, source.owner_id, source.project_id, source.name, source.environment, source.timezone,
             source.digest_time_local,
             NULLIF(source.slack_channel_id, '') AS source_channel_id,
             NULLIF(source.slack_connection_id, '') AS source_connection_id,

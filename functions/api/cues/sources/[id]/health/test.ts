@@ -9,6 +9,7 @@ interface EndpointTestResult {
   queued: boolean;
   channelConfigured: boolean;
   deliveryId: string | null;
+  checkedAt: string;
 }
 
 interface NoxCueEndpointService {
@@ -57,6 +58,7 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Endpoint test failed";
     if (message.includes("monitor not found")) return errorResponse("Save and enable the endpoint monitor before testing it", 409);
+    if (message.includes("recent scheduled endpoint check")) return errorResponse("Wait for the first scheduled endpoint check, then try again", 409);
     console.error("[noxcue-endpoint-test] service failed", { sourceId: context.params.id, error: message });
     return errorResponse("NoxCue could not run the endpoint test", 502);
   }

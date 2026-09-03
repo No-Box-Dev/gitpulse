@@ -21,7 +21,9 @@ function safeHealthUrl(value: string): boolean {
 }
 export const cueSourceInputSchema = z.object({
   name: shortText(120),
+  environment: z.enum(["production", "staging", "development", "preview", "test", "local"]).default("production"),
   enabled: z.boolean().default(true),
+  alertsEnabled: z.boolean().default(true),
   projectId: z.string().trim().min(1).max(200).nullable().default(null),
   timezone: z.string().trim().min(1).max(100).refine((value) => {
     try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return true; }

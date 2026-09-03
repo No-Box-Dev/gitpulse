@@ -27,7 +27,9 @@ import { SetupProgress } from "../NoxCueSourcesSection";
 const source: NoxCueSource = {
   id: "source-1",
   name: "Playnist",
+  environment: "production",
   enabled: true,
+  alertsEnabled: true,
   projectId: "playnist",
   projectName: "Playnist",
   timezone: "UTC",

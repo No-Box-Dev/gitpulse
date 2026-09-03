@@ -13,9 +13,11 @@ interface Ctx {
 interface SourceRow {
   id: string;
   name: string;
+  environment: "production" | "staging" | "development" | "preview" | "test" | "local";
   project_id: string | null;
   project_name: string | null;
   enabled: number;
+  alerts_enabled: number;
   timezone: string;
   digest_enabled: number;
   digest_time_local: string;
@@ -59,8 +61,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
 
   const [sourcesResult, keysResult, projectsResult] = await Promise.all([
     db.prepare(
-      `SELECT source.id, source.name, source.project_id, project.name AS project_name,
-              source.enabled, source.timezone, source.digest_enabled, source.digest_time_local,
+      `SELECT source.id, source.name, source.environment, source.project_id, project.name AS project_name,
+              source.enabled, source.alerts_enabled, source.timezone, source.digest_enabled, source.digest_time_local,
               source.allowed_origins_json, monitor.enabled AS health_enabled, monitor.url AS health_url,
               monitor.status AS health_status, monitor.last_checked_at AS health_last_checked_at,
               monitor.last_error AS health_last_error, monitor.last_status_code AS health_last_status_code,
@@ -158,9 +160,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     sources: (sourcesResult.results ?? []).map((source) => ({
       id: source.id,
       name: source.name,
+      environment: source.environment,
       projectId: source.project_id,
       projectName: source.project_name,
       enabled: source.enabled === 1,
+      alertsEnabled: source.alerts_enabled === 1,
       timezone: source.timezone,
       digestEnabled: source.digest_enabled === 1,
       digestTimeLocal: source.digest_time_local,
@@ -237,13 +241,14 @@ export async function onRequestPost(context: Ctx): Promise<Response> {
   const id = crypto.randomUUID();
   await db.prepare(
     `INSERT INTO cue_sources
-       (id, org_id, owner_id, project_id, name, enabled, allowed_origins_json, timezone,
+       (id, org_id, owner_id, project_id, name, environment, enabled, alerts_enabled, allowed_origins_json, timezone,
         digest_enabled, digest_time_local, error_cooldown_minutes, slack_channel_id,
         slack_connection_id, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 15, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 15, ?, ?, ?)`,
   ).bind(
-    id, orgId, orgLogin, projectId, parsed.data.name,
-    parsed.data.enabled ? 1 : 0, JSON.stringify(parsed.data.allowedOrigins), parsed.data.timezone,
+    id, orgId, orgLogin, projectId, parsed.data.name, parsed.data.environment,
+    parsed.data.enabled ? 1 : 0, parsed.data.alertsEnabled ? 1 : 0,
+    JSON.stringify(parsed.data.allowedOrigins), parsed.data.timezone,
     parsed.data.digestEnabled ? 1 : 0, parsed.data.digestTimeLocal,
     parsed.data.slackChannelId, slackConnectionId, userLogin,
   ).run();

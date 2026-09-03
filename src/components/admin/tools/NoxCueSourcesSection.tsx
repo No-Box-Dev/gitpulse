@@ -26,12 +26,14 @@ import {
 } from "@/hooks/useNoxCue";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { apiPost } from "@/lib/api";
-import type { NoxCueCustomMetricsResponse, NoxCueFeaturesResponse, NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
+import type { NoxCueCustomMetricsResponse, NoxCueEnvironment, NoxCueFeaturesResponse, NoxCueSource, NoxCueSourceInput, NoxCueUserMetricKey } from "@/lib/noxcue-api";
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 
 const EMPTY_SOURCE: NoxCueSourceInput = {
   name: "",
+  environment: "production",
   enabled: true,
+  alertsEnabled: true,
   projectId: null,
   timezone: "UTC",
   digestEnabled: true,
@@ -52,6 +54,25 @@ const USER_STAT_KEYS = [
   "users.stickiness.dau_mau",
 ] as const;
 
+const ENVIRONMENTS: Array<{ value: NoxCueEnvironment; label: string }> = [
+  { value: "production", label: "Production" },
+  { value: "staging", label: "Staging" },
+  { value: "development", label: "Development" },
+  { value: "preview", label: "Preview" },
+  { value: "test", label: "Test" },
+  { value: "local", label: "Local" },
+];
+
+function environmentLabel(environment: NoxCueEnvironment) {
+  return ENVIRONMENTS.find((candidate) => candidate.value === environment)?.label ?? environment;
+}
+
+function sourceLabel(source: Pick<NoxCueSource, "name" | "environment">) {
+  return source.name.toLowerCase().includes(source.environment)
+    ? source.name
+    : `${source.name} · ${environmentLabel(source.environment)}`;
+}
+
 export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsStatus }) {
   const sources = useNoxCueSources();
   const createSource = useCreateNoxCueSource();
@@ -69,7 +90,9 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
   );
   const stored: NoxCueSourceInput = selected ? {
     name: selected.name,
+    environment: selected.environment,
     enabled: selected.enabled,
+    alertsEnabled: selected.alertsEnabled,
     projectId: selected.projectId,
     timezone: selected.timezone,
     digestEnabled: selected.digestEnabled,
@@ -87,6 +110,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
   }), [sources.data?.projects]);
   const draftKey = creating ? "new" : selected?.id ?? "new";
   const draft = drafts[draftKey] ?? (creating ? sourceDefaults : stored);
+  const environmentLocked = !creating && Boolean(selected?.keys.some((key) => key.lastUsedAt));
   const setDraft = (next: NoxCueSourceInput) => setDrafts((current) => ({ ...current, [draftKey]: next }));
 
   if (sources.isLoading) return <Panel><Spinner className="h-5 w-5 text-accent" /></Panel>;
@@ -122,8 +146,8 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
       <form onSubmit={submit} className="space-y-5 rounded-xl border border-stone-200 bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-stone-900">Daily user-stat sources</h3>
-            <p className="mt-1 text-xs text-stone-500">Create one source for each app that sends registration and active-user events.</p>
+            <h3 className="text-sm font-semibold text-stone-900">App environments</h3>
+            <p className="mt-1 text-xs text-stone-500">Create one source for each app environment that sends events to NoxCue.</p>
           </div>
           <button type="button" onClick={() => { setCreating(true); setDrafts({ new: sourceDefaults }); setCheckedWithoutEvent(false); }} className="flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700">
             <Plus size={13} /> New source
@@ -133,7 +157,7 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
         {!creating && sources.data.sources.length ? (
           <label className="block text-sm font-medium text-stone-700">Source
             <select value={selected?.id ?? ""} onChange={(event) => { setSelectedId(event.target.value); setDrafts({}); setCheckedWithoutEvent(false); }} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm">
-              {sources.data.sources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+              {sources.data.sources.map((source) => <option key={source.id} value={source.id}>{sourceLabel(source)}</option>)}
             </select>
           </label>
         ) : null}
@@ -148,6 +172,12 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
                 <option value="">{sources.data.projects.length > 1 ? "Choose a project" : "No project available"}</option>
                 {sources.data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
               </select>
+            </label>
+            <label className="text-sm font-medium text-stone-700">Environment
+              <select disabled={environmentLocked} value={draft.environment} onChange={(event) => setDraft({ ...draft, environment: event.target.value as NoxCueEnvironment })} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm disabled:bg-stone-50">
+                {ENVIRONMENTS.map((environment) => <option key={environment.value} value={environment.value}>{environment.label}</option>)}
+              </select>
+              <span className="mt-1 block text-[11px] font-normal text-stone-400">{environmentLocked ? "Locked after the first event. Create another source for a different environment." : "The source key only accepts events for this environment."}</span>
             </label>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -169,9 +199,12 @@ export function NoxCueSourcesSection({ noxConnect }: { noxConnect: IntegrationsS
               <span className="mt-1 flex items-center gap-2 text-[11px] font-normal text-stone-500"><input type="checkbox" checked={draft.healthEnabled} onChange={(event) => setDraft({ ...draft, healthEnabled: event.target.checked })} /> Check every minute</span>
             </label>
           </div>
-          <p className="text-xs text-stone-400">The pulse covers the previous completed day and includes yesterday and trailing-30-day comparisons.</p>
-          <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={draft.digestEnabled} onChange={(event) => setDraft({ ...draft, digestEnabled: event.target.checked })} /> Post the daily user stats to Slack</label>
-          <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /> Accept user events</label>
+          <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
+            <div><p className="text-sm font-medium text-stone-800">Environment controls</p><p className="mt-1 text-xs text-stone-500">Collection and Slack delivery are independent. You can keep staging data visible without notifying the team.</p></div>
+            <label className="flex items-start gap-2 text-sm text-stone-700"><input className="mt-0.5" type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /><span><span className="block font-medium">Collect events</span><span className="block text-xs text-stone-500">Accept and store events for {environmentLabel(draft.environment).toLowerCase()}.</span></span></label>
+            <label className="flex items-start gap-2 text-sm text-stone-700"><input className="mt-0.5" type="checkbox" checked={draft.digestEnabled} onChange={(event) => setDraft({ ...draft, digestEnabled: event.target.checked })} /><span><span className="block font-medium">Send daily digest</span><span className="block text-xs text-stone-500">Post the completed-day user stats after {draft.digestTimeLocal} {draft.timezone}.</span></span></label>
+            <label className="flex items-start gap-2 text-sm text-stone-700"><input className="mt-0.5" type="checkbox" checked={draft.alertsEnabled} onChange={(event) => setDraft({ ...draft, alertsEnabled: event.target.checked })} /><span><span className="block font-medium">Send immediate alerts</span><span className="block text-xs text-stone-500">Post feature failures, unregistered events, errors, and endpoint incidents.</span></span></label>
+          </div>
           <div className="flex items-center gap-3 border-t border-stone-100 pt-4">
             <button disabled={createSource.isPending || saveSource.isPending || (sources.data.projects.length > 1 && !draft.projectId)} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{creating ? "Create source" : "Save settings"}</button>
             {!creating && selected ? <DeleteSourceButton sourceId={selected.id} sourceName={selected.name} mutation={deleteSource} onDeleted={() => setSelectedId("")} /> : null}
@@ -298,7 +331,7 @@ export function SetupProgress({
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold text-stone-900">Setup progress</h3>
-        <p className="mt-1 text-xs text-stone-500">Each check reflects the saved production configuration.</p>
+        <p className="mt-1 text-xs text-stone-500">Each check reflects the saved {environmentLabel(source.environment).toLowerCase()} configuration.</p>
       </div>
       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${completed === steps.length ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-600"}`}>
         {completed} of {steps.length} complete
@@ -494,16 +527,19 @@ function KeySection({ source }: { source: NoxCueSource }) {
   };
   return <><Panel>
     <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Server size={16} /><h3 className="text-sm font-semibold text-stone-900">Connect the app</h3></div><p className="mt-1 text-xs text-stone-500">Use a publishable key in browser or mobile code for auth health. Keep a secret key on the server for user statistics.</p></div><div className="flex gap-2"><button type="button" onClick={() => create("publishable")} disabled={createKey.isPending || !source.allowedOrigins.length} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50"><ShieldCheck size={13} /> Create publishable key</button><button type="button" onClick={() => create("secret")} disabled={createKey.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium disabled:opacity-50">{createKey.isPending ? <Spinner size="sm" /> : <KeyRound size={13} />} Create secret key</button></div></div>
-    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">{newKey.kind === "publishable" ? "Publishable key" : "Secret key"} created—copy it now</p><p className="mt-1 text-xs text-amber-800">{newKey.kind === "publishable" ? "Use this key in browser or mobile code. Requests are restricted to the exact origins above." : "Store this value as NOXCUE_INGEST_KEY in your server environment."}</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey.value}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey.value).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div>{newKey.kind === "publishable" ? <BrowserExample ingestKey={newKey.value} /> : <RequestExample />}</div> : null}
+    {newKey ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">{newKey.kind === "publishable" ? "Publishable key" : "Secret key"} created—copy it now</p><p className="mt-1 text-xs text-amber-800">{newKey.kind === "publishable" ? "Use this key in browser or mobile code. Requests are restricted to the exact origins above." : "Store this value as NOXCUE_INGEST_KEY in your server environment."}</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded bg-white px-2 py-2 text-xs">{newKey.value}</code><button type="button" aria-label="Copy NoxCue ingest key" title="Copy key" onClick={() => { void navigator.clipboard.writeText(newKey.value).then(() => setCopied(true), () => setCopied(false)); }} className="rounded-lg border border-amber-200 bg-white px-3 text-amber-800">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div>{newKey.kind === "publishable" ? <BrowserExample ingestKey={newKey.value} environment={source.environment} /> : <RequestExample environment={source.environment} />}</div> : null}
     <div className="divide-y divide-stone-100">{activeKeys.map((key) => <div key={key.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium text-stone-700">{key.name} <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase text-stone-500">{key.kind}</span></div><div className="font-mono text-xs text-stone-400">{key.prefix}… · {key.lastUsedAt ? `last request ${new Date(key.lastUsedAt).toLocaleString()}` : "waiting for first request"}</div></div><button type="button" onClick={() => void revoke(key.id)} className="text-xs text-red-600">Revoke</button></div>)}{!activeKeys.length ? <p className="py-3 text-xs text-stone-400">No active keys yet.</p> : null}</div>
     {!source.allowedOrigins.length ? <p className="text-xs text-amber-700">Save at least one browser origin before creating a publishable key.</p> : null}
     {createKey.isError ? <p className="text-xs text-red-600">{createKey.error instanceof Error ? createKey.error.message : "Could not create the key."}</p> : null}
   </Panel><ConfirmDialog {...dialogProps} /></>;
 }
 
-function BrowserExample({ ingestKey }: { ingestKey: string }) {
+function BrowserExample({ ingestKey, environment }: { ingestKey: string; environment: NoxCueEnvironment }) {
   const [copied, setCopied] = useState(false);
-  const command = `const noxcue = createNoxCue({ ingestKey: "${ingestKey}" });
+  const command = `const noxcue = createNoxCue({
+  ingestKey: "${ingestKey}",
+  environment: "${environment}",
+});
 
 // One wrapper around the auth call. The original result is unchanged.
 const result = await noxcue.auth.signup(() => auth.signUp(input));
@@ -674,7 +710,7 @@ function EndpointHealthPanel({ source }: { source: NoxCueSource }) {
             </p>
             {source.healthLastError ? <p role="alert" className="mt-2 text-xs font-medium text-amber-800">{source.healthStatus === "issue" ? "Incident: " : "One failed check; confirming: "}{source.healthLastError}</p> : null}
           </div>
-          <button type="button" onClick={() => test.mutate(source.id)} disabled={test.isPending || !source.healthUrl || !source.effectiveAlertSlackChannelId} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">
+          <button type="button" onClick={() => test.mutate(source.id)} disabled={test.isPending || !source.healthUrl || !source.alertsEnabled || !source.effectiveAlertSlackChannelId} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 disabled:opacity-50">
             {test.isPending ? <Spinner size="sm" /> : <Send size={13} />} Send latest check to Slack
           </button>
         </div>
@@ -683,7 +719,7 @@ function EndpointHealthPanel({ source }: { source: NoxCueSource }) {
         <span>Alerts: {channel ? `#${channel.name}` : source.effectiveAlertSlackChannelId ? "configured channel" : "no channel configured"} · {routeLabel(source.alertSlackRouteLevel)}</span>
         <span>Only status, latency, and timestamps are retained. Bodies and headers are discarded.</span>
       </div>
-      {!source.effectiveAlertSlackChannelId ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Choose this project’s NoxCue alerts destination before testing. Endpoint incidents use the alert route, not the daily-stats route.</p> : null}
+      {!source.alertsEnabled ? <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">Immediate Slack alerts are paused for {environmentLabel(source.environment).toLowerCase()}. Endpoint checks continue and their status remains visible here.</p> : !source.effectiveAlertSlackChannelId ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Choose this project’s NoxCue alerts destination before testing. Endpoint incidents use the alert route, not the daily-stats route.</p> : null}
       {test.isSuccess ? <p role="status" className={`rounded-lg border px-3 py-2 text-xs ${test.data.healthy ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{test.data.healthy ? `The latest scheduled check returned HTTP ${test.data.statusCode} in ${test.data.latencyMs} ms.` : `The latest scheduled check failed: ${test.data.error ?? "unknown error"}.`} {test.data.delivered ? `Slack accepted the matching test message${channel ? ` in #${channel.name}` : ""}.` : "The matching Slack message is queued; check the channel to confirm it."}</p> : null}
       {test.isError ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{test.error instanceof Error ? test.error.message : "Could not complete the endpoint and Slack test."}</p> : null}
     </>}
@@ -699,7 +735,7 @@ function HealthBadge({ status }: { status: "waiting" | "healthy" | "issue" }) {
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}>{status === "issue" ? "Issue" : status === "healthy" ? "Healthy" : "Waiting"}</span>;
 }
 
-function RequestExample() {
+function RequestExample({ environment }: { environment: NoxCueEnvironment }) {
   const [copied, setCopied] = useState(false);
   const command = `await fetch("https://noxcue.jasper-414.workers.dev/v1/events", {
   method: "POST",
@@ -707,7 +743,11 @@ function RequestExample() {
     "Content-Type": "application/json",
     "X-Nox-Ingest-Key": process.env.NOXCUE_INGEST_KEY,
   },
-  body: JSON.stringify({ type: "user.registered", userId: user.id }),
+  body: JSON.stringify({
+    type: "user.registered",
+    environment: "${environment}",
+    userId: user.id,
+  }),
 });`;
   return <div className="mt-3 space-y-2">
     <div className="flex items-center justify-between gap-2">

@@ -1,8 +1,11 @@
 export type CueKeyKind = "publishable" | "secret";
+export type NoxCueEnvironment = "production" | "staging" | "development" | "preview" | "test" | "local";
 
 export interface NoxCueSourceInput {
   name: string;
+  environment: NoxCueEnvironment;
   enabled: boolean;
+  alertsEnabled: boolean;
   projectId: string | null;
   timezone: string;
   digestEnabled: boolean;

@@ -84,6 +84,28 @@ describe("public capture Worker", () => {
     expect(success.status).toBe(403);
   });
 
+  it("accepts catch-all widget failures sent through the beacon-safe content type", async () => {
+    const response = await SELF.fetch("https://capture.test/telemetry/widget-failures", {
+      method: "POST",
+      headers: { Origin: "https://app.example.com", "Content-Type": "text/plain;charset=UTF-8" },
+      body: JSON.stringify({
+        version: 1,
+        eventId: crypto.randomUUID(),
+        siteId: "site-1",
+        environment: "Production",
+        widgetVersion: "build-1",
+        captureMode: "click",
+        stage: "submit",
+        errorType: "TypeError",
+        errorMessage: "Failed to fetch",
+        viewport: { width: 1440, height: 900, devicePixelRatio: 2 },
+        page: { nodeCount: 4200, imageCount: 12, fontStatus: "loaded", visibilityState: "visible" },
+        occurredAt: new Date().toISOString(),
+      }),
+    });
+    expect(response.status).toBe(202);
+  });
+
   it("rejects oversized reports before reading their body", async () => {
     const response = await SELF.fetch("https://capture.test/api/spots/public/v1/reports", {
       method: "POST",

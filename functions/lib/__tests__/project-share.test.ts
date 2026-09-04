@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHARE_PASSWORD_ITERATIONS, hashSharePassword, readCookie, sessionCookie, verifySharePassword } from "../project-share";
+import { SHARE_PASSWORD_ITERATIONS, cueDashboardCookieName, cueDashboardSessionCookie, hashSharePassword, readCookie, sessionCookie, verifySharePassword } from "../project-share";
 
 describe("external project share credentials", () => {
   it("hashes and verifies passwords without storing plaintext", async () => {
@@ -27,6 +27,15 @@ describe("external project share credentials", () => {
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("Secure");
     expect(readCookie(new Request("https://x", { headers: { Cookie: "other=1; wanted=value%202" } }), "wanted")).toBe("value 2");
+  });
+
+  it("uses a distinct cookie scoped to one NoxCue dashboard API", () => {
+    const cookie = cueDashboardSessionCookie("dashboard-slug", "secret-token");
+    expect(cueDashboardCookieName("dashboard-slug")).toBe("noxcue_dashboard_dashboard-slug");
+    expect(cookie).toContain("Path=/api/public/cue-dashboards/dashboard-slug");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+    expect(cookie).not.toContain("noxspot_share");
   });
 
   it("treats malformed cookie encoding as an absent session", () => {

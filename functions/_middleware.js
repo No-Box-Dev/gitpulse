@@ -133,6 +133,12 @@ export async function onRequest(context) {
     return context.next();
   }
 
+  // Password-protected NoxCue dashboards use their own narrowly scoped
+  // HttpOnly session and never accept NoxConnect/GitHub credentials.
+  if (url.pathname.startsWith("/api/public/cue-dashboards/")) {
+    return context.next();
+  }
+
   // Skip middleware for non-API routes
   if (!url.pathname.startsWith("/api/")) {
     return context.next();

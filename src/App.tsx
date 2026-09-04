@@ -44,6 +44,9 @@ const StalePrsPage = lazy(() =>
 const PublicProjectSharePage = lazy(() =>
   import("@/pages/PublicProjectSharePage").then((m) => ({ default: m.PublicProjectSharePage })),
 );
+const PublicNoxCueDashboardPage = lazy(() =>
+  import("@/pages/PublicNoxCueDashboardPage").then((m) => ({ default: m.PublicNoxCueDashboardPage })),
+);
 
 function PageFallback() {
   return (
@@ -155,6 +158,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/share/:slug" element={<Suspense fallback={<PageFallback />}><PublicProjectSharePage /></Suspense>} />
+      <Route path="/cue/:slug" element={<Suspense fallback={<PageFallback />}><PublicNoxCueDashboardPage /></Suspense>} />
       <Route path="*" element={<PrivateApp />} />
     </Routes>
   );

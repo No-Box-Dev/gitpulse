@@ -56,6 +56,10 @@ export function shareCookieName(slug: string): string {
   return `noxspot_share_${slug}`;
 }
 
+export function cueDashboardCookieName(slug: string): string {
+  return `noxcue_dashboard_${slug}`;
+}
+
 export function readCookie(request: Request, name: string): string | null {
   const cookies = request.headers.get("Cookie") ?? "";
   for (const part of cookies.split(";")) {
@@ -90,4 +94,31 @@ export async function hasValidProjectShareSession(
 
 export function sessionCookie(slug: string, token: string, maxAge = Math.floor(SHARE_SESSION_TTL_MS / 1000)): string {
   return `${shareCookieName(slug)}=${encodeURIComponent(token)}; Path=/api/public/project-shares/${slug}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+export async function hasValidCueDashboardSession(
+  db: D1Database,
+  request: Request,
+  slug: string,
+  shareId: string,
+): Promise<boolean> {
+  const token = readCookie(request, cueDashboardCookieName(slug));
+  if (!token) return false;
+  const tokenHash = await sha256(token);
+  const row = await db.prepare(
+    `SELECT session.token_hash
+       FROM cue_dashboard_share_sessions session
+       JOIN cue_dashboard_shares share
+         ON share.id = session.share_id AND share.password_version = session.password_version
+      WHERE session.token_hash = ? AND session.share_id = ? AND session.expires_at > ?`,
+  ).bind(tokenHash, shareId, new Date().toISOString()).first();
+  return Boolean(row);
+}
+
+export function cueDashboardSessionCookie(
+  slug: string,
+  token: string,
+  maxAge = Math.floor(SHARE_SESSION_TTL_MS / 1000),
+): string {
+  return `${cueDashboardCookieName(slug)}=${encodeURIComponent(token)}; Path=/api/public/cue-dashboards/${slug}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }

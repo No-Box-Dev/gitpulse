@@ -96,6 +96,7 @@ describe("public capture Worker", () => {
         resources: { brokenImages: [{ origin: "https://images.example", path: "/*.png", sameOrigin: false, rawUrl: "top-secret" }] },
         renderer: {
           phase: "rasterize", svgCharacters: 2_400_000,
+          phaseMs: { "pin+scroll": 42 },
           attempts: [{ kind: "blob", outcome: "image_error", rawHtml: "private-user" }],
           rawHtml: "top-secret",
         },

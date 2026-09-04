@@ -130,12 +130,13 @@ const RENDERER_KEYS = new Set([
 ]);
 
 function addDiagnostic(attributes: Record<string, string | number | boolean>, key: string, value: unknown): void {
-  if (Object.keys(attributes).length >= 96 || key.length > 120) return;
-  if (typeof value === "boolean") attributes[key] = value;
-  else if (typeof value === "number" && Number.isFinite(value)) attributes[key] = Math.round(value * 100) / 100;
+  const safeKey = key.replace(/[^a-z0-9_.[\]-]/gi, "-").slice(0, 120);
+  if (!/^[a-z]/i.test(safeKey) || Object.keys(attributes).length >= 96) return;
+  if (typeof value === "boolean") attributes[safeKey] = value;
+  else if (typeof value === "number" && Number.isFinite(value)) attributes[safeKey] = Math.round(value * 100) / 100;
   else if (typeof value === "string") {
     const safe = safeDiagnosticString(value, 300);
-    if (safe) attributes[key] = safe;
+    if (safe) attributes[safeKey] = safe;
   }
 }
 

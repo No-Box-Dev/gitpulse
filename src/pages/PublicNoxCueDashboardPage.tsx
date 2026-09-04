@@ -16,7 +16,18 @@ interface DashboardSource {
   metrics: Record<string, number>;
   comparisons: Record<string, Comparison>;
   metricLabels: Record<string, string>;
-  features: Array<{ key: string; label: string; status: "waiting" | "healthy" | "issue"; lastResultAt: string | null; lastFailureAt: string | null; lastReason: string | null; successes24h: number; rejections24h: number; failures24h: number }>;
+  features: Array<{
+    key: string; label: string; description: string; failureMessage: string;
+    status: "waiting" | "healthy" | "issue"; lastResultAt: string | null;
+    lastFailureAt: string | null; lastSuccessAt: string | null; incidentStartedAt: string | null;
+    consecutiveFailures: number; successfulAttemptsSinceLastFailure: number;
+    lastReason: string | null; successes24h: number; rejections24h: number; failures24h: number;
+    results: Array<{
+      id: string; outcome: "success" | "rejected" | "failure"; reason: string | null;
+      message: string | null; error: { name: string | null; message: string; code: string | null; stack: string | null } | null;
+      durationMs: number | null; occurredAt: string; receivedAt: string;
+    }>;
+  }>;
   errors: Array<{
     title: string; errorCode: string | null; component: string | null; firstSeenAt: string; lastSeenAt: string; occurrenceCount: number;
     occurrences: Array<{ id: string; message: string | null; occurredAt: string; receivedAt: string; url: string | null; errorCode: string | null; component: string | null; environment: string | null; fatal: boolean; unhandled: boolean }>;
@@ -39,6 +50,33 @@ function formatValue(key: string, value: number) {
 
 function formatDate(value: string | null) {
   return value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Not checked yet";
+}
+
+function humanizeReason(value: string | null) {
+  if (!value) return "Critical failure";
+  return value.replaceAll("_", " ").replace(/^./, (character) => character.toUpperCase());
+}
+
+function featureAction(feature: DashboardSource["features"][number]) {
+  const reason = feature.lastReason ?? "";
+  if (reason === "timeout" || reason === "network_error") return "Check upstream latency and the network path used by this journey.";
+  if (reason === "database_unavailable") return "Check database health, connection limits and recent failovers.";
+  if (reason === "rate_limited") return "Check provider rate limits and recent request volume.";
+  if (reason === "configuration_error") return "Review the production configuration and credentials for this journey.";
+  if (reason === "email_delivery_failed" || feature.key.includes("email_verification") || feature.key.includes("password_reset")) {
+    return "Check the email provider, verified sender and recent delivery failures.";
+  }
+  if (reason === "dependency_unavailable" || feature.key.startsWith("auth.")) {
+    return "Check the authentication provider, production credentials and recent application logs.";
+  }
+  return "Trace the latest failed event in the application logs and verify the affected dependency.";
+}
+
+function receiptTiming(occurredAt: string, receivedAt: string) {
+  const delay = Math.max(0, new Date(receivedAt).valueOf() - new Date(occurredAt).valueOf());
+  if (!Number.isFinite(delay) || delay < 1_000) return "received immediately";
+  if (delay < 60_000) return `received ${Math.round(delay / 1_000)}s later`;
+  return `received ${Math.round(delay / 60_000)}m later`;
 }
 
 function Sparkline({ values, issue = false }: { values: number[]; issue?: boolean }) {
@@ -143,6 +181,7 @@ export function PublicNoxCueDashboardPage() {
 
 function Dashboard({ source, activeTab, onTabChange }: { source: DashboardSource; activeTab: DashboardTab; onTabChange: (tab: DashboardTab) => void }) {
   const [expandedError, setExpandedError] = useState<string | null>(null);
+  const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
   const metricEntries = Object.entries(source.metrics);
   const featureIssues = source.features.filter((feature) => feature.status === "issue");
   const healthyFeatures = source.features.filter((feature) => feature.status === "healthy").length;
@@ -160,7 +199,39 @@ function Dashboard({ source, activeTab, onTabChange }: { source: DashboardSource
     <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b7524f] capitalize">{source.environment}</p><h2 className="mt-1 font-display text-2xl text-stone-900">Alert health</h2></div><StatusPill on={source.settings.alertsEnabled} label="Alerts" /></div>
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm shadow-stone-200/30"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Endpoint</p><h2 className="mt-1 font-display text-xl text-stone-900">Availability</h2></div><HealthStatus status={source.endpoint.enabled ? source.endpoint.status : "off"} /></div>{source.endpoint.enabled ? <div className="mt-5 space-y-2 text-sm text-stone-700"><p className="break-all">{source.endpoint.url}</p><p className="text-xs text-stone-400">{formatDate(source.endpoint.lastCheckedAt)}{source.endpoint.statusCode ? ` · HTTP ${source.endpoint.statusCode}` : ""}{source.endpoint.latencyMs !== null ? ` · ${source.endpoint.latencyMs} ms` : ""}</p>{source.endpoint.error ? <p className="flex gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700"><AlertTriangle size={14} className="shrink-0" />{source.endpoint.error}</p> : null}</div> : <p className="mt-5 text-sm text-stone-400">Endpoint monitoring is not enabled.</p>}</section>
-      <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm shadow-stone-200/30"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Features</p><h2 className="mt-1 font-display text-xl text-stone-900">User journeys</h2></div><HealthStatus status={featureIssues.length ? "issue" : healthyFeatures ? "healthy" : "waiting"} /></div><div className="mt-5 grid grid-cols-3 gap-2 text-center"><MiniStat label="Healthy" value={healthyFeatures} /><MiniStat label="Issues" value={featureIssues.length} /><MiniStat label="Waiting" value={source.features.length - healthyFeatures - featureIssues.length} /></div>{featureIssues.length ? <div className="mt-4 space-y-2">{featureIssues.map((feature) => <div key={feature.key} className="rounded-xl bg-red-50 p-3"><p className="text-sm font-medium text-red-700">{feature.label}</p><p className="mt-1 text-xs text-red-600">{feature.lastReason ?? "Critical failure"} · {feature.failures24h} failure{feature.failures24h === 1 ? "" : "s"} in 24h</p></div>)}</div> : <p className="mt-4 text-xs text-stone-400">No feature incident is currently open.</p>}</section>
+      <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm shadow-stone-200/30">
+        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Features</p><h2 className="mt-1 font-display text-xl text-stone-900">User journeys</h2></div><HealthStatus status={featureIssues.length ? "issue" : healthyFeatures ? "healthy" : "waiting"} /></div>
+        <div className="mt-5 grid grid-cols-3 gap-2 text-center"><MiniStat label="Healthy" value={healthyFeatures} /><MiniStat label="Open incidents" value={featureIssues.length} /><MiniStat label="Waiting" value={source.features.length - healthyFeatures - featureIssues.length} /></div>
+        {featureIssues.length ? <p className="mt-4 text-xs leading-5 text-stone-500">Open incidents need developer review. A quiet 24-hour window—or a later successful attempt—does not silently close a critical incident.</p> : null}
+        {featureIssues.length ? <div className="mt-4 space-y-3">{featureIssues.map((feature, index) => {
+          const expanded = expandedFeature === feature.key;
+          return <article key={feature.key} className={`overflow-hidden rounded-xl border transition ${expanded ? "border-red-300 bg-white" : "border-red-100 bg-red-50"}`}>
+            <button type="button" aria-expanded={expanded} aria-controls={`feature-incident-${index}`} onClick={() => setExpandedFeature(expanded ? null : feature.key)} className="w-full p-4 text-left">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-600">Action required</p><p className="mt-1 text-sm font-semibold text-stone-900">{feature.label}</p></div><ChevronDown size={16} className={`mt-1 shrink-0 text-red-500 transition-transform ${expanded ? "rotate-180" : ""}`} /></div>
+              <p className="mt-2 text-xs leading-5 text-stone-700">{featureAction(feature)}</p>
+              <p className="mt-2 text-[11px] text-stone-500">Open since {formatDate(feature.incidentStartedAt ?? feature.lastFailureAt)} · {feature.failures24h ? `${feature.failures24h} new failure${feature.failures24h === 1 ? "" : "s"} in 24h` : "No new failures in 24h"}</p>
+            </button>
+            {expanded ? <div id={`feature-incident-${index}`} className="border-t border-red-100 px-4 pb-4 pt-3">
+              <dl className="grid gap-3 text-xs sm:grid-cols-2">
+                <div><dt className="text-stone-400">Origin</dt><dd className="mt-1 font-medium text-stone-700">{source.name} · <span className="capitalize">{source.environment}</span></dd></div>
+                <div><dt className="text-stone-400">Incident reason</dt><dd className="mt-1 font-medium text-stone-700">{humanizeReason(feature.lastReason)}</dd></div>
+                <div><dt className="text-stone-400">Last failure</dt><dd className="mt-1 font-medium text-stone-700">{formatDate(feature.lastFailureAt)}</dd></div>
+                <div><dt className="text-stone-400">Last successful attempt</dt><dd className="mt-1 font-medium text-stone-700">{feature.lastSuccessAt ? formatDate(feature.lastSuccessAt) : "None recorded"}</dd></div>
+              </dl>
+              {feature.successfulAttemptsSinceLastFailure > 0 ? <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">{feature.successfulAttemptsSinceLastFailure} successful attempt{feature.successfulAttemptsSinceLastFailure === 1 ? " has" : "s have"} been recorded since the last failure. This is useful evidence, but does not close a critical incident automatically.</p> : null}
+              <div className="mt-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-400">NoxCue event history</p>
+                {feature.results.length ? <div className="mt-2 space-y-2">{feature.results.map((result) => <div key={result.id} className="rounded-lg bg-stone-50 p-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${result.outcome === "failure" ? "bg-red-100 text-red-700" : result.outcome === "success" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{result.outcome}</span><span className="text-[11px] text-stone-400">{formatDate(result.occurredAt)}</span></div>
+                  <p className="mt-2 font-medium text-stone-700">{result.message ?? result.error?.message ?? humanizeReason(result.reason)}</p>
+                  {result.error?.stack ? <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-stone-900 p-2 font-mono text-[10px] leading-4 text-stone-200">{result.error.stack}</pre> : null}
+                  <p className="mt-2 break-all font-mono text-[10px] text-stone-400">{result.id}</p>
+                  <p className="mt-1 text-[10px] text-stone-400">Occurred {formatDate(result.occurredAt)} · {receiptTiming(result.occurredAt, result.receivedAt)}{result.durationMs !== null ? ` · ${result.durationMs} ms` : ""}</p>
+                </div>)}</div> : <p className="mt-2 text-xs text-stone-400">Detailed events are no longer retained for this incident.</p>}
+              </div>
+            </div> : null}
+          </article>;
+        })}</div> : <p className="mt-4 text-xs text-stone-400">No feature incident is currently open.</p>}
+      </section>
     </div>
     <section><div className="mb-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#b7524f]">Errors</p><h2 className="mt-1 font-display text-2xl text-stone-900">Recently observed</h2></div>{source.errors.length ? <div className="grid gap-3 sm:grid-cols-2">{source.errors.map((item, index) => {
       const itemKey = `${item.title}:${item.errorCode ?? ""}:${index}`;

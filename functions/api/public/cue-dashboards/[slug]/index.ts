@@ -24,6 +24,13 @@ interface ErrorOccurrenceRow {
   occurred_at: string | null; received_at: string; url: string | null; error_code: string | null;
   component: string | null; environment: string | null; fatal: number | null; unhandled: number | null;
 }
+interface FeatureResultRow {
+  event_id: string; source_id: string; feature_key: string;
+  outcome: "success" | "rejected" | "failure"; reason: string | null;
+  message: string | null; error_name: string | null; error_message: string | null;
+  error_code: string | null; error_stack: string | null; duration_ms: number | null;
+  occurred_at: string; received_at: string;
+}
 
 function response(data: unknown, status = 200) {
   const result = jsonResponse(data, status);
@@ -57,7 +64,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     return response({ error: "Password required", projectName: share.project_name }, 401);
   }
 
-  const [sourceResult, occurrenceResult] = await Promise.all([
+  const [sourceResult, occurrenceResult, featureResult] = await Promise.all([
     context.env.DB.prepare(
       `SELECT source.id, source.name, source.environment, source.enabled, source.alerts_enabled,
             source.digest_enabled, source.timezone, source.digest_time_local,
@@ -89,6 +96,19 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
           AND event.source = 'noxcue' AND event.type = 'error.occurred'
         ORDER BY event.created_at DESC, event.id DESC LIMIT 250`,
     ).bind(share.org_id, share.project_id).all<ErrorOccurrenceRow>(),
+    context.env.DB.prepare(
+      `SELECT result.event_id, result.source_id, result.feature_key, result.outcome, result.reason,
+              result.message,
+              json_extract(result.error_json, '$.name') AS error_name,
+              json_extract(result.error_json, '$.message') AS error_message,
+              json_extract(result.error_json, '$.code') AS error_code,
+              json_extract(result.error_json, '$.stack') AS error_stack,
+              result.duration_ms, result.occurred_at, result.received_at
+         FROM cue_feature_results result
+         JOIN cue_sources source ON source.id = result.source_id
+        WHERE source.org_id = ? AND source.project_id = ? AND result.is_test = 0
+        ORDER BY result.received_at DESC LIMIT 250`,
+    ).bind(share.org_id, share.project_id).all<FeatureResultRow>(),
   ]);
 
   const occurrences = new Map<string, ErrorOccurrenceRow[]>();
@@ -98,6 +118,14 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     const rows = occurrences.get(key) ?? [];
     if (rows.length < 20) rows.push(row);
     occurrences.set(key, rows);
+  }
+
+  const featureResults = new Map<string, FeatureResultRow[]>();
+  for (const row of featureResult.results ?? []) {
+    const key = `${row.source_id}\u0000${row.feature_key}`;
+    const rows = featureResults.get(key) ?? [];
+    if (rows.length < 20) rows.push(row);
+    featureResults.set(key, rows);
   }
 
   const sources = await Promise.all((sourceResult.results ?? []).map(async (source) => {
@@ -131,12 +159,28 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       metrics: selected.metrics,
       comparisons: selected.comparisons,
       metricLabels: selected.metricLabels,
-      features: featureCatalog.features.filter((feature) => feature.enabled).map((feature) => ({
-        key: feature.key, label: feature.label, status: feature.status,
-        lastResultAt: feature.lastResultAt, lastFailureAt: feature.lastFailureAt,
-        lastReason: feature.lastReason, successes24h: feature.successes24h,
-        rejections24h: feature.rejections24h, failures24h: feature.failures24h,
-      })),
+      features: featureCatalog.features.filter((feature) => feature.enabled).map((feature) => {
+        const results = featureResults.get(`${source.id}\u0000${feature.key}`) ?? [];
+        const incidentStartedAt = feature.incidentStartedAt;
+        return {
+          key: feature.key, label: feature.label, description: feature.description,
+          failureMessage: feature.failureMessage, status: feature.status,
+          lastResultAt: feature.lastResultAt, lastFailureAt: feature.lastFailureAt,
+          lastSuccessAt: feature.lastSuccessAt, incidentStartedAt,
+          consecutiveFailures: feature.consecutiveFailures,
+          successfulAttemptsSinceLastFailure: feature.consecutiveSuccesses,
+          lastReason: feature.lastReason, successes24h: feature.successes24h,
+          rejections24h: feature.rejections24h, failures24h: feature.failures24h,
+          results: results.map((result) => ({
+            id: result.event_id, outcome: result.outcome, reason: result.reason,
+            message: result.message, error: result.error_message ? {
+              name: result.error_name, message: result.error_message,
+              code: result.error_code, stack: result.error_stack,
+            } : null,
+            durationMs: result.duration_ms, occurredAt: result.occurred_at, receivedAt: result.received_at,
+          })),
+        };
+      }),
       errors: (errorResult.results ?? []).map((row) => ({
         title: row.title, errorCode: row.error_code, component: row.component,
         firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at,

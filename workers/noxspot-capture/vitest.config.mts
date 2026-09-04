@@ -17,6 +17,7 @@ export default defineConfig({
             const attributes = data.attributes as Record<string, unknown> | undefined;
             const valid = attributes?.["renderer.phase"] === "rasterize"
               && attributes?.["renderer.attempts[0].outcome"] === "image_error"
+              && attributes?.["renderer.phaseMs.pin-scroll"] === 42
               && attributes?.["resources.brokenImages[0].origin"] === "https://images.example"
               && !JSON.stringify(attributes).includes("private-user")
               && !JSON.stringify(attributes).includes("top-secret");

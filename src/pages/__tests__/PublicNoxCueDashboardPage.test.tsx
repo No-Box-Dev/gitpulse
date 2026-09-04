@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { PublicNoxCueDashboardPage } from "../PublicNoxCueDashboardPage";
 
-describe("public NoxCue dashboard error logs", () => {
+describe("public NoxCue dashboard sections", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("expands an error group into its retained occurrences", async () => {
+  it("separates stats from alerts and expands retained error occurrences", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       project: { name: "Playnist" }, generatedAt: "2026-09-04T10:00:00Z",
       sources: [{
@@ -31,7 +31,17 @@ describe("public NoxCue dashboard error logs", () => {
       <Routes><Route path="/cue/:slug" element={<PublicNoxCueDashboardPage />} /></Routes>
     </MemoryRouter>);
 
-    const group = await screen.findByRole("button", { name: /ResizeObserver loop completed/ });
+    const statsTab = await screen.findByRole("tab", { name: "Stats" });
+    const alertsTab = screen.getByRole("tab", { name: "Alerts" });
+    expect(statsTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Stats");
+    expect(screen.queryByText("ResizeObserver loop completed")).not.toBeInTheDocument();
+
+    fireEvent.click(alertsTab);
+    expect(alertsTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Alerts");
+
+    const group = screen.getByRole("button", { name: /ResizeObserver loop completed/ });
     expect(group).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(group);
 

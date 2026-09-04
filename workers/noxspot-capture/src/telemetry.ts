@@ -182,6 +182,27 @@ function schedule(context: TelemetryContext, promise: Promise<void>, event: Base
   }));
 }
 
+async function confirmNoxCueError(
+  context: TelemetryContext,
+  event: BaseEvent,
+  delivery: Promise<void>,
+): Promise<Response | null> {
+  try {
+    await delivery;
+    return null;
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "noxspot.noxcue.delivery_failed",
+      siteId: event.siteId,
+      sourceEventId: event.eventId,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+    const response = context.json({ error: "Telemetry storage unavailable" }, 503);
+    response.headers.set("Retry-After", "5");
+    return response;
+  }
+}
+
 async function sendActivity(context: TelemetryContext, metric: string, event: BaseEvent): Promise<void> {
   await sendNoxCue(context, {
     version: 1,
@@ -264,10 +285,9 @@ export async function receiveScreenshotFailure(context: TelemetryContext, body: 
   const identity = await requestIdentity(context, event, true);
   if (identity instanceof Response) return identity;
   console.error(JSON.stringify({ event: "noxspot.screenshot.failure", ...event, originHost: identity.originHost }));
-  schedule(context, Promise.all([
-    sendActivity(context, METRICS.screenshotFailed, event),
-    sendFailureError(context, event, identity),
-  ]).then(() => undefined), event);
+  const storageFailure = await confirmNoxCueError(context, event, sendFailureError(context, event, identity));
+  if (storageFailure) return storageFailure;
+  schedule(context, sendActivity(context, METRICS.screenshotFailed, event), event);
   return context.body(null, 202);
 }
 
@@ -278,7 +298,8 @@ export async function receiveWidgetFailure(context: TelemetryContext, body: unkn
   const identity = await requestIdentity(context, event, true);
   if (identity instanceof Response) return identity;
   console.error(JSON.stringify({ event: "noxspot.widget.failure", ...event, originHost: identity.originHost }));
-  schedule(context, sendWidgetFailureError(context, event, identity), event);
+  const storageFailure = await confirmNoxCueError(context, event, sendWidgetFailureError(context, event, identity));
+  if (storageFailure) return storageFailure;
   return context.body(null, 202);
 }
 

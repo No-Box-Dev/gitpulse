@@ -106,6 +106,55 @@ describe("public capture Worker", () => {
     expect(response.status).toBe(202);
   });
 
+  it("keeps screenshot failures retryable until NoxCue confirms diagnostic storage", async () => {
+    const response = await SELF.fetch("https://capture.test/telemetry/screenshot-failures", {
+      method: "POST",
+      headers: { Origin: "https://app.example.com", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: 1,
+        eventId: crypto.randomUUID(),
+        siteId: "site-1",
+        environment: "Production",
+        widgetVersion: "build-1",
+        captureMode: "click",
+        stage: "rasterize",
+        errorType: "Error",
+        errorMessage: "FORCE_NOXCUE_FAILURE",
+        viewport: { width: 1440, height: 900, devicePixelRatio: 2 },
+        page: { nodeCount: 4200, imageCount: 12, fontStatus: "loaded", visibilityState: "visible" },
+        occurredAt: new Date().toISOString(),
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("5");
+    expect(await response.json()).toEqual({ error: "Telemetry storage unavailable" });
+  });
+
+  it("keeps catch-all widget failures retryable until NoxCue confirms diagnostic storage", async () => {
+    const response = await SELF.fetch("https://capture.test/telemetry/widget-failures", {
+      method: "POST",
+      headers: { Origin: "https://app.example.com", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: 1,
+        eventId: crypto.randomUUID(),
+        siteId: "site-1",
+        environment: "Production",
+        widgetVersion: "build-1",
+        captureMode: "click",
+        stage: "submit",
+        errorType: "Error",
+        errorMessage: "FORCE_NOXCUE_FAILURE",
+        viewport: { width: 1440, height: 900, devicePixelRatio: 2 },
+        page: { nodeCount: 4200, imageCount: 12, fontStatus: "loaded", visibilityState: "visible" },
+        occurredAt: new Date().toISOString(),
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("5");
+  });
+
   it("rejects oversized reports before reading their body", async () => {
     const response = await SELF.fetch("https://capture.test/api/spots/public/v1/reports", {
       method: "POST",

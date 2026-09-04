@@ -84,6 +84,26 @@ describe("public capture Worker", () => {
     expect(success.status).toBe(403);
   });
 
+  it("forwards only bounded and redacted structured widget diagnostics", async () => {
+    const response = await SELF.fetch("https://capture.test/telemetry/screenshot-failures", {
+      method: "POST",
+      headers: { Origin: "https://app.example.com", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId: crypto.randomUUID(), siteId: "site-1", environment: "Production",
+        widgetVersion: "build-1", captureMode: "click", stage: "rasterize",
+        errorType: "Error", errorMessage: "SAFE_DIAGNOSTIC_TEST for private-user@example.com token=top-secret",
+        page: { readyState: "complete", pathDepth: 3, hasQuery: true, unsafeText: "private-user" },
+        resources: { brokenImages: [{ origin: "https://images.example", path: "/*.png", sameOrigin: false, rawUrl: "top-secret" }] },
+        renderer: {
+          phase: "rasterize", svgCharacters: 2_400_000,
+          attempts: [{ kind: "blob", outcome: "image_error", rawHtml: "private-user" }],
+          rawHtml: "top-secret",
+        },
+      }),
+    });
+    expect(response.status).toBe(202);
+  });
+
   it("accepts catch-all widget failures sent through the beacon-safe content type", async () => {
     const response = await SELF.fetch("https://capture.test/telemetry/widget-failures", {
       method: "POST",

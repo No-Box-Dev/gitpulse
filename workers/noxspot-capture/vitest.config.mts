@@ -9,6 +9,10 @@ export default defineConfig({
       serviceBindings: {
         NOXCUE_INGEST: async (request) => {
           const body = await request.clone().json() as Record<string, unknown>;
+          const data = body.data && typeof body.data === "object" ? body.data as Record<string, unknown> : {};
+          if (body.type === "error.occurred" && typeof data.environment === "string") {
+            return Response.json({ error: "environment_mismatch" }, { status: 409 });
+          }
           return body.type === "error.occurred" && JSON.stringify(body).includes("FORCE_NOXCUE_FAILURE")
             ? new Response(null, { status: 503 })
             : new Response(null, { status: 202 });

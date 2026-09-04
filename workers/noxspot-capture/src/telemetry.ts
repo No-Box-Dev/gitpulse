@@ -9,7 +9,16 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const IP_RATE_LIMIT = 30;
 const SITE_RATE_LIMIT = 120;
 const CAPTURE_MODES = new Set(["click", "shortcut"]);
-const FAILURE_STAGES = new Set(["rasterize", "preview_decode", "preview_timeout", "compose", "upload"]);
+const SCREENSHOT_FAILURE_STAGES = new Set(["rasterize", "preview_decode", "preview_timeout", "compose", "upload"]);
+const WIDGET_FAILURE_STAGES = new Set([
+  "config_load",
+  "core_load",
+  "core_open",
+  "runtime",
+  "submit",
+  "delivery",
+  "retry",
+]);
 const METRICS = Object.freeze({
   screenshotCaptured: "custom.screenshots.captured",
   screenshotFailed: "custom.screenshots.failed",
@@ -82,11 +91,11 @@ function baseEvent(body: unknown): BaseEvent | null {
   };
 }
 
-function validateFailure(body: unknown): ScreenshotFailure | null {
+function validateFailure(body: unknown, stages = SCREENSHOT_FAILURE_STAGES): ScreenshotFailure | null {
   const base = baseEvent(body);
   if (!base || !plainObject(body)) return null;
   const stage = boundedString(body.stage, 40);
-  if (!FAILURE_STAGES.has(stage)) return null;
+  if (!stages.has(stage)) return null;
   const viewport = plainObject(body.viewport) ? body.viewport : {};
   const page = plainObject(body.page) ? body.page : {};
   const cspViolations = Array.isArray(body.cspViolations)
@@ -226,6 +235,28 @@ async function sendFailureError(context: TelemetryContext, event: ScreenshotFail
   });
 }
 
+async function sendWidgetFailureError(context: TelemetryContext, event: ScreenshotFailure, identity: RequestIdentity): Promise<void> {
+  const errorCode = `WIDGET_${event.stage.toUpperCase()}`;
+  await sendNoxCue(context, {
+    version: 1,
+    type: "error.occurred",
+    eventId: await eventUuid("error.widget.failure", event.siteId, event.eventId),
+    title: "NoxSpot widget operation failed",
+    level: "error",
+    message: screenshotErrorMessage(event, identity),
+    occurredAt: event.occurredAt || new Date().toISOString(),
+    url: `https://${identity.originHost}`,
+    data: {
+      errorCode,
+      fingerprint: `widget:${event.stage}:${event.errorType}:${errorCode}`.slice(0, 200),
+      component: `widget.${event.stage}`,
+      environment: String(event.environment || identity.originHost).slice(0, 80),
+      fatal: false,
+      unhandled: event.stage === "runtime",
+    },
+  });
+}
+
 export async function receiveScreenshotFailure(context: TelemetryContext, body: unknown): Promise<Response> {
   const event = validateFailure(body);
   if (!event) return context.json({ error: "Invalid screenshot failure event" }, 400);
@@ -237,6 +268,17 @@ export async function receiveScreenshotFailure(context: TelemetryContext, body: 
     sendActivity(context, METRICS.screenshotFailed, event),
     sendFailureError(context, event, identity),
   ]).then(() => undefined), event);
+  return context.body(null, 202);
+}
+
+export async function receiveWidgetFailure(context: TelemetryContext, body: unknown): Promise<Response> {
+  const event = validateFailure(body, WIDGET_FAILURE_STAGES);
+  if (!event) return context.json({ error: "Invalid widget failure event" }, 400);
+  if (await rateLimited(context, "widget-failure-telemetry", event.siteId)) return context.json({ error: "Too many telemetry events" }, 429);
+  const identity = await requestIdentity(context, event, true);
+  if (identity instanceof Response) return identity;
+  console.error(JSON.stringify({ event: "noxspot.widget.failure", ...event, originHost: identity.originHost }));
+  schedule(context, sendWidgetFailureError(context, event, identity), event);
   return context.body(null, 202);
 }
 

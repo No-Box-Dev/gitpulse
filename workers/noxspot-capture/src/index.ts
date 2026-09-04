@@ -36,6 +36,7 @@ import {
 import {
   receiveScreenshotFailure,
   receiveScreenshotOutcome,
+  receiveWidgetFailure,
   receiveWidgetInstall,
 } from "./telemetry";
 
@@ -246,12 +247,28 @@ app.post("/api/spots/public/v1/errors", submitErrors);
 app.post("/errors", submitErrors);
 
 async function telemetryBody(context: AppContext): Promise<unknown | Response> {
-  return boundedBody(context, MAX_TELEMETRY_BODY_BYTES);
+  const contentType = context.req.header("Content-Type")?.toLowerCase() || "";
+  // sendBeacon with a string uses text/plain, avoiding a CORS preflight during
+  // page teardown. Telemetry is still parsed by the same bounded JSON reader.
+  if (!contentType.startsWith("application/json") && !contentType.startsWith("text/plain")) {
+    return jsonError(context, "Content-Type must be application/json or text/plain", 415);
+  }
+  try {
+    return await readBoundedJson(context.req.raw, MAX_TELEMETRY_BODY_BYTES);
+  } catch (error) {
+    return error instanceof RequestBodyTooLargeError
+      ? jsonError(context, "Request body too large", 413)
+      : jsonError(context, "Invalid JSON body", 400);
+  }
 }
 
 app.post("/telemetry/screenshot-failures", async (context) => {
   const body = await telemetryBody(context);
   return body instanceof Response ? body : receiveScreenshotFailure(context, body);
+});
+app.post("/telemetry/widget-failures", async (context) => {
+  const body = await telemetryBody(context);
+  return body instanceof Response ? body : receiveWidgetFailure(context, body);
 });
 app.post("/telemetry/screenshot-outcomes", async (context) => {
   const body = await telemetryBody(context);

@@ -57,6 +57,7 @@ interface ScreenshotFailure extends BaseEvent {
   fontStatus: string;
   visibilityState: string;
   cspViolations: CspViolation[];
+  attributes: Record<string, string | number | boolean>;
 }
 
 interface RequestIdentity {
@@ -74,6 +75,108 @@ function boundedString(value: unknown, maxLength: number): string {
 function boundedNumber(value: unknown, max: number): number {
   const number = Number(value);
   return Number.isFinite(number) ? Math.round(Math.min(max, Math.max(0, number))) : 0;
+}
+
+function safeDiagnosticString(value: unknown, maxLength = 200): string {
+  if (typeof value !== "string") return "";
+  return value.trim()
+    .replace(/file:\/\/\/[^\s)'"<>]+/gi, "[file]")
+    .replace(/\s\/(?:Users|home|var|tmp)\/[^\s):]+(?::\d+:\d+)?/g, " [file]")
+    .replace(/https?:\/\/[^\s)'"<>]+/gi, (raw) => {
+      try {
+        const url = new URL(raw);
+        const path = url.pathname === "/" ? "" : /(^|\.)noxspot\.dev$/i.test(url.hostname) ? url.pathname : "/*";
+        return `${url.origin}${path}`;
+      } catch { return "[url]"; }
+    })
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[email]")
+    .replace(/\b(bearer|token|api[_-]?key|secret|password)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+    .replace(/\beyJ[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]{10,}){1,2}\b/g, "[token]")
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, "[token]")
+    .slice(0, maxLength);
+}
+
+function safeOrigin(value: unknown): string {
+  if (typeof value !== "string") return "";
+  try { return new URL(value).origin.slice(0, 200); }
+  catch { return safeDiagnosticString(value, 80); }
+}
+
+function safeResourcePath(value: unknown, origin = ""): string {
+  if (typeof value !== "string") return "";
+  if (/^\/\*(?:\.[a-z0-9]{1,8})?$/i.test(value)) return value;
+  try {
+    const host = new URL(origin).hostname;
+    if (/(^|\.)noxspot\.dev$/i.test(host) && value.startsWith("/") && !value.includes("?") && !value.includes("#")) {
+      return value.slice(0, 200);
+    }
+  } catch { /* Invalid origins never qualify for full paths. */ }
+  const extension = /\.([a-z0-9]{1,8})$/i.exec(value)?.[1];
+  return extension ? `/*.${extension.toLowerCase()}` : "/*";
+}
+
+const DIAGNOSTIC_ROOT_KEYS: Record<string, Set<string>> = {
+  page: new Set(["readyState", "pathDepth", "hasQuery", "scrollWidth", "scrollHeight", "scrollX", "scrollY", "online"]),
+  runtime: new Set(["browser", "browserMajor", "platform"]),
+  visualViewport: new Set(["width", "height", "offsetLeft", "offsetTop", "scale"]),
+};
+const RESOURCE_KEYS = new Set(["origin", "path", "sameOrigin", "complete", "initiatorType", "durationMs", "transferBytes", "decodedBytes"]);
+const RENDERER_KEYS = new Set([
+  "phase", "phaseMs", "pairCount", "pseudoCount", "resources", "unique", "inlined", "dropped", "failed",
+  "stripped", "count", "examples", "fontRules", "svgCharacters", "width", "height", "effectiveDpr",
+  "sourceOrder", "attempts", "kind", "outcome", "errorType", "errorMessage", "tagCounts", "style", "script",
+  "use", "image", "iframe", "foreignObject", "crossOriginCount", "origins", "origin", "path", "sameOrigin",
+  "tag", "attribute", "property", "clone", "flatten", "pin+scroll", "inline", "serialize", "rasterize",
+]);
+
+function addDiagnostic(attributes: Record<string, string | number | boolean>, key: string, value: unknown): void {
+  if (Object.keys(attributes).length >= 96 || key.length > 120) return;
+  if (typeof value === "boolean") attributes[key] = value;
+  else if (typeof value === "number" && Number.isFinite(value)) attributes[key] = Math.round(value * 100) / 100;
+  else if (typeof value === "string") {
+    const safe = safeDiagnosticString(value, 300);
+    if (safe) attributes[key] = safe;
+  }
+}
+
+function flattenRenderer(value: unknown, path: string, attributes: Record<string, string | number | boolean>, depth = 0): void {
+  if (depth > 5 || Object.keys(attributes).length >= 96) return;
+  if (Array.isArray(value)) {
+    value.slice(0, 5).forEach((item, index) => flattenRenderer(item, `${path}[${index}]`, attributes, depth + 1));
+    return;
+  }
+  if (!plainObject(value)) {
+    const safeValue = /\.origins?\[?\d*\]?$/.test(path) ? safeOrigin(value)
+      : path.endsWith(".path") ? safeResourcePath(value)
+        : value;
+    addDiagnostic(attributes, path, safeValue);
+    return;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (!RENDERER_KEYS.has(key)) continue;
+    flattenRenderer(item, `${path}.${key}`, attributes, depth + 1);
+  }
+}
+
+function diagnosticAttributes(body: Record<string, unknown>): Record<string, string | number | boolean> {
+  const attributes: Record<string, string | number | boolean> = {};
+  for (const [root, keys] of Object.entries(DIAGNOSTIC_ROOT_KEYS)) {
+    const value = plainObject(body[root]) ? body[root] : {};
+    for (const key of keys) addDiagnostic(attributes, `${root}.${key}`, value[key]);
+  }
+  const resources = plainObject(body.resources) ? body.resources : {};
+  for (const collection of ["brokenImages", "recent"] as const) {
+    const entries = Array.isArray(resources[collection]) ? resources[collection].slice(0, 5) : [];
+    entries.filter(plainObject).forEach((entry, index) => {
+      const origin = safeOrigin(entry.origin);
+      for (const key of RESOURCE_KEYS) {
+        const value = key === "origin" ? origin : key === "path" ? safeResourcePath(entry.path, origin) : entry[key];
+        addDiagnostic(attributes, `resources.${collection}[${index}].${key}`, value);
+      }
+    });
+  }
+  if (plainObject(body.renderer)) flattenRenderer(body.renderer, "renderer", attributes);
+  return attributes;
 }
 
 function baseEvent(body: unknown): BaseEvent | null {
@@ -100,18 +203,18 @@ function validateFailure(body: unknown, stages = SCREENSHOT_FAILURE_STAGES): Scr
   const page = plainObject(body.page) ? body.page : {};
   const cspViolations = Array.isArray(body.cspViolations)
     ? body.cspViolations.slice(0, 3).filter(plainObject).map((violation) => ({
-        effectiveDirective: boundedString(violation.effectiveDirective, 80) || "unknown",
-        blockedResource: boundedString(violation.blockedResource, 150) || "unknown",
-        sourceFile: boundedString(violation.sourceFile, 200) || null,
-        disposition: boundedString(violation.disposition, 20) || "enforce",
+        effectiveDirective: boundedString(violation.effectiveDirective, 80).replace(/[^a-z0-9_-]/gi, "") || "unknown",
+        blockedResource: safeOrigin(violation.blockedResource) || "unknown",
+        sourceFile: safeDiagnosticString(violation.sourceFile, 200) || null,
+        disposition: ["enforce", "report"].includes(String(violation.disposition)) ? String(violation.disposition) : "enforce",
       }))
     : [];
   return {
     ...base,
     stage,
     errorType: boundedString(body.errorType, 100) || "Error",
-    errorMessage: boundedString(body.errorMessage, 500) || "Screenshot failure",
-    errorStack: boundedString(body.errorStack, 600) || null,
+    errorMessage: safeDiagnosticString(body.errorMessage, 500) || "Screenshot failure",
+    errorStack: safeDiagnosticString(body.errorStack, 600) || null,
     captureMode: CAPTURE_MODES.has(String(body.captureMode)) ? String(body.captureMode) : "unknown",
     viewportWidth: boundedNumber(viewport.width, 20_000),
     viewportHeight: boundedNumber(viewport.height, 20_000),
@@ -124,6 +227,7 @@ function validateFailure(body: unknown, stages = SCREENSHOT_FAILURE_STAGES): Scr
     fontStatus: boundedString(page.fontStatus, 30) || "unknown",
     visibilityState: boundedString(page.visibilityState, 30) || "unknown",
     cspViolations,
+    attributes: diagnosticAttributes(body),
   };
 }
 
@@ -230,6 +334,14 @@ function screenshotErrorMessage(event: ScreenshotFailure, identity: RequestIdent
   for (const violation of event.cspViolations) {
     lines.push(`CSP observed: ${violation.effectiveDirective} blocked ${violation.blockedResource} (${violation.disposition})`);
   }
+  const phase = event.attributes["renderer.phase"];
+  const svgCharacters = event.attributes["renderer.svgCharacters"];
+  const sourceOrder = Object.entries(event.attributes)
+    .filter(([key]) => key.startsWith("renderer.sourceOrder["))
+    .map(([, value]) => value).join(" → ");
+  if (phase || svgCharacters || sourceOrder) {
+    lines.push(`Renderer: phase ${phase || "unknown"}; SVG chars ${svgCharacters || "unknown"}; sources ${sourceOrder || "unknown"}`);
+  }
   if (event.errorStack) lines.push(`Stack: ${event.errorStack}`);
   return lines.join("\n").slice(0, 2_000);
 }
@@ -253,6 +365,7 @@ async function sendFailureError(context: TelemetryContext, event: ScreenshotFail
       // environment remains in the message without overriding source routing.
       fatal: false,
       unhandled: false,
+      attributes: event.attributes,
     },
   });
 }
@@ -276,6 +389,7 @@ async function sendWidgetFailureError(context: TelemetryContext, event: Screensh
       // environment remains in the message without overriding source routing.
       fatal: false,
       unhandled: event.stage === "runtime",
+      attributes: event.attributes,
     },
   });
 }

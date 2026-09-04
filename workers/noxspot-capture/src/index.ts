@@ -48,7 +48,9 @@ const REPORT_SITE_LIMIT = 30;
 const ERROR_IP_LIMIT = 5;
 const ERROR_SITE_LIMIT = 60;
 const MAX_ERROR_TITLE_LENGTH = 200;
-const MAX_TELEMETRY_BODY_BYTES = 4_096;
+// Rich diagnostics remain deliberately bounded and contain only allow-listed,
+// redacted metadata. Keep this below the NoxCue event body ceiling (32 KiB).
+const MAX_TELEMETRY_BODY_BYTES = 16_384;
 
 export const app = new Hono<{ Bindings: Env }>();
 

@@ -44,6 +44,7 @@ async function loadCustomCueFeatures(db: D1Database, orgId: number, scope: CueFe
 
 interface FeatureStateRow {
   feature_key: string; status: "waiting" | "healthy" | "issue"; consecutive_failures: number;
+  consecutive_successes: number;
   last_result_at: string | null; last_success_at: string | null; last_failure_at: string | null;
   last_reason: string | null; incident_started_at: string | null;
 }
@@ -57,7 +58,7 @@ export async function loadCueFeatureCatalog(db: D1Database, orgId: number, scope
   const [custom, stateResult, countResult] = await Promise.all([
     loadCustomCueFeatures(db, orgId, scope),
     db.prepare(
-      `SELECT feature_key, status, consecutive_failures, last_result_at,
+      `SELECT feature_key, status, consecutive_failures, consecutive_successes, last_result_at,
               last_success_at, last_failure_at, last_reason, incident_started_at
          FROM cue_feature_states WHERE source_id = ?`,
     ).bind(scope.sourceId).all<FeatureStateRow>(),
@@ -86,6 +87,7 @@ export async function loadCueFeatureCatalog(db: D1Database, orgId: number, scope
       const count = counts.get(definition.key);
       return { ...definition, status: state?.status ?? "waiting",
         consecutiveFailures: Number(state?.consecutive_failures ?? 0),
+        consecutiveSuccesses: Number(state?.consecutive_successes ?? 0),
         lastResultAt: state?.last_result_at ?? null, lastSuccessAt: state?.last_success_at ?? null,
         lastFailureAt: state?.last_failure_at ?? null, lastReason: state?.last_reason ?? null,
         incidentStartedAt: state?.incident_started_at ?? null,

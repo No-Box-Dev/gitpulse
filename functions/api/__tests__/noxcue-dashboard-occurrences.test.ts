@@ -4,7 +4,14 @@ vi.mock("../../lib/noxcue-digest-data.js", () => ({
   completedPeriodAt: () => "2026-09-03",
   loadNoxCueDigestData: async () => ({ metrics: {}, comparisons: {}, metricLabels: {} }),
 }));
-vi.mock("../../lib/noxcue-feature-catalog", () => ({ loadCueFeatureCatalog: async () => ({ features: [] }) }));
+vi.mock("../../lib/noxcue-feature-catalog", () => ({ loadCueFeatureCatalog: async () => ({ features: [{
+  key: "auth.signup", label: "Sign up", description: "Can a user sign up?",
+  failureMessage: "A user could not sign up.", enabled: true, status: "issue",
+  consecutiveFailures: 1, consecutiveSuccesses: 2,
+  lastResultAt: "2026-09-04T10:00:00Z", lastSuccessAt: "2026-09-04T10:00:00Z",
+  lastFailureAt: "2026-09-03T10:00:00Z", lastReason: "dependency_unavailable",
+  incidentStartedAt: "2026-09-03T10:00:00Z", successes24h: 2, rejections24h: 0, failures24h: 0,
+}] }) }));
 vi.mock("../../lib/noxcue-project-metrics.js", () => ({
   loadEnabledNoxCueMetricKeys: async () => [],
   selectNoxCueDigestMetrics: () => ({ metrics: {}, comparisons: {}, metricLabels: {} }),
@@ -42,6 +49,13 @@ describe("public NoxCue dashboard error logs", () => {
               url: "https://app.playnist.com/signup?token=secret#private", error_code: "RESIZE_LOOP",
               component: "playnist-web", environment: "production", fatal: 0, unhandled: 1,
             }] };
+            if (sql.includes("FROM cue_feature_results result")) return { results: [{
+              event_id: "feature-event-1", source_id: "source-1", feature_key: "auth.signup",
+              outcome: "failure", reason: "dependency_unavailable", message: "Auth request failed",
+              error_name: "AuthError", error_message: "Provider unavailable", error_code: "AUTH_503",
+              error_stack: "AuthError: Provider unavailable", duration_ms: 900,
+              occurred_at: "2026-09-03T10:00:00Z", received_at: "2026-09-03T10:00:01Z",
+            }] };
             if (sql.includes("FROM cue_error_groups")) return { results: [{
               fingerprint: "resize-loop", title: "ResizeObserver failed", error_code: "RESIZE_LOOP",
               component: "playnist-web", first_seen_at: "2026-09-03T10:00:00Z",
@@ -58,7 +72,10 @@ describe("public NoxCue dashboard error logs", () => {
       env: { DB: db }, params: { slug: "private-slug" },
       request: new Request("https://app.unticket.ai/api/public/cue-dashboards/private-slug"),
     } as never);
-    const body = await response.json() as { sources: Array<{ errors: Array<{ occurrences: Array<Record<string, unknown>> }> }> };
+    const body = await response.json() as { sources: Array<{
+      features: Array<Record<string, unknown>>;
+      errors: Array<{ occurrences: Array<Record<string, unknown>> }>;
+    }> };
     const occurrence = body.sources[0].errors[0].occurrences[0];
 
     expect(response.status).toBe(200);
@@ -68,10 +85,18 @@ describe("public NoxCue dashboard error logs", () => {
       fatal: false, unhandled: true,
     });
     expect(occurrence).not.toHaveProperty("affectedUser");
+    expect(body.sources[0].features[0]).toMatchObject({
+      key: "auth.signup", incidentStartedAt: "2026-09-03T10:00:00Z",
+      successfulAttemptsSinceLastFailure: 2,
+      results: [{ id: "feature-event-1", message: "Auth request failed", durationMs: 900 }],
+    });
     expect(JSON.stringify(body)).not.toContain("secret");
     const eventQuery = queries.find((sql) => sql.includes("FROM events event")) ?? "";
     expect(eventQuery).toContain("LIMIT 250");
     expect(eventQuery).not.toMatch(/SELECT\s+.*payload_json/i);
     expect(eventQuery).not.toContain("affectedUser");
+    const featureQuery = queries.find((sql) => sql.includes("FROM cue_feature_results result")) ?? "";
+    expect(featureQuery).toContain("result.is_test = 0");
+    expect(featureQuery).toContain("LIMIT 250");
   });
 });

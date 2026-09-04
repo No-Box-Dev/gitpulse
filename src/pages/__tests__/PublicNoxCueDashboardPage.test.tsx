@@ -13,7 +13,19 @@ describe("public NoxCue dashboard sections", () => {
         id: "source-1", name: "playnist-web", environment: "production", period: "2026-09-03",
         settings: { collecting: true, digestEnabled: true, alertsEnabled: true, timezone: "UTC", digestTimeLocal: "00:00" },
         endpoint: { enabled: false, url: null, status: "waiting", lastCheckedAt: null, statusCode: null, latencyMs: null, error: null },
-        metrics: {}, comparisons: {}, metricLabels: {}, features: [],
+        metrics: {}, comparisons: {}, metricLabels: {}, features: [{
+          key: "auth.signup", label: "Sign up", description: "Can a new user create an account?",
+          failureMessage: "A user was prevented from signing up.", status: "issue",
+          lastResultAt: "2026-09-04T09:00:01Z", lastFailureAt: "2026-09-03T08:00:00Z",
+          lastSuccessAt: "2026-09-04T09:00:00Z", incidentStartedAt: "2026-09-03T08:00:00Z",
+          consecutiveFailures: 1, successfulAttemptsSinceLastFailure: 2,
+          lastReason: "dependency_unavailable", successes24h: 2, rejections24h: 0, failures24h: 0,
+          results: [{
+            id: "feature-event-1", outcome: "failure", reason: "dependency_unavailable",
+            message: "Auth provider request failed", error: { name: "AuthError", message: "Provider unavailable", code: "AUTH_503", stack: "AuthError: Provider unavailable\n at signup.ts:42" },
+            durationMs: 842, occurredAt: "2026-09-03T08:00:00Z", receivedAt: "2026-09-03T08:00:02Z",
+          }],
+        }],
         errors: [{
           title: "ResizeObserver loop completed", errorCode: "RESIZE_LOOP", component: "playnist-web",
           firstSeenAt: "2026-09-03T09:00:00Z", lastSeenAt: "2026-09-03T10:00:00Z", occurrenceCount: 2,
@@ -40,6 +52,17 @@ describe("public NoxCue dashboard sections", () => {
     fireEvent.click(alertsTab);
     expect(alertsTab).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Alerts");
+
+    expect(screen.getByText("Open incidents")).toBeInTheDocument();
+    expect(screen.getByText("No new failures in 24h", { exact: false })).toBeInTheDocument();
+    const incident = screen.getByRole("button", { name: /Action required Sign up/ });
+    expect(incident).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(incident);
+    expect(incident).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("playnist-web ·", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Auth provider request failed")).toBeInTheDocument();
+    expect(screen.getByText("AuthError: Provider unavailable", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/received 2s later/)).toBeInTheDocument();
 
     const group = screen.getByRole("button", { name: /ResizeObserver loop completed/ });
     expect(group).toHaveAttribute("aria-expanded", "false");

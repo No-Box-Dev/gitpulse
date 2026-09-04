@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, ChevronDown, Clock3, ExternalLink, LockKeyhole, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, Bell, CheckCircle2, ChevronDown, Clock3, ExternalLink, LockKeyhole, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { Spinner } from "@/components/Spinner";
 
@@ -23,6 +23,7 @@ interface DashboardSource {
   }>;
 }
 interface DashboardData { project: { name: string }; generatedAt: string; sources: DashboardSource[] }
+type DashboardTab = "stats" | "alerts";
 
 const STANDARD_LABELS: Record<string, string> = {
   "users.new": "New users", "users.total": "Total users", "users.active.daily": "Daily active",
@@ -72,6 +73,7 @@ export function PublicNoxCueDashboardPage() {
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("stats");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -134,23 +136,28 @@ export function PublicNoxCueDashboardPage() {
         {data.sources.length > 1 ? <div className="relative mt-6 flex flex-wrap gap-2">{data.sources.map((candidate) => <button key={candidate.id} onClick={() => setSelectedSourceId(candidate.id)} className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ${candidate.id === source?.id ? "bg-[#ef7974] text-[#18181b]" : "bg-white/5 text-white/45 hover:bg-white/10 hover:text-white/70"}`}>{candidate.environment}</button>)}</div> : null}
       </div>
     </header>
-    {!source ? <div className="mx-auto max-w-6xl px-5 py-12 text-white/50">No NoxCue environments are linked to this project.</div> : <Dashboard key={source.id} source={source} />}
+    {!source ? <div className="mx-auto max-w-6xl px-5 py-12 text-white/50">No NoxCue environments are linked to this project.</div> : <Dashboard key={source.id} source={source} activeTab={activeTab} onTabChange={setActiveTab} />}
     <footer className="border-t border-white/10 px-5 py-7 text-center text-xs text-white/35"><span className="font-display"><strong className="text-white/55">Nox</strong>Cue</span> · protected through <span className="font-display"><strong className="text-white/55">Nox</strong>Connect</span></footer>
   </main>;
 }
 
-function Dashboard({ source }: { source: DashboardSource }) {
+function Dashboard({ source, activeTab, onTabChange }: { source: DashboardSource; activeTab: DashboardTab; onTabChange: (tab: DashboardTab) => void }) {
   const [expandedError, setExpandedError] = useState<string | null>(null);
   const metricEntries = Object.entries(source.metrics);
   const featureIssues = source.features.filter((feature) => feature.status === "issue");
   const healthyFeatures = source.features.filter((feature) => feature.status === "healthy").length;
   return <div className="mx-auto max-w-6xl space-y-8 px-5 py-9 sm:px-8">
-    <section><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ef7974] capitalize">{source.environment}</p><h2 className="mt-1 font-display text-2xl text-white">Daily pulse</h2></div><div className="flex flex-wrap gap-2"><StatusPill on={source.settings.collecting} label="Collection" /><StatusPill on={source.settings.digestEnabled} label="Digest" /><StatusPill on={source.settings.alertsEnabled} label="Alerts" /></div></div>
+    <nav role="tablist" aria-label="Dashboard sections" className="flex border-b border-white/10">
+      <button id="noxcue-stats-tab" type="button" role="tab" aria-selected={activeTab === "stats"} aria-controls="noxcue-stats-panel" onClick={() => onTabChange("stats")} className={`relative flex items-center gap-2 px-1 pb-3 pr-6 text-sm font-medium transition ${activeTab === "stats" ? "text-white after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[#ef7974]" : "text-white/40 hover:text-white/70"}`}><Activity size={15} /> Stats</button>
+      <button id="noxcue-alerts-tab" type="button" role="tab" aria-selected={activeTab === "alerts"} aria-controls="noxcue-alerts-panel" onClick={() => onTabChange("alerts")} className={`relative flex items-center gap-2 px-1 pb-3 pr-6 text-sm font-medium transition ${activeTab === "alerts" ? "text-white after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[#ef7974]" : "text-white/40 hover:text-white/70"}`}><Bell size={15} /> Alerts{featureIssues.length || source.endpoint.status === "issue" ? <span className="size-1.5 rounded-full bg-red-400" aria-hidden="true" title="Active issue" /> : null}</button>
+    </nav>
+    {activeTab === "stats" ? <section id="noxcue-stats-panel" role="tabpanel" aria-labelledby="noxcue-stats-tab"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ef7974] capitalize">{source.environment}</p><h2 className="mt-1 font-display text-2xl text-white">Daily pulse</h2></div><div className="flex flex-wrap gap-2"><StatusPill on={source.settings.collecting} label="Collection" /><StatusPill on={source.settings.digestEnabled} label="Digest" /></div></div>
       {metricEntries.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{metricEntries.map(([key, value]) => {
         const comparison = source.comparisons[key]; const yesterday = comparison?.yesterday; const delta = yesterday === null || yesterday === undefined ? null : value - yesterday;
         return <article key={key} className="rounded-2xl border border-white/10 bg-[#242428] p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-white/50">{source.metricLabels[key] ?? STANDARD_LABELS[key] ?? key}</p><p className="mt-1 text-3xl font-semibold tracking-tight text-white">{formatValue(key, value)}</p></div><p className={`text-xs font-medium ${delta === null || delta === 0 ? "text-white/35" : delta > 0 ? "text-emerald-300" : "text-amber-300"}`}>{delta === null ? "No comparison" : delta === 0 ? "No change" : `${delta > 0 ? "+" : ""}${formatValue(key, delta)} vs yesterday`}</p></div><div className="mt-4"><Sparkline values={comparison?.history.map((point) => point.value) ?? []} /></div><p className="mt-1 text-[11px] text-white/35">30d average {comparison?.average30d === null || comparison?.average30d === undefined ? "—" : formatValue(key, comparison.average30d)}</p></article>;
       })}</div> : <div className="rounded-2xl border border-dashed border-white/15 p-6 text-sm text-white/50">No completed-day statistics yet.</div>}
-    </section>
+    </section> : <div id="noxcue-alerts-panel" role="tabpanel" aria-labelledby="noxcue-alerts-tab" className="space-y-8">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ef7974] capitalize">{source.environment}</p><h2 className="mt-1 font-display text-2xl text-white">Alert health</h2></div><StatusPill on={source.settings.alertsEnabled} label="Alerts" /></div>
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="rounded-2xl border border-white/10 bg-[#242428] p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Endpoint</p><h2 className="mt-1 font-display text-xl text-white">Availability</h2></div><HealthStatus status={source.endpoint.enabled ? source.endpoint.status : "off"} /></div>{source.endpoint.enabled ? <div className="mt-5 space-y-2 text-sm text-white/75"><p className="break-all">{source.endpoint.url}</p><p className="text-xs text-white/35">{formatDate(source.endpoint.lastCheckedAt)}{source.endpoint.statusCode ? ` · HTTP ${source.endpoint.statusCode}` : ""}{source.endpoint.latencyMs !== null ? ` · ${source.endpoint.latencyMs} ms` : ""}</p>{source.endpoint.error ? <p className="flex gap-2 rounded-xl bg-red-400/10 p-3 text-xs text-red-200"><AlertTriangle size={14} className="shrink-0" />{source.endpoint.error}</p> : null}</div> : <p className="mt-5 text-sm text-white/35">Endpoint monitoring is not enabled.</p>}</section>
       <section className="rounded-2xl border border-white/10 bg-[#242428] p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Features</p><h2 className="mt-1 font-display text-xl text-white">User journeys</h2></div><HealthStatus status={featureIssues.length ? "issue" : healthyFeatures ? "healthy" : "waiting"} /></div><div className="mt-5 grid grid-cols-3 gap-2 text-center"><MiniStat label="Healthy" value={healthyFeatures} /><MiniStat label="Issues" value={featureIssues.length} /><MiniStat label="Waiting" value={source.features.length - healthyFeatures - featureIssues.length} /></div>{featureIssues.length ? <div className="mt-4 space-y-2">{featureIssues.map((feature) => <div key={feature.key} className="rounded-xl bg-red-400/10 p-3"><p className="text-sm font-medium text-red-200">{feature.label}</p><p className="mt-1 text-xs text-red-200/70">{feature.lastReason ?? "Critical failure"} · {feature.failures24h} failure{feature.failures24h === 1 ? "" : "s"} in 24h</p></div>)}</div> : <p className="mt-4 text-xs text-white/35">No feature incident is currently open.</p>}</section>
@@ -175,6 +182,7 @@ function Dashboard({ source }: { source: DashboardSource }) {
         </div> : null}
       </article>;
     })}</div> : <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-5 text-sm text-emerald-200"><span className="inline-flex items-center gap-2"><CheckCircle2 size={16} /> No errors have been recorded for this environment.</span></div>}</section>
+    </div>}
   </div>;
 }
 

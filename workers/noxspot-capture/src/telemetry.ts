@@ -249,7 +249,8 @@ async function sendFailureError(context: TelemetryContext, event: ScreenshotFail
       errorCode,
       fingerprint: `screenshot:${event.stage}:${event.errorType}:${errorCode}`.slice(0, 200),
       component: `screenshot.${event.stage}`,
-      environment: String(event.environment || identity.originHost).slice(0, 80),
+      // NoxCue owns its canonical environment. The site's human-readable
+      // environment remains in the message without overriding source routing.
       fatal: false,
       unhandled: false,
     },
@@ -271,7 +272,8 @@ async function sendWidgetFailureError(context: TelemetryContext, event: Screensh
       errorCode,
       fingerprint: `widget:${event.stage}:${event.errorType}:${errorCode}`.slice(0, 200),
       component: `widget.${event.stage}`,
-      environment: String(event.environment || identity.originHost).slice(0, 80),
+      // NoxCue owns its canonical environment. The site's human-readable
+      // environment remains in the message without overriding source routing.
       fatal: false,
       unhandled: event.stage === "runtime",
     },

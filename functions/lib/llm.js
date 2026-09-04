@@ -4,7 +4,11 @@ import { MANAGED_LLM } from "./llm-config";
 import { sleep } from "./pacing";
 
 const ANTHROPIC_VERSION = "2023-06-01";
-const DEFAULT_MAX_TOKENS = 220;
+// Hard safety ceilings, not writing targets. Desired length belongs in the
+// product-owned system message; these only stop abnormal/runaway output.
+const DEFAULT_MAX_TOKENS = 4096;
+export const NARRATIVE_MAX_TOKENS = 2048;
+export const RELEASE_NOTES_MAX_TOKENS = 4096;
 const TIMEOUT_MS = 30_000;
 
 // Retry only transient conditions. 4xx auth / model-name errors should
@@ -66,6 +70,7 @@ function buildRequest(config, { system, user, maxTokens }) {
  *   { ok: false, reason: "no_text_block", bodySnippet }
  *   { ok: false, reason: "bad_json",     bodySnippet }
  *   { ok: false, reason: "too_large",    bytes }
+ *   { ok: false, reason: "output_truncated" }
  *   { ok: false, reason: "timeout" }
  *   { ok: false, reason: "network",      message }
  *
@@ -109,6 +114,11 @@ export async function probeCompletion(config, { system, user, maxTokens = DEFAUL
     const text = req.extract(body);
     if (typeof text !== "string" || text.length === 0) {
       return { ok: false, reason: "no_text_block", bodySnippet: raw.slice(0, 500) };
+    }
+    // Anthropic-compatible providers report this when max_tokens stopped the
+    // response. Never pass a partial JSON/release note to a caller as success.
+    if (body?.stop_reason === "max_tokens") {
+      return { ok: false, reason: "output_truncated" };
     }
     return { ok: true, text };
   } catch (err) {
@@ -160,6 +170,9 @@ export async function complete(config, opts) {
     case "too_large":
       console.warn(`[${tag}] LLM response too large (${lastResult.bytes} bytes)`);
       return null;
+    case "output_truncated":
+      console.warn(`[${tag}] LLM output reached its hard token ceiling`);
+      return null;
     case "bad_json":
       console.warn(`[${tag}] LLM response was not JSON`);
       return null;
@@ -176,8 +189,13 @@ export async function complete(config, opts) {
   }
 }
 
-export async function completeNarrative(config, system, user) {
-  const text = await complete(config, { system, user, tag: "narrator" });
+export async function completeNarrative(config, system, user, options = {}) {
+  const text = await complete(config, {
+    system,
+    user,
+    tag: options.tag ?? "narrator",
+    maxTokens: options.maxTokens ?? NARRATIVE_MAX_TOKENS,
+  });
   return sanitizeNarrative(text);
 }
 

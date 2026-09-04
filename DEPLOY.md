@@ -166,10 +166,11 @@ response Worker is built from the NoxFeed repository's `service/` directory.
 
 The safe manual order is NoxSpot API, NoxCue, NoxFeed response, Pages, then
 cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
-The hosted NoxCue Worker is currently exposed at
-`https://noxcue.jasper-414.workers.dev`. Move the copyable ingest snippets to
-`https://api.noxcue.dev` only after that domain is added to the Cloudflare
-account and attached to the Worker.
+Public NoxCue clients use the stable Pages gateway
+`https://app.unticket.ai/api/cues/public/v1/events`. It forwards through the
+private `NOXCUE_RESPONSE` service binding, so copyable snippets do not expose or
+depend on the product Worker's deployment hostname. Keep the direct Worker URL
+for operator diagnostics only; it is not part of the public contract.
 
 > **Migrations run before code** — the deploy workflow applies D1 migrations before `pages deploy` for this reason. If you deploy manually, run `d1 migrations apply` first.
 

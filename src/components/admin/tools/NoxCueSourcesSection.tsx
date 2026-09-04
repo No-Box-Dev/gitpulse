@@ -181,14 +181,14 @@ function KeySection({ source }: { source: NonNullable<ReturnType<typeof useNoxCu
 
 function RequestExample({ ingestKey }: { ingestKey: string }) {
   const command = `// One-time setup
-const noxcue = createNoxCue({ endpoint: "https://noxcue.jasper-414.workers.dev", ingestKey: "${ingestKey}" });
+const noxcue = createNoxCue({ endpoint: "https://app.unticket.ai/api/cues/public", ingestKey: "${ingestKey}" });
 
 // One line at each lifecycle point
 await noxcue.userRegistered(user.id);
 await noxcue.userActive(user.id);
 
 // Wire equivalent
-curl https://noxcue.jasper-414.workers.dev/v1/events \\
+curl https://app.unticket.ai/api/cues/public/v1/events \\
   -H 'Content-Type: application/json' \\
   -H 'X-Nox-Ingest-Key: ${ingestKey}' \\
   -d '{"type":"user.registered","userId":"app-user-1842"}'`;

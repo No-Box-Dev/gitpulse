@@ -8,6 +8,8 @@
     "dev": "vite",
     "dev:full": "vite build && npx wrangler pages dev dist",
     "build": "tsc -b && vite build",
+    "openapi:standardize": "node scripts/standardize-openapi.mjs",
+    "openapi:check": "node scripts/standardize-openapi.mjs --check",
     "typecheck:functions": "tsc -p tsconfig.functions.json",
     "lint": "eslint .",
     "preview": "vite preview",

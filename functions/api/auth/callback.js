@@ -151,21 +151,28 @@ export async function onRequestGet(context) {
     }
   }
 
-  // Redirect back with only the exchange code (token never appears in URL)
+  // Redirect back with only the exchange code (token never appears in URL).
+  // Native NoxKey authentication returns through ASWebAuthenticationSession;
+  // the one-time code is still exchanged by the network-only XPC service.
   const origin = url.origin;
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: `${origin}/?auth_code=${encodeURIComponent(exchangeCode)}`,
-      "Cache-Control": "no-store, no-cache, must-revalidate, private",
-      "CDN-Cache-Control": "no-store",
-      "Cloudflare-CDN-Cache-Control": "no-store",
-      Pragma: "no-cache",
-      Vary: "*",
-      // Clear the CSRF cookie
-      "Set-Cookie": "ut_oauth_state=; Path=/; Max-Age=0; SameSite=Lax; Secure",
-    },
+  const headers = new Headers({
+    Location: oauthCompletionLocation(origin, exchangeCode, cookies["ut_oauth_client"]),
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "CDN-Cache-Control": "no-store",
+    "Cloudflare-CDN-Cache-Control": "no-store",
+    Pragma: "no-cache",
+    Vary: "*",
   });
+  headers.append("Set-Cookie", "ut_oauth_state=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure");
+  headers.append("Set-Cookie", "ut_oauth_client=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure");
+  return new Response(null, { status: 302, headers });
+}
+
+export function oauthCompletionLocation(origin, exchangeCode, client) {
+  if (client === "noxkey") {
+    return `noxkey-connect://oauth?code=${encodeURIComponent(exchangeCode)}`;
+  }
+  return `${origin}/?auth_code=${encodeURIComponent(exchangeCode)}`;
 }
 
 function parseCookies(cookieHeader) {

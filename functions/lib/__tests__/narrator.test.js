@@ -6,6 +6,7 @@ const PR_OPENED_SYSTEM = "NOXFEED_PR_OPENED_SYSTEM ".repeat(3);
 vi.mock("../llm.js", () => ({
   completeNarrative: vi.fn(),
   NARRATOR_MODEL: "claude-haiku-4-5-20251001",
+  RELEASE_NOTES_MAX_TOKENS: 4096,
 }));
 vi.mock("../op-failures.js", () => ({
   recordFailure: vi.fn(async () => {}),
@@ -369,6 +370,12 @@ describe("narrateReleaseNotes", () => {
     const db = makeDb({ event: EVENT_ROW, project: PROJECT_ROW, actor: ACTOR_ROW });
     completeNarrative.mockResolvedValue("🐛 noxconnect #42 Merged - Bugfix\nDetails: fixed the thing.");
     await narrateReleaseNotes(ENV(db), 1);
+    expect(completeNarrative).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      expect.any(String),
+      { maxTokens: 4096, tag: "release-notes" },
+    );
     const inserts = db._calls.runs.filter((r) => r.sql.includes("INSERT INTO events"));
     expect(inserts).toHaveLength(1);
     const [source, type] = inserts[0].binds;
@@ -773,6 +780,13 @@ describe("parseNarrativeOutput", () => {
     expect(result.social).toBe("I stopped duplicate invoice charges.");
     expect(result.technicalSummary.split("\n")).toHaveLength(3);
     expect(result.technicalSummary).toContain("What it touches: billing-service across 3 changed files");
+  });
+
+  it("never exposes incomplete structured output as the social post", () => {
+    const result = parseNarrativeOutput('```json\n{"social":"I fixed it","technical":["What it does: incomplete', context);
+    expect(result.social).toBe("stop duplicate invoices");
+    expect(result.social).not.toContain("```json");
+    expect(result.technicalSummary.split("\n")).toHaveLength(3);
   });
 
   it("accepts valid JSON wrapped in provider commentary", () => {

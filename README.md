@@ -19,14 +19,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. By default the dev server proxies `/api/*` to the hosted instance; sign in with a GitHub personal access token (`repo`, `read:org` scopes) to try the UI. To run the full stack (backend Functions, D1, OAuth) against your own infrastructure, follow [DEPLOY.md](./DEPLOY.md).
+Open http://localhost:5173. By default the dev server proxies `/api/*` to the hosted instance; the local read-only development UI can use a GitHub personal access token (`repo`, `read:org` scopes). This is a development convenience, not a third-party authentication contract for the hosted API. To run the full stack (backend Functions, D1, OAuth) against your own infrastructure, follow [DEPLOY.md](./DEPLOY.md).
 
 Set `VITE_API_TARGET` in `.env.local` to point the dev proxy at your own deployment. See [.env.example](./.env.example) for all configuration.
 
 ## Auth modes
 
 - **GitHub App + OAuth** (recommended for self-host/production) — "Sign in with GitHub", real-time webhooks, refresh-token rotation. Requires registering your own GitHub App.
-- **Personal Access Token** — works with zero backend setup, but is read-only: webhooks can't be created in PAT mode, so data is only as fresh as the last manual sync.
+- **Personal Access Token (local development only)** — works with zero backend setup, but is read-only: webhooks can't be created in PAT mode, so data is only as fresh as the last manual sync. Production and user-approved automation use the GitHub App OAuth flow.
 
 ## Stack
 

@@ -41,3 +41,9 @@ bucket_name = "noxconnect-spec-attachments"
 [[r2_buckets]]
 binding = "NOXSPOT_ASSETS"
 bucket_name = "noxspot-assets"
+
+# Opaque NoxKey ciphertext packages. The Worker receives no plaintext or raw
+# content key; access is scoped by the authenticated GitHub organization.
+[[r2_buckets]]
+binding = "NOXKEY_SHARES"
+bucket_name = "noxconnect-noxkey-shares"

@@ -101,6 +101,12 @@ async function verifyOrgMembership(token, tokenHash, orgLogin, userLogin) {
 export async function onRequest(context) {
   const url = new URL(context.request.url);
 
+  // Public ingestion is authenticated by the NoxCue source key inside the
+  // bound product Worker, not by a GitHub user bearer token.
+  if (url.pathname === "/api/cues/public/v1/events") {
+    return context.next();
+  }
+
   // Skip auth for OAuth callback and webhook
   if (url.pathname.startsWith("/api/auth/") || url.pathname === "/api/webhook") {
     return context.next();
@@ -133,10 +139,7 @@ export async function onRequest(context) {
 
   const authHeader = context.request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return apiError(url, "unauthorized", "Missing Authorization header", 401);
   }
 
   const token = authHeader.slice(7);
@@ -146,23 +149,18 @@ export async function onRequest(context) {
     const resetInfo = validation.resetEpoch
       ? ` Resets at ${new Date(Number(validation.resetEpoch) * 1000).toISOString()}`
       : "";
-    return new Response(
-      JSON.stringify({ error: `GitHub API rate limit exceeded.${resetInfo}` }),
-      {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-          ...(validation.resetEpoch ? { "Retry-After": String(Math.max(0, Number(validation.resetEpoch) - Math.floor(Date.now() / 1000))) } : {}),
-        },
-      },
+    return apiError(
+      url,
+      "rate_limited",
+      `GitHub API rate limit exceeded.${resetInfo}`,
+      429,
+      undefined,
+      validation.resetEpoch ? { "Retry-After": String(Math.max(0, Number(validation.resetEpoch) - Math.floor(Date.now() / 1000))) } : undefined,
     );
   }
 
   if (validation.error === "invalid") {
-    return new Response(JSON.stringify({ error: "Invalid token" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+    return apiError(url, "unauthorized", "Invalid token", 401);
   }
 
   const userLogin = validation.login;
@@ -172,19 +170,13 @@ export async function onRequest(context) {
   const orgLogin =
     context.request.headers.get("X-Org") || url.searchParams.get("org");
   if (!orgLogin) {
-    return new Response(JSON.stringify({ error: "Missing X-Org header or org query param" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return apiError(url, "missing_organization", "Missing X-Org header or org query param", 400);
   }
 
   // Verify user is a member of the requested org before proceeding
   const isMember = await verifyOrgMembership(token, tokenHash, orgLogin, userLogin);
   if (!isMember) {
-    return new Response(JSON.stringify({ error: "Not a member of this organization" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
+    return apiError(url, "organization_forbidden", "Not a member of this organization", 403);
   }
 
   // Ensure org exists in D1 (auto-create only after membership is verified)
@@ -204,20 +196,14 @@ export async function onRequest(context) {
         "SELECT id, suspended_at FROM orgs WHERE github_login = ?"
       ).bind(orgLogin).first();
       if (!orgRow) {
-        return new Response(JSON.stringify({ error: "Failed to resolve organization" }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return apiError(url, "organization_resolution_failed", "Failed to resolve organization", 500);
       }
     }
   }
 
   // Operator kill-switch: a suspended org is blocked before any work runs.
   if (orgRow.suspended_at) {
-    return new Response(
-      JSON.stringify({ error: "This organization has been suspended. Contact support." }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(url, "organization_suspended", "This organization has been suspended. Contact support.", 403);
   }
 
   // App switches are enforced before service code runs. Shared NoxConnect
@@ -225,7 +211,10 @@ export async function onRequest(context) {
   // removed when a service is off.
   const appId = appForApiPath(url.pathname);
   if (appId && !(await isAppEnabled(context.env.DB, orgRow.id, appId))) {
-    return serviceDisabledResponse(appId);
+    const response = serviceDisabledResponse(appId);
+    if (!url.pathname.startsWith("/api/v1/")) return response;
+    const body = await response.json();
+    return apiError(url, body.code ?? "service_disabled", body.error, response.status, { service: body.service });
   }
 
   // Upsert session (encrypt token before storing in D1)
@@ -289,4 +278,17 @@ export async function onRequest(context) {
   context.data.isAdmin = isAdmin;
 
   return context.next();
+}
+
+function apiError(url, code, message, status, details, extraHeaders) {
+  const versioned = url.pathname.startsWith("/api/v1/");
+  const body = versioned
+    ? { apiVersion: 1, error: { code, message, ...(details === undefined ? {} : { details }) } }
+    : { error: message };
+  const headers = new Headers(extraHeaders);
+  headers.set("Content-Type", "application/json");
+  headers.set("Cache-Control", "no-store");
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (versioned) headers.set("Link", '</openapi.json>; rel="service-desc"');
+  return new Response(JSON.stringify(body), { status, headers });
 }

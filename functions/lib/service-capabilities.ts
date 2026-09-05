@@ -219,9 +219,9 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     name: "NoxCue",
     kind: "product",
     focus: "Monitor daily customer health",
-    description: "Accepts bounded customer lifecycle and error events, derives daily health metrics, and delivers scheduled summaries to Slack.",
+    description: "Accepts bounded customer lifecycle and error events, derives daily health metrics, delivers scheduled summaries to Slack, and can route incidents into project GitHub issues.",
     requiredConnections: ["slack"],
-    optionalConnections: [],
+    optionalConnections: ["github"],
     capabilities: [
       { id: "sources", name: "Event sources", description: "Create sources for customer lifecycle and application error events.", access: "admin", requires: ["slack"], operations: [
         { id: "list_sources", method: "GET", path: "/api/cues/sources", authentication: "admin", description: "List NoxCue sources." },
@@ -238,6 +238,10 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
         { id: "list_cue_events", method: "GET", path: "/api/cues/events", authentication: "admin", description: "List recent normalized events and delivery state." },
         { id: "get_cue_metrics", method: "GET", path: "/api/cues/metrics", authentication: "admin", description: "Read daily customer-health metrics." },
       ] },
+      { id: "github_incidents", name: "GitHub incidents", description: "Route qualifying NoxCue incidents into the GitHub repository linked to each project.", access: "admin", requires: ["github"], operations: [
+        { id: "get_cue_github_incident_settings", method: "GET", path: "/api/cues/github-issues", authentication: "admin", description: "List project repository mappings, incident policy, and open incident counts." },
+        { id: "put_cue_github_incident_settings", method: "PUT", path: "/api/cues/github-issues", authentication: "admin", description: "Set the environments, repeat policy, and enabled state for one project's GitHub incidents." },
+      ] },
       { id: "cue_delivery", name: "Scheduled Slack delivery", description: "Choose the destination, timezone, and local delivery time for each source.", access: "admin", requires: ["slack"], operations: [
         { id: "configure_cue_delivery", method: "PUT", path: "/api/cues/sources/{sourceId}", authentication: "admin", description: "Set timezone, local digest time, workspace, and channel." },
         { id: "test_cue_route", method: "POST", path: "/api/integrations/slack/test", authentication: "admin", description: "Test the noxcue Slack route." },
@@ -246,6 +250,7 @@ const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     setupSections: [
       { id: "sources", name: "Sources", capabilityIds: ["sources", "ingest_keys"] },
       { id: "health", name: "Health", capabilityIds: ["health_metrics"] },
+      { id: "incidents", name: "GitHub incidents", capabilityIds: ["github_incidents"] },
       { id: "delivery", name: "Delivery", capabilityIds: ["cue_delivery"] },
     ],
   },

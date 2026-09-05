@@ -5,7 +5,7 @@ This document tracks the eight local standardization gates for the API served by
 remain bounded by capability and storage ownership.
 
 Last integrated verification: **2026-09-05**, rebased on `origin/main` at
-`43068d4`.
+`ceb9c7a`.
 
 ## Progress
 
@@ -28,10 +28,12 @@ Last integrated verification: **2026-09-05**, rebased on `origin/main` at
 | NoxTicket | Planning and delivery workflow | feature repository, board stages | features, specifications, attachments |
 | NoxFeed | Current work and communication | project scope, release-notes prompt | feed data and organization AI settings |
 | NoxSpot | Website feedback capture | none | sites, widget environments/fields, per-site delivery |
-| NoxCue | Customer-health monitoring | none | sources, ingest keys, metrics, digest schedule/delivery |
+| NoxCue | Customer-health monitoring | none | sources, ingest keys, metrics, GitHub incident policy, digest schedule/delivery |
 
 ## Compatibility rules
 
+- This is the supported API contract, not an inventory of private callbacks,
+  webhooks, or UI-only compatibility handlers.
 - Existing `/api/*` routes and the current UI remain operational during migration.
 - New automation starts at `/api/v1/services` and follows advertised operations.
 - Provider credentials remain server-side and are never returned by discovery,
@@ -84,7 +86,7 @@ cookie; the GitHub token remains encrypted server-side. Browser mutations use a
 separate CSRF cookie/header proof. Native GitHub device approval is brokered by
 NoxConnect: the native app stores only a 15-minute `nox_at_…` access token and a
 rotating 30-day `nox_rt_…` refresh token, while provider credentials stay encrypted
-server-side. Existing NoxFeed installs exchange their legacy provider credential
+server-side. Updated NoxFeed clients exchange an existing install's legacy provider credential
 once and replace it in Keychain. Automation tokens are organization- and one-project-bound,
 expire within 365 days, are shown once, and store only a SHA-256 hash. Service
 read/write and project scopes are enforced before handlers run, token lifecycle actions are
@@ -138,7 +140,7 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
 ## Final verification results
 
 - Focused documentation/API contract run: passed.
-- Complete Vitest run: 172 files and 1,327 tests passed.
+- Complete Vitest run: 172 files and 1,328 tests passed.
 - ESLint: passed.
 - Pages Functions TypeScript check: passed.
 - Production Vite build: passed.

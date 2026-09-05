@@ -80,4 +80,31 @@ describe("capability discovery and OpenAPI stay aligned", () => {
     expect(openapi.paths["/api/cues/public/v1/events"]?.post).toBeDefined();
     expect(JSON.stringify(openapi)).not.toContain("workers.dev");
   });
+
+  it("advertises NoxCue GitHub incidents only behind the GitHub connection", () => {
+    const noxCue = services.find((service) => service.id === "noxcue");
+    expect(noxCue?.setup.connections).toContainEqual(expect.objectContaining({
+      provider: "github",
+      requirement: "optional",
+    }));
+    expect(noxCue?.capabilities).toContainEqual(expect.objectContaining({
+      id: "github_incidents",
+      requires: ["github"],
+      operations: expect.arrayContaining([
+        expect.objectContaining({ method: "GET", path: "/api/cues/github-issues" }),
+        expect.objectContaining({ method: "PUT", path: "/api/cues/github-issues" }),
+      ]),
+    }));
+
+    const withoutGitHub = buildServiceCatalog({
+      enabledApps: { noxticket: true, noxfeed: true, noxspot: true, noxcue: true },
+      integrations: {
+        github: { configured: false, connected: false, bootstrapping: false, health: "unavailable" },
+        slack: { configured: true, connected: true, needsReconnect: false, health: "ok" },
+      },
+    }).find((service) => service.id === "noxcue");
+    expect(withoutGitHub?.setup.state).toBe("ready");
+    expect(withoutGitHub?.capabilities.find((capability) => capability.id === "github_incidents"))
+      .toMatchObject({ state: "blocked", blockers: ["github"] });
+  });
 });

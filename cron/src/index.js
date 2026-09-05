@@ -23,6 +23,7 @@ import { checkSlackOrgHealth } from "../../functions/lib/slack.js";
 import { runNoxCueDigests } from "./noxcue-digests.js";
 import { runNoxSpotDailyDigests } from "./noxspot-digests.js";
 import { runNoxFeedDailySummaries } from "./noxfeed-daily-summaries.js";
+import { createOrUpdateNoxCueGitHubIssue, recoverNoxCueGithubIncidents } from "../../functions/lib/noxcue-github.js";
 
 // Cap concurrent orgs per tick to keep GitHub API consumption bounded.
 // Tune up once we measure real numbers.
@@ -113,6 +114,8 @@ async function handleTask(env, body) {
     }
     case TASK.SPOT_CREATE_GITHUB_ISSUE:
       return createNoxSpotGitHubIssue(env, body);
+    case TASK.NOXCUE_GITHUB_ISSUE:
+      return createOrUpdateNoxCueGitHubIssue(env, body);
     case TASK.DELIVER_SLACK:
       return deliverSlackOutbox(env, body.outboxId);
     default:
@@ -124,6 +127,11 @@ async function runTick(env, nowMs = Date.now()) {
   const db = env.DB;
 
   await recoverOutboxDeliveries(env);
+  try {
+    await recoverNoxCueGithubIncidents(env);
+  } catch (err) {
+    console.error("[noxconnect-cron] NoxCue GitHub issue recovery failed:", err?.message ?? err);
+  }
   await runSlackHealthSweep(env);
   await healOrgInstallationLinks(db);
 

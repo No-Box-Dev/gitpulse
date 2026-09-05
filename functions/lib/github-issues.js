@@ -38,6 +38,24 @@ export async function createRepositoryIssue(token, owner, repo, issue) {
   });
 }
 
+export async function getRepositoryIssue(token, owner, repo, issueNumber) {
+  return githubRequest(token, `/repos/${part(owner)}/${part(repo)}/issues/${part(issueNumber)}`);
+}
+
+export async function updateRepositoryIssue(token, owner, repo, issueNumber, issue) {
+  return githubRequest(token, `/repos/${part(owner)}/${part(repo)}/issues/${part(issueNumber)}`, {
+    method: "PATCH",
+    body: JSON.stringify(issue),
+  });
+}
+
+export async function createRepositoryIssueComment(token, owner, repo, issueNumber, body) {
+  return githubRequest(token, `/repos/${part(owner)}/${part(repo)}/issues/${part(issueNumber)}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
 async function githubRequest(token, path, init = {}) {
   if (typeof token !== "string" || !token) throw new Error("GitHub installation token is required");
   const response = await fetch(`${API}${path}`, {

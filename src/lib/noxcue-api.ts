@@ -160,3 +160,19 @@ export interface NoxCueProjectMetricsResponse {
     lastEventAt: string | null;
   }>;
 }
+
+export interface NoxCueGithubIssueProject {
+  projectId: string;
+  projectName: string;
+  repo: string | null;
+  enabled: boolean;
+  environments: NoxCueEnvironment[];
+  commentOnRepeat: boolean;
+  repeatIntervalMinutes: number;
+  openIncidents: number;
+}
+
+export interface NoxCueGithubIssueSettingsResponse {
+  githubConnected: boolean;
+  projects: NoxCueGithubIssueProject[];
+}

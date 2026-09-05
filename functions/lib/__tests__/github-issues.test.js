@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createRepositoryIssue,
+  createRepositoryIssueComment,
   ensureRepositoryLabels,
   findIssueByBodyMarker,
+  getRepositoryIssue,
+  updateRepositoryIssue,
 } from "../github-issues.js";
 
 describe("NoxConnect GitHub issue transport", () => {
@@ -33,6 +36,20 @@ describe("NoxConnect GitHub issue transport", () => {
     });
     const [, init] = globalThis.fetch.mock.calls[0];
     expect(JSON.parse(init.body)).toEqual({ title: "Broken button", body: "Details", labels: ["noxspot", "bug"] });
+  });
+
+  it("reads, updates, and comments on an existing issue", async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: true, json: async () => ({ number: 7, state: "open" }) }));
+    await getRepositoryIssue("installation-token", "acme", "web", 7);
+    await updateRepositoryIssue("installation-token", "acme", "web", 7, { body: "Refreshed" });
+    await createRepositoryIssueComment("installation-token", "acme", "web", 7, "Seen again");
+    expect(globalThis.fetch.mock.calls.map(([url]) => url)).toEqual([
+      "https://api.github.com/repos/acme/web/issues/7",
+      "https://api.github.com/repos/acme/web/issues/7",
+      "https://api.github.com/repos/acme/web/issues/7/comments",
+    ]);
+    expect(globalThis.fetch.mock.calls[1][1]).toMatchObject({ method: "PATCH", body: JSON.stringify({ body: "Refreshed" }) });
+    expect(globalThis.fetch.mock.calls[2][1]).toMatchObject({ method: "POST", body: JSON.stringify({ body: "Seen again" }) });
   });
 
   it("treats an existing label as success and propagates other failures", async () => {

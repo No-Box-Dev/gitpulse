@@ -10,6 +10,8 @@ import type {
   NoxCueCustomMetricsResponse,
   NoxCueDashboardShare,
   NoxCueFeaturesResponse,
+  NoxCueGithubIssueProject,
+  NoxCueGithubIssueSettingsResponse,
   NoxCueMetricsResponse,
   NoxCueProjectMetricsResponse,
   NoxCueSourceInput,
@@ -20,6 +22,34 @@ import type {
 const sourcesKey = (org: string | null | undefined) => ["noxcue-sources", org];
 const featuresKey = (org: string | null | undefined, sourceId: string) => ["noxcue-features", org, sourceId];
 const customMetricsKey = (org: string | null | undefined, sourceId: string) => ["noxcue-custom-metrics", org, sourceId];
+const githubIssuesKey = (org: string | null | undefined) => ["noxcue-github-issues", org];
+
+export function useNoxCueGithubIssueSettings() {
+  const { selectedOrg } = useAuth();
+  return useQuery({
+    queryKey: githubIssuesKey(selectedOrg),
+    queryFn: () => apiGet<NoxCueGithubIssueSettingsResponse>("/api/cues/github-issues"),
+    enabled: Boolean(selectedOrg),
+  });
+}
+
+export function useSaveNoxCueGithubIssueSettings() {
+  const { selectedOrg } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<NoxCueGithubIssueProject, "projectName" | "repo" | "openIncidents">) =>
+      apiPut<{ project: NoxCueGithubIssueProject }>("/api/cues/github-issues", input),
+    onSuccess: ({ project }) => client.setQueryData<NoxCueGithubIssueSettingsResponse>(
+      githubIssuesKey(selectedOrg),
+      (current) => current ? {
+        ...current,
+        projects: current.projects.map((item) => item.projectId === project.projectId
+          ? { ...project, openIncidents: item.openIncidents }
+          : item),
+      } : current,
+    ),
+  });
+}
 
 export function useNoxCueSources() {
   const { selectedOrg } = useAuth();

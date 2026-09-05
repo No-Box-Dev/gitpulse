@@ -2,6 +2,7 @@ import { BellRing } from "lucide-react";
 import type { IntegrationsStatus } from "@/lib/integrations-api";
 import { ReadinessBadge } from "@/components/admin/ReadinessBadge";
 import { NoxCueSourcesSection } from "@/components/admin/tools/NoxCueSourcesSection";
+import { NoxCueGithubIssuesSection } from "@/components/admin/tools/NoxCueGithubIssuesSection";
 
 export function NoxCueSection({ noxConnect }: { noxConnect: IntegrationsStatus }) {
   const slackConnected = noxConnect.slack.connected;
@@ -23,6 +24,7 @@ export function NoxCueSection({ noxConnect }: { noxConnect: IntegrationsStatus }
         ) : null}
       </div>
       <NoxCueSourcesSection noxConnect={noxConnect} />
+      <NoxCueGithubIssuesSection />
     </div>
   );
 }

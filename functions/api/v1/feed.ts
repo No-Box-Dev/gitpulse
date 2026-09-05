@@ -33,7 +33,8 @@
 // the payload's github login/avatar is authoritative for external clients.
 
 import { z } from "zod";
-import { getCtx, jsonResponse, errorResponse } from "../../lib/db";
+import { getCtx } from "../../lib/db";
+import { normalizeLegacyError, v1Error, v1Response } from "../../lib/api-v1";
 import { validate } from "../../lib/validate";
 
 interface Env {
@@ -100,12 +101,12 @@ const QuerySchema = z.object({
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
   const { orgLogin } = getCtx(context) as { orgLogin: string };
-  if (!orgLogin) return errorResponse("Missing org context", 400);
+  if (!orgLogin) return v1Error("missing_org_context", "Missing organization context", 400);
 
   const url = new URL(context.request.url);
   const raw = Object.fromEntries(url.searchParams.entries());
   const parsed = validate(QuerySchema, raw);
-  if (!parsed.ok) return parsed.response;
+  if (!parsed.ok) return normalizeLegacyError(parsed.response);
   const { mode, repo, actor, limit, before } = parsed.data;
 
   const filter = MODE_FILTER[mode];
@@ -152,7 +153,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     ? `${last.createdAt}:${last.id}`
     : null;
 
-  return jsonResponse({ events, nextCursor });
+  return v1Response({ events, nextCursor });
 }
 
 // ---------- Mapping ----------

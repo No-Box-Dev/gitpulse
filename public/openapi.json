@@ -43,13 +43,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/integrations/connections": {
@@ -66,13 +96,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/integrations/connections/{provider}/start": {
@@ -105,13 +165,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/integrations/connections/{provider}/disconnect": {
@@ -134,6 +224,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Provider-managed disconnect",
             "content": {
@@ -149,7 +259,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/slack/channels": {
@@ -166,13 +286,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/integrations/slack/routing": {
@@ -189,13 +339,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "patch": {
         "operationId": "patchSlackRouting",
@@ -221,6 +401,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Slack is disconnected or a channel is unavailable",
             "content": {
@@ -236,7 +436,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/integrations/slack/test": {
@@ -264,6 +474,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "No channel configured",
             "content": {
@@ -279,7 +509,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/projects": {
@@ -296,13 +536,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/projects/routing": {
@@ -316,6 +586,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -335,7 +615,17 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/projects/routing/{projectId}": {
@@ -370,6 +660,16 @@
           },
           "400": {
             "description": "Invalid request body or missing organization context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
             "content": {
               "application/json": {
                 "schema": {
@@ -423,7 +723,17 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/spots/sites": {
@@ -437,6 +747,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -468,6 +798,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -509,6 +859,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -532,6 +902,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -780,6 +1170,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -808,6 +1218,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -849,6 +1279,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -872,6 +1322,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -933,6 +1403,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -964,6 +1454,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -990,6 +1500,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -1042,6 +1562,16 @@
           },
           "400": {
             "description": "Invalid custom feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
             "content": {
               "application/json": {
                 "schema": {
@@ -1111,6 +1641,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Admin required",
             "content": {
@@ -1156,6 +1696,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -1208,6 +1758,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Admin required",
             "content": {
@@ -1256,6 +1816,16 @@
           },
           "400": {
             "description": "Invalid custom metric",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
             "content": {
               "application/json": {
                 "schema": {
@@ -1325,6 +1895,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Admin required",
             "content": {
@@ -1370,6 +1950,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -1421,6 +2011,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1457,6 +2067,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1488,6 +2118,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -1669,7 +2319,17 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "patch": {
         "operationId": "patchNoxServiceConfig",
@@ -1740,7 +2400,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "conditional_write"
+        "x-change-safety": "conditional_write",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/v1/services/{service}/health": {
@@ -1817,6 +2487,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Project is required while multiple workspaces exist",
             "content": {
@@ -1832,7 +2522,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/projects/{projectId}/archive": {
@@ -1856,6 +2556,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           },
@@ -1874,7 +2584,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "delete": {
         "operationId": "restoreProject",
@@ -1892,6 +2612,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -1914,7 +2644,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/repos": {
@@ -1946,13 +2686,33 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/repos/acknowledge": {
@@ -1993,6 +2753,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           }
@@ -2001,7 +2771,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/actors": {
@@ -2021,13 +2801,33 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/actors/{actorId}": {
@@ -2050,6 +2850,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Actor not found",
             "content": {
@@ -2065,7 +2885,17 @@
           "NoxConnect"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "patch": {
         "operationId": "updateActor",
@@ -2097,6 +2927,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           },
@@ -2115,7 +2955,17 @@
           "NoxConnect"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/features": {
@@ -2145,13 +2995,33 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "post": {
         "operationId": "createFeature",
@@ -2173,6 +3043,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -2202,7 +3092,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/features/{number}": {
@@ -2235,6 +3135,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Feature not found",
             "content": {
@@ -2260,7 +3180,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "delete": {
         "operationId": "closeFeature",
@@ -2281,6 +3211,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Feature not found",
             "content": {
@@ -2296,7 +3246,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/specs": {
@@ -2336,13 +3296,33 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "post": {
         "operationId": "createSpec",
@@ -2368,6 +3348,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Invalid specification",
             "content": {
@@ -2383,7 +3383,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/specs/{specId}": {
@@ -2406,6 +3416,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Specification not found",
             "content": {
@@ -2421,7 +3451,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "patch": {
         "operationId": "updateSpec",
@@ -2452,6 +3492,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Specification not found",
             "content": {
@@ -2477,7 +3537,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/specs/{specId}/archive": {
@@ -2501,6 +3571,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           }
@@ -2509,7 +3589,17 @@
           "NoxTicket"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "delete": {
         "operationId": "restoreSpec",
@@ -2531,6 +3621,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           }
@@ -2539,7 +3639,17 @@
           "NoxTicket"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/specs/{specId}/attachments": {
@@ -2564,13 +3674,33 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "post": {
         "operationId": "uploadSpecAttachment",
@@ -2610,6 +3740,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Attachment too large",
             "content": {
@@ -2635,7 +3785,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/specs/{specId}/attachments/{attachmentId}": {
@@ -2662,6 +3822,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Attachment not found",
             "content": {
@@ -2677,7 +3857,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "delete": {
         "operationId": "deleteSpecAttachment",
@@ -2701,6 +3891,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Attachment not found",
             "content": {
@@ -2716,7 +3926,17 @@
           "NoxTicket"
         ],
         "x-authentication": "member",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/v1/feed": {
@@ -2830,6 +4050,16 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2927,6 +4157,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Issue or active repository not found",
             "content": {
@@ -2962,6 +4212,16 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -3046,6 +4306,26 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Pull request or active repository not found",
             "content": {
@@ -3104,6 +4384,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           }
@@ -3112,7 +4402,17 @@
           "NoxFeed"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "destructive"
+        "x-change-safety": "destructive",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/engineer-activity": {
@@ -3157,13 +4457,43 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "tags": [
           "NoxFeed"
         ],
         "x-authentication": "member",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/llm-settings": {
@@ -3182,6 +4512,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           }
@@ -3190,7 +4530,17 @@
           "NoxFeed"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "safe_read"
+        "x-change-safety": "safe_read",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       },
       "put": {
         "operationId": "putAiSettings",
@@ -3230,6 +4580,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
           "403": {
             "$ref": "#/components/responses/AdminRequired"
           },
@@ -3248,7 +4608,17 @@
           "NoxFeed"
         ],
         "x-authentication": "admin",
-        "x-change-safety": "write_not_safe_to_retry"
+        "x-change-safety": "write_not_safe_to_retry",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ]
       }
     },
     "/api/spots/sites/{siteId}/retry-deliveries": {
@@ -3268,6 +4638,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
                 }
               }
             }
@@ -3310,6 +4690,16 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -3448,6 +4838,10 @@
           {
             "browserSession": [],
             "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
           }
         ],
         "responses": {
@@ -3488,6 +4882,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -3552,6 +4950,10 @@
           {
             "browserSession": [],
             "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
           }
         ],
         "responses": {
@@ -3604,6 +5006,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
             "organization": []
           }
         ],
@@ -3667,7 +5073,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "nox_sk_live_…",
-        "description": "Organization-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once."
+        "description": "Organization- and project-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once."
       }
     },
     "parameters": {
@@ -5712,6 +7118,7 @@
         "additionalProperties": false,
         "required": [
           "name",
+          "projectId",
           "scopes"
         ],
         "properties": {
@@ -5728,6 +7135,12 @@
             ],
             "default": "live"
           },
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "description": "One enabled NoxConnect project. The token cannot access resources assigned to another project."
+          },
           "scopes": {
             "type": "array",
             "minItems": 1,
@@ -5735,7 +7148,7 @@
             "uniqueItems": true,
             "items": {
               "type": "string",
-              "pattern": "^(services|noxconnect|noxticket|noxfeed|noxspot|noxcue):(read|write)$"
+              "pattern": "^(services:read|(noxfeed|noxspot|noxcue):(read|write))$"
             }
           },
           "expiresInDays": {

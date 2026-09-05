@@ -28,7 +28,7 @@ Set `VITE_API_TARGET` in `.env.local` to point the dev proxy at your own deploym
 - **GitHub App + OAuth** (recommended for self-host/production) — "Sign in with GitHub", real-time webhooks, refresh-token rotation. Requires registering your own GitHub App.
 - **Personal Access Token (local development only)** — works with zero backend setup, but is read-only: webhooks can't be created in PAT mode, so data is only as fresh as the last manual sync. Production users sign in through GitHub App OAuth; production automation uses scoped NoxConnect API tokens.
 
-Hosted browser sign-in creates an opaque HttpOnly NoxConnect session; GitHub access and refresh tokens remain encrypted server-side. Automation uses expiring, organization-bound `nox_sk_…` API tokens with explicit per-service read/write scopes. Public NoxCue/NoxSpot ingestion keys and private Worker service bindings remain separate credential classes.
+Hosted browser sign-in creates an opaque HttpOnly NoxConnect session; GitHub access and refresh tokens remain encrypted server-side. Automation uses expiring `nox_sk_…` API tokens bound to one organization, one enabled project, and explicit project-safe service read/write scopes. Public NoxCue/NoxSpot ingestion keys and private Worker service bindings remain separate credential classes.
 
 ## Stack
 

@@ -32,7 +32,7 @@ NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core t
 Credentials are separated by caller and cannot be substituted for one another:
 
 - **Browser users** — GitHub OAuth creates an opaque, hashed-at-rest NoxConnect session in a `Secure`, `HttpOnly`, `SameSite=Lax` cookie. GitHub access and refresh tokens remain encrypted server-side. Browser mutations require a separate CSRF cookie/header proof.
-- **Automation** — expiring `nox_sk_live_…` or `nox_sk_test_…` secrets are bound to one organization and explicit service read/write scopes. Values are shown once, stored only as hashes, audited, rotatable, and revocable.
+- **Automation** — expiring `nox_sk_live_…` or `nox_sk_test_…` secrets are bound to one organization, exactly one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Values are shown once, stored only as hashes, audited, rotatable, and revocable.
 - **Public capture** — NoxCue source keys and origin-bound NoxSpot capture are limited to their ingestion contracts; they do not grant management access.
 - **Internal services** — Workers use private versioned service bindings and receive bounded product data, never provider tokens.
 - **Legacy native/local compatibility** — a GitHub bearer can still authenticate supported native and development callers during migration, but it is not the public automation contract.

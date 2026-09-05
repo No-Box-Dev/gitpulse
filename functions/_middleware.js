@@ -1,6 +1,8 @@
 import { encryptToken } from "./lib/crypto";
 import { appForApiPath, isAppEnabled, serviceDisabledResponse } from "./lib/apps.js";
 import {
+  apiTokenProjectResource,
+  projectScopedApiTokenPathSupported,
   requiredApiTokenScope,
   refreshBrowserSession,
   resolveApiToken,
@@ -175,6 +177,7 @@ export async function onRequest(context) {
   let orgRow;
   let isAdmin = false;
   let scopes = [];
+  let projectId = null;
 
   const apiCredential = bearer.startsWith("nox_sk_")
     ? await resolveApiToken(context.env.DB, bearer)
@@ -184,7 +187,7 @@ export async function onRequest(context) {
     if (!apiCredential) return apiError(url, "unauthorized", "Invalid or expired API token", 401);
     const requiredScope = requiredApiTokenScope(url.pathname, context.request.method);
     if (!requiredScope) {
-      return apiError(url, "api_token_not_supported", "API tokens are accepted only by the versioned public API", 403);
+      return apiError(url, "api_token_not_supported", "This endpoint does not accept automation tokens", 403);
     }
     const writeEquivalent = requiredScope.endsWith(":read") ? requiredScope.replace(/:read$/, ":write") : null;
     if (!apiCredential.scopes.includes(requiredScope) && !(writeEquivalent && apiCredential.scopes.includes(writeEquivalent))) {
@@ -192,6 +195,28 @@ export async function onRequest(context) {
     }
     if (presentedOrg && presentedOrg.toLowerCase() !== apiCredential.org_login.toLowerCase()) {
       return apiError(url, "organization_forbidden", "API token belongs to a different organization", 403);
+    }
+    if (!apiCredential.project_id || apiCredential.project_enabled !== 1) {
+      return apiError(url, "project_not_enabled", "This token's project is no longer enabled in NoxConnect", 403);
+    }
+    if (!projectScopedApiTokenPathSupported(url.pathname, context.request.method)) {
+      return apiError(
+        url,
+        "project_scope_unsupported",
+        "This organization-level operation is not available to project-scoped tokens",
+        403,
+      );
+    }
+    projectId = apiCredential.project_id;
+    const presentedProject = context.request.headers.get("X-Project-ID")
+      || url.searchParams.get("projectId")
+      || url.searchParams.get("project");
+    if (presentedProject && presentedProject !== projectId) {
+      return apiError(url, "resource_not_found", "The requested resource was not found", 404);
+    }
+    const resource = await apiTokenProjectResource(context.env.DB, url.pathname, apiCredential.org_id, url.searchParams);
+    if (resource && resource.projectId !== projectId) {
+      return apiError(url, "resource_not_found", "The requested resource was not found", 404);
     }
     credentialType = "api_token";
     credentialId = apiCredential.id;
@@ -324,7 +349,7 @@ export async function onRequest(context) {
     const response = serviceDisabledResponse(appId);
     if (!url.pathname.startsWith("/api/v1/")) return response;
     const body = await response.json();
-    return apiError(url, body.code ?? "service_disabled", body.error, response.status, { service: body.service });
+    return apiError(url, body.code ?? "service_not_enabled", body.error, response.status, { service: body.service });
   }
 
   // Probabilistic session cleanup: SESSION_CLEANUP_RATE of requests trigger a sweep
@@ -360,7 +385,8 @@ export async function onRequest(context) {
   context.data.userLogin = userLogin;
   context.data.token = token;
   context.data.isAdmin = isAdmin;
-  context.data.auth = { type: credentialType, id: credentialId, scopes };
+  context.data.projectId = projectId;
+  context.data.auth = { type: credentialType, id: credentialId, scopes, projectId };
 
   return context.next();
 }

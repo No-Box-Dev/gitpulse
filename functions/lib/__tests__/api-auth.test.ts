@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createApiTokenValue,
   normalizeApiTokenScopes,
+  projectScopedApiTokenPathSupported,
   requiredApiTokenScope,
   sessionCookies,
   sha256,
@@ -22,16 +23,27 @@ describe("API authentication primitives", () => {
     expect(normalizeApiTokenScopes(["noxfeed:read", "services:read", "noxfeed:read"]))
       .toEqual(["noxfeed:read", "services:read"]);
     expect(normalizeApiTokenScopes(["admin:*", "noxfeed:read"])).toBeNull();
+    expect(normalizeApiTokenScopes(["noxconnect:write"])).toBeNull();
+    expect(normalizeApiTokenScopes(["noxticket:read"])).toBeNull();
     expect(normalizeApiTokenScopes([])).toBeNull();
   });
 
   it("maps advertised service routes to their service scope", () => {
     expect(requiredApiTokenScope("/api/v1/services", "GET")).toBe("services:read");
     expect(requiredApiTokenScope("/api/v1/services/noxspot/config", "PATCH")).toBe("noxspot:write");
-    expect(requiredApiTokenScope("/api/features/12", "DELETE")).toBe("noxticket:write");
+    expect(requiredApiTokenScope("/api/features/12", "DELETE")).toBeNull();
     expect(requiredApiTokenScope("/api/prs", "GET")).toBe("noxfeed:read");
     expect(requiredApiTokenScope("/api/projects/proj_1/backfill-prs", "POST")).toBe("noxfeed:write");
     expect(requiredApiTokenScope("/api/cues/sources", "POST")).toBe("noxcue:write");
+  });
+
+  it("allows only resource-safe project token routes", () => {
+    expect(projectScopedApiTokenPathSupported("/api/v1/feed", "GET")).toBe(true);
+    expect(projectScopedApiTokenPathSupported("/api/spots/sites/site-1", "PATCH")).toBe(true);
+    expect(projectScopedApiTokenPathSupported("/api/cues/sources/source-1/keys", "POST")).toBe(true);
+    expect(projectScopedApiTokenPathSupported("/api/v1/services/noxfeed/config", "GET")).toBe(false);
+    expect(projectScopedApiTokenPathSupported("/api/llm-settings", "GET")).toBe(false);
+    expect(projectScopedApiTokenPathSupported("/api/features", "GET")).toBe(false);
   });
 
   it("issues a hardened opaque session cookie and separate CSRF cookie", () => {

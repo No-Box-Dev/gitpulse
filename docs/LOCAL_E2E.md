@@ -56,7 +56,7 @@ Worker, and checks:
 - all three product HTTP health endpoints and the cron runtime;
 - private RPC contracts for NoxSpot, NoxCue, and NoxFeed;
 - anonymous rejection, real GitHub identity and org-membership auth, an opaque
-  browser session, CSRF enforcement, and scoped API-token create/list/rotate/revoke;
+  browser session, CSRF enforcement, and one-project API-token create/list/rotate/revoke;
 - all five service catalog, setup, health, and config contracts;
 - ETag/`If-Match` config writes, missing preconditions, and stale revisions;
 - project discovery from an installation record;
@@ -70,10 +70,11 @@ Worker, and checks:
 
 The key checks use real HTTP requests and fresh D1 rows, not handler mocks. The
 runner verifies one-time secret return, hashed-at-rest lookup, redacted listing,
-organization and service scope enforcement, CSRF protection for lifecycle
-operations, rotation, immediate invalidation, revocation, and rejection after
-revocation. It also proves that an automation token cannot mint, rotate, list,
-or revoke automation tokens.
+organization, project, and service scope enforcement, cross-project denial,
+project-filtered feed results, the disabled-service error, CSRF protection for
+lifecycle operations, project-preserving rotation, immediate invalidation,
+revocation, and rejection after revocation. It also proves that an automation
+token cannot mint, rotate, list, or revoke automation tokens.
 
 ## Deliberate external boundary
 

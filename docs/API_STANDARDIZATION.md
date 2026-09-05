@@ -5,7 +5,7 @@ This document tracks the eight local standardization gates for the API served by
 remain bounded by capability and storage ownership.
 
 Last integrated verification: **2026-09-05**, rebased on `origin/main` at
-`bfde225`.
+`43068d4`.
 
 ## Progress
 
@@ -15,10 +15,10 @@ Last integrated verification: **2026-09-05**, rebased on `origin/main` at
 | 2 | Service and capability discovery | Complete | `/api/v1/services`; every capability includes checked operation metadata |
 | 3 | Per-service setup and readiness | Complete | consistent `/setup` and `/health` routes for all five services |
 | 4 | Service-scoped config ownership and validation | Complete | strict `/config` schemas and explicit service/resource ownership |
-| 5 | Authentication, authorization, and organization scoping | Complete | HttpOnly browser sessions + CSRF; hashed, expiring, org-bound API tokens; service scopes; secure GitHub-owner admin bootstrap; legacy native/local bearer compatibility |
+| 5 | Authentication, authorization, and project scoping | Complete | HttpOnly browser sessions + CSRF; hashed, expiring, one-project API tokens; server-enforced service/resource scopes; secure GitHub-owner admin bootstrap; legacy native/local bearer compatibility |
 | 6 | Safe writes, revisions, errors, and compatibility | Complete | ETag/If-Match CAS, coded v1 errors, normalized legacy boundary |
 | 7 | OpenAPI, machine guidance, and overview | Complete | 57 paths and 79 classified operations, generated reference, agent guide, this overview |
-| 8 | Local verification | Complete | full regression suite plus a 60-check real multi-Worker end-to-end run |
+| 8 | Local verification | Complete | full regression suite plus a 79-check real multi-Worker end-to-end run |
 
 ## Service ownership
 
@@ -81,11 +81,19 @@ PATCH returns a coded response with the correct child-resource links.
 
 Browser GitHub OAuth now ends in a random, hashed-at-rest NoxConnect session
 cookie; the GitHub token remains encrypted server-side. Browser mutations use a
-separate CSRF cookie/header proof. Automation tokens are organization-bound,
+separate CSRF cookie/header proof. Automation tokens are organization- and one-project-bound,
 expire within 365 days, are shown once, and store only a SHA-256 hash. Service
-read/write scopes are enforced before handlers run, token lifecycle actions are
+read/write and project scopes are enforced before handlers run, token lifecycle actions are
 audited, and API tokens cannot mint other API tokens. New-organization admin
 bootstrap requires a verified active GitHub organization owner.
+
+Each automation token belongs to exactly one enabled project. Collection reads
+are filtered to that project, direct references outside it return
+`resource_not_found`, and disabled services return `service_not_enabled` before
+product code runs. Automation currently covers project-owned NoxFeed, NoxSpot,
+and NoxCue operations. Organization-wide NoxConnect configuration and the
+organization-owned NoxTicket feature repository require a human session rather
+than pretending they can be safely project-scoped.
 
 ### 6. Safe writes and errors
 
@@ -126,22 +134,24 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
 ## Final verification results
 
 - Focused documentation/API contract run: passed.
-- Complete Vitest run: 168 files and 1,311 tests passed.
+- Complete Vitest run: 168 files and 1,314 tests passed.
 - ESLint: passed.
 - Pages Functions TypeScript check: passed.
 - Production Vite build: passed.
 - HTML validation: passed.
-- OpenAPI: valid JSON; 57 paths and 79 operations; deterministic drift check and
-  Redocly lint passed with zero warnings.
+- OpenAPI: valid JSON; 57 paths and 79 operations; deterministic drift check
+  passed. Redocly validates the contract with one pre-existing ambiguity warning
+  between the project-routing and project-archive path templates.
 - Patch hygiene: `git diff --check` passed.
 - Dependency audit: production and complete dependency trees both report zero
   known vulnerabilities after refreshing the lockfile within existing semver
   ranges (React Router 7.18.3, Vite 7.3.6, and Vitest 4.1.11).
-- Local end-to-end runtime: Wrangler 4.128.0 started NoxConnect, NoxSpot,
+- Local end-to-end runtime: Wrangler 4.129.0 started NoxConnect, NoxSpot,
   NoxFeed, NoxCue, the cron Worker, and a disposable RPC caller against one fresh
-  local D1 database. All 60 readiness and functional checks passed, including
+  local D1 database. All 79 readiness and functional checks passed, including
   live GitHub identity plus opaque browser-session authentication, CSRF rejection,
-  scoped API-token create/list/rotate/revoke, private RPC, service-bound NoxCue ingest,
+  project-scoped API-token create/list/rotate/revoke and adversarial isolation,
+  private RPC, service-bound NoxCue ingest,
   persisted metrics, NoxSpot Queue submission, config compare-and-swap, and
   webhook HMAC verification. No production provider credential was loaded.
 - API-token lifecycle: actual local HTTP calls created a one-time

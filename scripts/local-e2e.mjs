@@ -19,6 +19,8 @@ const allowAuthSkip = process.argv.includes("--allow-auth-skip");
 const org = process.env.NOXCONNECT_E2E_ORG || "No-Box-Dev";
 const repo = process.env.NOXCONNECT_E2E_REPO || "noxconnect";
 const projectId = `proj_${org}_${repo}`.toLowerCase();
+const otherProjectId = `${projectId}_other`;
+const otherRepo = `${repo}-other`;
 const base = "http://127.0.0.1:8788";
 const stateRoot = mkdtempSync(join(tmpdir(), "noxconnect-local-e2e-"));
 const persistence = join(stateRoot, "state");
@@ -212,6 +214,11 @@ async function main() {
     `INSERT INTO projects (id, name, org, repo, owner_id) VALUES ('${projectId.replaceAll("'", "''")}', '${repo.replaceAll("'", "''")}', '${org.replaceAll("'", "''")}', '${repo.replaceAll("'", "''")}', '${org.replaceAll("'", "''")}');`,
     `INSERT INTO project_routing_settings (org_id, project_id, enabled) VALUES (910004, '${projectId.replaceAll("'", "''")}', 1);`,
     `INSERT INTO project_repositories (org_id, repo, project_id) VALUES (910004, '${repo.replaceAll("'", "''")}', '${projectId.replaceAll("'", "''")}');`,
+    `INSERT INTO projects (id, name, org, repo, owner_id) VALUES ('${otherProjectId.replaceAll("'", "''")}', '${otherRepo.replaceAll("'", "''")}', '${org.replaceAll("'", "''")}', '${otherRepo.replaceAll("'", "''")}', '${org.replaceAll("'", "''")}');`,
+    `INSERT INTO project_routing_settings (org_id, project_id, enabled) VALUES (910004, '${otherProjectId.replaceAll("'", "''")}', 1);`,
+    `INSERT INTO project_repositories (org_id, repo, project_id) VALUES (910004, '${otherRepo.replaceAll("'", "''")}', '${otherProjectId.replaceAll("'", "''")}');`,
+    `INSERT INTO events (delivery_id, source, type, project_id, org, repo, summary, technical_summary, payload_json, owner_id) VALUES ('local-feed-allowed', 'github', 'narrative', '${projectId.replaceAll("'", "''")}', '${org.replaceAll("'", "''")}', '${repo.replaceAll("'", "''")}', 'allowed project event', 'allowed', '{"trigger_type":"github:pr:merged","pr":{"number":1,"title":"Allowed","html_url":"https://example.test/allowed","author":{"login":"local"}}}', '${org.replaceAll("'", "''")}');`,
+    `INSERT INTO events (delivery_id, source, type, project_id, org, repo, summary, technical_summary, payload_json, owner_id) VALUES ('local-feed-denied', 'github', 'narrative', '${otherProjectId.replaceAll("'", "''")}', '${org.replaceAll("'", "''")}', '${otherRepo.replaceAll("'", "''")}', 'other project event', 'denied', '{"trigger_type":"github:pr:merged","pr":{"number":2,"title":"Denied","html_url":"https://example.test/denied","author":{"login":"local"}}}', '${org.replaceAll("'", "''")}');`,
   ].join(" ");
   run("seed a credential-free local organization and project", wrangler, [
     "d1", "execute", "noxconnect", "--local", "--persist-to", persistence, "--command", fixtureSql,
@@ -288,15 +295,80 @@ async function main() {
     headers: { Cookie: `__Host-nox_session=${sessionToken}; nox_csrf=${csrfToken}`, "X-Org": org, "Content-Type": "application/json" },
     body: JSON.stringify({ name: "Rejected", scopes: ["services:read"] }),
   }, 403);
+  await request("automation token creation requires one project", "/api/v1/api-tokens", sessionOptions(sessionToken, csrfToken, {
+    method: "POST",
+    body: JSON.stringify({ name: "Missing project", environment: "test", scopes: ["services:read"], expiresInDays: 1 }),
+  }), 400);
   const apiCredential = await request("create a scoped NoxConnect automation token", "/api/v1/api-tokens", sessionOptions(sessionToken, csrfToken, {
     method: "POST",
-    body: JSON.stringify({ name: "Local E2E", environment: "test", scopes: ["services:read", "noxconnect:read"], expiresInDays: 1 }),
+    body: JSON.stringify({ name: "Local E2E", environment: "test", projectId, scopes: ["services:read", "noxfeed:read", "noxspot:write", "noxcue:write"], expiresInDays: 1 }),
   }), 201);
   if (!String(apiCredential.body?.token).startsWith("nox_sk_test_")) throw new Error("API token was not returned exactly once");
   const apiToken = apiCredential.body.token;
   const apiTokenId = apiCredential.body.credential.id;
+  if (apiCredential.body?.credential?.projectId !== projectId) throw new Error("API token was not bound to its selected project");
   await request("scoped automation token reads the service catalog", "/api/v1/services", authOptions(apiToken));
-  await request("scoped automation token reads its allowed service config", "/api/v1/services/noxconnect/config", authOptions(apiToken));
+  const scopedFeed = await request("project token reads only its own feed", "/api/v1/feed", authOptions(apiToken));
+  if (scopedFeed.body?.events?.length !== 1 || scopedFeed.body.events[0]?.summary !== "allowed project event") {
+    throw new Error("Project token crossed its feed project boundary");
+  }
+  await request("project token cannot select another project", "/api/v1/feed", authOptions(apiToken, { headers: { "X-Project-ID": otherProjectId } }), 404);
+  await request("project token cannot read organization-level configuration", "/api/v1/services/noxfeed/config", authOptions(apiToken), 403);
+  const serviceSwitchConfig = await request("read service switches before disabled-service check", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken));
+  const disabledServiceConfig = await request("disable NoxSpot for the service gate check", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
+    method: "PATCH",
+    headers: { "If-Match": serviceSwitchConfig.response.headers.get("etag") },
+    body: JSON.stringify({ enabledServices: { noxspot: false, noxfeed: false } }),
+  }));
+  const disabledService = await request("disabled service returns the standard project API error", "/api/spots/sites", authOptions(apiToken), 403);
+  if (disabledService.body?.error !== "NoxSpot is not enabled. Enable it in NoxConnect before trying again.") {
+    throw new Error("Disabled service response did not use the standard message");
+  }
+  const disabledV1Service = await request("disabled v1 service returns the coded enablement error", "/api/v1/feed", authOptions(apiToken), 403);
+  if (disabledV1Service.body?.error?.code !== "service_not_enabled" || disabledV1Service.body.error.message !== "NoxFeed is not enabled. Enable it in NoxConnect before trying again.") {
+    throw new Error("Disabled v1 service response did not use the standard error contract");
+  }
+  await request("restore NoxSpot after the service gate check", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
+    method: "PATCH",
+    headers: { "If-Match": disabledServiceConfig.response.headers.get("etag") },
+    body: JSON.stringify({ enabledServices: { noxspot: true, noxfeed: true } }),
+  }));
+  const ownSource = await request("project token creates a source in its implicit project", "/api/cues/sources", authOptions(apiToken, {
+    method: "POST",
+    body: JSON.stringify({ name: "Token project", enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
+  }), 201);
+  if (ownSource.body?.projectId !== projectId) throw new Error("Token-created source was not assigned to the token project");
+  const ownSite = await request("project token creates a site in its implicit project", "/api/spots/sites", authOptions(apiToken, {
+    method: "POST", body: JSON.stringify({ name: "Token project", widgetMode: "development" }),
+  }), 201);
+  if (ownSite.body?.site?.projectId !== projectId) throw new Error("Token-created site was not assigned to the token project");
+  const otherSource = await request("create another project's NoxCue source as a browser admin", "/api/cues/sources", sessionOptions(sessionToken, csrfToken, {
+    method: "POST",
+    body: JSON.stringify({ name: "Other project", projectId: otherProjectId, enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
+  }), 201);
+  await request("project token cannot read another project's source", `/api/cues/sources/${otherSource.body.id}`, authOptions(apiToken), 404);
+  await request("project token cannot read another project's metrics", `/api/cues/metrics?sourceId=${encodeURIComponent(otherSource.body.id)}&days=1`, authOptions(apiToken), 404);
+  await request("project token cannot create a source for another project", "/api/cues/sources", authOptions(apiToken, {
+    method: "POST",
+    body: JSON.stringify({ name: "Cross-project source", projectId: otherProjectId, enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
+  }), 404);
+  const scopedSources = await request("project token lists only its own sources", "/api/cues/sources", authOptions(apiToken));
+  if (!scopedSources.body?.sources?.length || scopedSources.body.sources.some((source) => source.projectId !== projectId)) {
+    throw new Error("NoxCue source collection crossed the token project boundary");
+  }
+  const otherSite = await request("create another project's NoxSpot site as a browser admin", "/api/spots/sites", sessionOptions(sessionToken, csrfToken, {
+    method: "POST", body: JSON.stringify({ name: "Other project", projectId: otherProjectId, widgetMode: "development" }),
+  }), 201);
+  await request("project token cannot change another project's site", `/api/spots/sites/${otherSite.body.site.id}`, authOptions(apiToken, {
+    method: "PATCH", body: JSON.stringify({ name: "Cross-project change" }),
+  }), 404);
+  await request("project token cannot create a site for another project", "/api/spots/sites", authOptions(apiToken, {
+    method: "POST", body: JSON.stringify({ name: "Cross-project site", projectId: otherProjectId, widgetMode: "development" }),
+  }), 404);
+  const scopedSites = await request("project token lists only its own sites", "/api/spots/sites", authOptions(apiToken));
+  if (!scopedSites.body?.sites?.length || scopedSites.body.sites.some((site) => site.projectId !== projectId)) {
+    throw new Error("NoxSpot site collection crossed the token project boundary");
+  }
   await request("automation token cannot manage other tokens", "/api/v1/api-tokens", authOptions(apiToken), 403);
   const tokenList = await request("list API tokens without returning their secrets", "/api/v1/api-tokens", sessionOptions(sessionToken, csrfToken));
   if (!tokenList.body?.tokens?.some((entry) => entry.id === apiTokenId) || JSON.stringify(tokenList.body).includes(apiToken)) {
@@ -306,6 +378,7 @@ async function main() {
   const rotatedToken = rotated.body?.token;
   const rotatedTokenId = rotated.body?.credential?.id;
   if (!rotatedToken || !rotatedTokenId) throw new Error("Rotated API token was not returned");
+  if (rotated.body?.credential?.projectId !== projectId) throw new Error("Rotation changed the token project");
   await request("rotation immediately rejects the previous token", "/api/v1/services", authOptions(apiToken), 401);
   await request("rotated automation token keeps its scopes", "/api/v1/services", authOptions(rotatedToken));
   await request("revoke the rotated automation token", `/api/v1/api-tokens/${rotatedTokenId}`, sessionOptions(sessionToken, csrfToken, { method: "DELETE" }));

@@ -9,6 +9,8 @@ type ApiTokenMetadata = {
   id: string;
   name: string;
   environment: Environment;
+  projectId: string;
+  projectName: string | null;
   prefix: string;
   scopes: string[];
   createdBy: string;
@@ -24,12 +26,15 @@ type SecretResponse = {
   warning: string;
 };
 
-const SERVICE_SCOPES = ["noxconnect", "noxticket", "noxfeed", "noxspot", "noxcue"] as const;
+type Project = { id: string; name: string; routing_enabled: number; archived: number };
+
+const SERVICE_SCOPES = ["noxfeed", "noxspot", "noxcue"] as const;
 
 export function ApiTokensSection() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [environment, setEnvironment] = useState<Environment>("live");
+  const [projectId, setProjectId] = useState("");
   const [expiresInDays, setExpiresInDays] = useState(90);
   const [scopes, setScopes] = useState<string[]>(["services:read"]);
   const [newSecret, setNewSecret] = useState<string | null>(null);
@@ -40,11 +45,20 @@ export function ApiTokensSection() {
     queryKey: ["api-tokens"],
     queryFn: () => apiGet<{ tokens: ApiTokenMetadata[] }>("/api/v1/api-tokens"),
   });
+  const projects = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => apiGet<{ projects: Project[] }>("/api/projects"),
+  });
+  const availableProjects = useMemo(
+    () => projects.data?.projects.filter((project) => project.routing_enabled === 1 && project.archived !== 1) ?? [],
+    [projects.data],
+  );
+  const selectedProjectId = projectId || availableProjects[0]?.id || "";
   const activeTokens = useMemo(() => tokens.data?.tokens.filter((token) => !token.revokedAt) ?? [], [tokens.data]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
   const createToken = useMutation({
-    mutationFn: () => apiPost<SecretResponse>("/api/v1/api-tokens", { name, environment, scopes, expiresInDays }),
+    mutationFn: () => apiPost<SecretResponse>("/api/v1/api-tokens", { name, environment, projectId: selectedProjectId, scopes, expiresInDays }),
     onSuccess: (result) => {
       setNewSecret(result.token);
       setCopied(false);
@@ -104,8 +118,9 @@ export function ApiTokensSection() {
       <section className="rounded-xl border border-stone-200 bg-white p-5">
         <div className="flex items-start gap-3">
           <KeyRound className="mt-0.5 h-5 w-5 text-stone-500" />
-          <div><h3 className="text-sm font-semibold text-stone-900">Create automation token</h3><p className="mt-1 text-xs text-stone-500">One organization, a fixed expiry, and only the service access selected below.</p></div>
+          <div><h3 className="text-sm font-semibold text-stone-900">Create automation token</h3><p className="mt-1 text-xs text-stone-500">One project, a fixed expiry, and only the service access selected below.</p></div>
         </div>
+        <label className="mt-3 block text-xs font-medium text-stone-700">Project<select value={selectedProjectId} onChange={(event) => setProjectId(event.target.value)} disabled={projects.isLoading || availableProjects.length === 0} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-normal"><option value="" disabled>{projects.isLoading ? "Loading projects…" : availableProjects.length === 0 ? "Enable a project first" : "Choose a project"}</option>{availableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <label className="text-xs font-medium text-stone-700">Name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="CI production" className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-normal" /></label>
           <label className="text-xs font-medium text-stone-700">Environment<select value={environment} onChange={(event) => setEnvironment(event.target.value as Environment)} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-normal"><option value="live">Live</option><option value="test">Test</option></select></label>
@@ -119,7 +134,7 @@ export function ApiTokensSection() {
             return <label key={service} className="grid grid-cols-[1fr_9rem] items-center border-t border-stone-100 px-3 py-2 text-sm"><span className="capitalize">{service}</span><select value={access} onChange={(event) => setServiceAccess(service, event.target.value as "none" | "read" | "write")} className="rounded-md border border-stone-300 px-2 py-1 text-xs"><option value="none">None</option><option value="read">Read</option><option value="write">Read + write</option></select></label>;
           })}
         </div>
-        <button type="button" disabled={!name.trim() || scopes.length === 0 || createToken.isPending} onClick={() => createToken.mutate()} className="mt-4 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">{createToken.isPending ? "Creating…" : "Create token"}</button>
+        <button type="button" disabled={!name.trim() || !selectedProjectId || scopes.length === 0 || createToken.isPending} onClick={() => createToken.mutate()} className="mt-4 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">{createToken.isPending ? "Creating…" : "Create token"}</button>
         {createToken.isError ? <p className="mt-2 text-xs text-red-700">{createToken.error.message}</p> : null}
       </section>
 
@@ -131,7 +146,7 @@ export function ApiTokensSection() {
           {tokens.isError ? <p className="py-3 text-xs text-red-700">Could not load API tokens.</p> : null}
           {!tokens.isLoading && activeTokens.length === 0 ? <p className="py-3 text-xs text-stone-500">No active automation tokens.</p> : null}
           {activeTokens.map((token) => <div key={token.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div><div className="flex items-center gap-2"><strong className="text-sm text-stone-800">{token.name}</strong><span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase text-stone-500">{token.environment}</span></div><code className="mt-1 block text-[11px] text-stone-500">{token.prefix}…</code><p className="mt-1 text-[11px] text-stone-400">Expires {token.expiresAt ? new Date(token.expiresAt).toLocaleDateString() : "never"} · {token.scopes.join(", ")}</p></div>
+            <div><div className="flex items-center gap-2"><strong className="text-sm text-stone-800">{token.name}</strong><span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase text-stone-500">{token.environment}</span></div><code className="mt-1 block text-[11px] text-stone-500">{token.prefix}…</code><p className="mt-1 text-[11px] text-stone-500">Project: {token.projectName ?? token.projectId}</p><p className="mt-1 text-[11px] text-stone-400">Expires {token.expiresAt ? new Date(token.expiresAt).toLocaleDateString() : "never"} · {token.scopes.join(", ")}</p></div>
             <div className="flex gap-2"><button type="button" disabled={rotateToken.isPending} onClick={() => setPendingAction({ type: "rotate", token })} className="inline-flex items-center gap-1 rounded-md border border-stone-300 px-2 py-1.5 text-xs text-stone-700"><RotateCw className="h-3.5 w-3.5" />Rotate</button><button type="button" disabled={revokeToken.isPending} onClick={() => setPendingAction({ type: "revoke", token })} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-xs text-red-700"><Trash2 className="h-3.5 w-3.5" />Revoke</button></div>
           </div>)}
         </div>

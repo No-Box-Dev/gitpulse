@@ -89,7 +89,7 @@
       <section class="section" id="quickstart">
         <p class="section-kicker">Quickstart</p>
         <h2>Discover your workspace</h2>
-        <p class="section-intro">Create a scoped token under NoxConnect → API access while signed in as an organization admin, copy it once, and keep it in your runtime's secret store. The token is bound to one organization, so <code>X-Org</code> is optional for automation and is checked when supplied.</p>
+        <p class="section-intro">Create a scoped token under NoxConnect → API access while signed in as an organization admin, choose exactly one enabled project, copy it once, and keep it in your runtime's secret store. The token cannot read or change resources assigned to another project.</p>
         <div class="callout caution standalone-callout">
           <h3>Use the credential made for the caller</h3>
           <p>Browsers use an opaque HttpOnly session and CSRF proof. Automation uses a scoped <code>nox_sk_…</code> token. Ingestion uses a source key. Never extract a browser cookie or reuse a GitHub or Slack provider token.</p>
@@ -127,10 +127,10 @@
           </article>
           <article class="callout">
             <h3>Automation token</h3>
-            <p><code>Authorization: Bearer nox_sk_…</code> carries one organization, environment, expiry, and explicit service read/write scopes. Values are shown once, stored only as hashes, and can be rotated or revoked.</p>
+            <p><code>Authorization: Bearer nox_sk_…</code> carries one organization, one project, environment, expiry, and explicit service read/write scopes. Values are shown once, stored only as hashes, and can be rotated or revoked.</p>
           </article>
         </div>
-        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>public</code>, or <code>ingest_key</code> authentication. API-token scopes use <code>{service}:read</code> and <code>{service}:write</code>, plus <code>services:read</code> for discovery. Token lifecycle endpoints require a human admin session; one API token cannot mint another. OAuth start operations return a human action, never a provider credential.</p>
+        <p class="section-intro auth-note">Operations advertise <code>member</code>, <code>admin</code>, <code>public</code>, or <code>ingest_key</code> authentication. Automation scopes use <code>noxfeed</code>, <code>noxspot</code>, or <code>noxcue</code> with <code>:read</code> or <code>:write</code>, plus <code>services:read</code> for discovery. Project isolation is enforced by NoxConnect on every request. A resource outside the token's project returns <code>resource_not_found</code>; a disabled service returns <code>service_not_enabled</code>. Organization-level configuration and NoxTicket remain human-session operations until their data is project-owned.</p>
         <p class="field-note">A NoxConnect <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
         <div class="callouts">
           <article class="callout"><h3>Lifecycle and audit</h3><p>Automation tokens expire within 1–365 days, are shown once, and expose only a prefix afterward. Create, rotate, and revoke actions are audited. Browser provider-token refresh occurs only on the server.</p></article>
@@ -141,7 +141,7 @@
             <thead><tr><th>Credential operation</th><th>Result</th><th>Required caller</th></tr></thead>
             <tbody>
               <tr><td><span class="method">GET</span>/api/v1/api-tokens</td><td>List redacted metadata, scopes, expiry, and last use.</td><td>Admin browser session</td></tr>
-              <tr><td><span class="method write">POST</span>/api/v1/api-tokens</td><td>Create a secret shown exactly once.</td><td>Admin browser session + CSRF</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/api-tokens</td><td>Create a one-project secret shown exactly once.</td><td>Admin browser session + CSRF</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/api-tokens/{id}/rotate</td><td>Revoke and replace a secret atomically.</td><td>Admin browser session + CSRF</td></tr>
               <tr><td><span class="method write">DELETE</span>/api/v1/api-tokens/{id}</td><td>Immediately revoke future API access.</td><td>Admin browser session + CSRF</td></tr>
             </tbody>

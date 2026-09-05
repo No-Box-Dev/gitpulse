@@ -141,23 +141,27 @@ Before the production commands below, provision a separate Pages project, D1
 database, GitHub App, and provider sandbox credentials. Do not point a preview
 deployment at the production D1 database or reuse its OAuth client secret.
 
-The staging gate for `0073_api_auth.sql` is:
+The staging gate for `0073_api_auth.sql` and `0075_project_scoped_api_tokens.sql` is:
 
 1. Apply all migrations to the staging D1 database.
 2. Deploy the Pages branch with the staging GitHub App client ID and secrets.
 3. Complete a real GitHub OAuth redirect and confirm that the response creates
    `__Host-nox_session` as `Secure`, `HttpOnly`, and `SameSite=Lax`.
 4. Confirm a browser mutation without `X-CSRF-Token` returns `403`.
-5. In **NoxConnect → API access**, create a one-day test token with only
-   `services:read` and one service read scope.
-6. Confirm the token cannot access another service or manage API tokens.
-7. Rotate it, confirm the previous value immediately returns `401`, then revoke
+5. In **NoxConnect → API access**, choose one enabled project and create a
+   one-day test token with only `services:read` and one service read scope.
+6. Confirm it cannot access another service, another project's feed, site,
+   source, or metrics, organization-level configuration, or API-token management.
+7. Disable its allowed service and confirm operations return
+   `403 service_not_enabled`, then re-enable the service.
+8. Rotate it, confirm the project is unchanged and the previous value
+   immediately returns `401`, then revoke
    the replacement and confirm it also returns `401`.
-8. Use disposable provider resources to exercise one GitHub write and one Slack
+9. Use disposable provider resources to exercise one GitHub write and one Slack
    delivery. Never borrow production credentials for this gate.
 
-The repository's `npm run e2e:local` performs the same session, CSRF, scope,
-rotation, and revocation checks against fresh local D1 state. Staging adds the
+The repository's `npm run e2e:local` performs the same session, CSRF, project
+isolation, disabled-service, rotation, and revocation checks against fresh local D1 state. Staging adds the
 real OAuth redirect and disposable provider delivery checks that cannot be
 proved locally.
 

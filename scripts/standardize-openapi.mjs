@@ -62,11 +62,12 @@ document.components.schemas.NoxCueIngestResponse = {
 document.components.schemas.ApiTokenCreate = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "scopes"],
+  required: ["name", "projectId", "scopes"],
   properties: {
     name: { type: "string", minLength: 1, maxLength: 80 },
     environment: { type: "string", enum: ["live", "test"], default: "live" },
-    scopes: { type: "array", minItems: 1, maxItems: 12, uniqueItems: true, items: { type: "string", pattern: "^(services|noxconnect|noxticket|noxfeed|noxspot|noxcue):(read|write)$" } },
+    projectId: { type: "string", minLength: 1, maxLength: 240, description: "One enabled NoxConnect project. The token cannot access resources assigned to another project." },
+    scopes: { type: "array", minItems: 1, maxItems: 12, uniqueItems: true, items: { type: "string", pattern: "^(services:read|(noxfeed|noxspot|noxcue):(read|write))$" } },
     expiresInDays: { type: "integer", minimum: 1, maximum: 365, default: 90 },
   },
 };
@@ -77,7 +78,7 @@ document.components.securitySchemes.browserSession = {
 };
 document.components.securitySchemes.noxApiToken = {
   type: "http", scheme: "bearer", bearerFormat: "nox_sk_live_…",
-  description: "Organization-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once.",
+  description: "Organization- and project-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once.",
 };
 document.components.securitySchemes.bearerAuth.description = "Legacy GitHub bearer compatibility for native and local development clients. New integrations use a scoped NoxConnect API token; browsers use an HttpOnly session.";
 document.security = [
@@ -85,6 +86,18 @@ document.security = [
   { noxApiToken: [] },
   { bearerAuth: [], organization: [] },
 ];
+
+function acceptsProjectToken(path, method) {
+  if (method === "get" && /^\/api\/v1\/services(?:\/[^/]+(?:\/(?:setup|health))?)?$/.test(path)) return true;
+  if (method === "get" && path === "/api/v1/feed") return true;
+  if (method === "get" && /^\/api\/(?:issues|prs)(?:\/|$)/.test(path)) return true;
+  if (method === "post" && /^\/api\/projects\/[^/]+\/backfill-prs$/.test(path)) return true;
+  if (/^\/api\/spots\/sites(?:\/|$)/.test(path)) return true;
+  if (/^\/api\/cues\/sources(?:\/|$)/.test(path)) return true;
+  if (method === "get" && (path === "/api/cues/events" || path === "/api/cues/metrics")) return true;
+  if (/^\/api\/cues\/projects\/[^/]+\/metrics$/.test(path)) return true;
+  return false;
+}
 
 document.paths["/api/v1/api-tokens"] = {
   get: apiTokenOperation("listApiTokens", "List redacted API-token metadata", "200"),
@@ -166,6 +179,16 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
     }
     operation.tags = [serviceTag(path)];
     operation["x-authentication"] = authenticationFor(operation);
+    if (!isV1 && ["member", "admin"].includes(operation["x-authentication"])) {
+      operation.responses["401"] ??= { description: "Authentication required" };
+      operation.responses["403"] ??= { description: "Insufficient access or service not enabled" };
+    }
+    if (["member", "admin"].includes(operation["x-authentication"]) && !acceptsProjectToken(path, method)) {
+      operation.security = [
+        { browserSession: [], organization: [] },
+        { bearerAuth: [], organization: [] },
+      ];
+    }
     operation["x-change-safety"] = changeSafety(method, operation.operationId);
     for (const [status, response] of Object.entries(operation.responses)) {
       if (response.$ref || status === "204" || response.content) continue;

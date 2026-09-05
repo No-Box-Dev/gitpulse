@@ -44,7 +44,7 @@ interface Env {
 interface Ctx {
   env: Env;
   request: Request;
-  data: { orgLogin: string };
+  data: { orgLogin: string; projectId?: string | null };
 }
 
 // ---------- Public shape ----------
@@ -100,7 +100,7 @@ const QuerySchema = z.object({
 // ---------- Handler ----------
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
-  const { orgLogin } = getCtx(context) as { orgLogin: string };
+  const { orgLogin, projectId } = getCtx(context) as Ctx["data"];
   if (!orgLogin) return v1Error("missing_org_context", "Missing organization context", 400);
 
   const url = new URL(context.request.url);
@@ -117,6 +117,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
     "json_extract(payload_json, '$.trigger_type') = ?",
   ];
   const binds: (string | number)[] = [orgLogin, filter.eventType, filter.triggerType];
+
+  if (projectId) {
+    conds.push("project_id = ?");
+    binds.push(projectId);
+  }
 
   if (repo) {
     conds.push("repo = ?");

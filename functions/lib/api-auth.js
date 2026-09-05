@@ -7,8 +7,6 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export const API_TOKEN_SCOPES = Object.freeze([
   "services:read",
-  "noxconnect:read", "noxconnect:write",
-  "noxticket:read", "noxticket:write",
   "noxfeed:read", "noxfeed:write",
   "noxspot:read", "noxspot:write",
   "noxcue:read", "noxcue:write",
@@ -152,9 +150,14 @@ export async function resolveApiToken(db, bearer) {
   if (!bearer.startsWith("nox_sk_")) return null;
   const tokenHash = await sha256(bearer);
   const row = await db.prepare(
-    `SELECT t.id, t.org_id, t.name, t.environment, t.scopes_json,
-            t.created_by, o.github_login AS org_login
+    `SELECT t.id, t.org_id, t.project_id, t.name, t.environment, t.scopes_json,
+            t.created_by, o.github_login AS org_login, project.name AS project_name,
+            CASE WHEN routing.enabled = 1 AND COALESCE(project.archived, 0) = 0
+                 THEN 1 ELSE 0 END AS project_enabled
        FROM api_tokens t JOIN orgs o ON o.id = t.org_id
+       LEFT JOIN projects project ON project.id = t.project_id
+       LEFT JOIN project_routing_settings routing
+         ON routing.org_id = t.org_id AND routing.project_id = t.project_id
       WHERE t.token_hash = ? AND t.revoked_at IS NULL
         AND (t.expires_at IS NULL OR t.expires_at > ?)`,
   ).bind(tokenHash, new Date().toISOString()).first();
@@ -164,18 +167,83 @@ export async function resolveApiToken(db, bearer) {
   return { ...row, scopes };
 }
 
+export async function apiTokenProjectResource(db, pathname, orgId, searchParams = new URLSearchParams()) {
+  if (pathname === "/api/cues/metrics" && searchParams.get("sourceId")) {
+    const row = await db.prepare(
+      "SELECT project_id FROM cue_sources WHERE org_id = ? AND id = ?",
+    ).bind(orgId, searchParams.get("sourceId")).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+  let match = pathname.match(/^\/api\/projects\/([^/]+)/);
+  if (match) return { kind: "project", projectId: decodeURIComponent(match[1]) };
+
+  match = pathname.match(/^\/api\/(?:issues|prs)\/([^/]+)/);
+  if (match) {
+    const row = await db.prepare(
+      "SELECT project_id FROM project_repositories WHERE org_id = ? AND repo = ?",
+    ).bind(orgId, decodeURIComponent(match[1])).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
+  match = pathname.match(/^\/api\/spots\/sites\/([^/]+)/);
+  if (match) {
+    const row = await db.prepare(
+      "SELECT project_id FROM spot_sites WHERE org_id = ? AND id = ?",
+    ).bind(orgId, decodeURIComponent(match[1])).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
+  match = pathname.match(/^\/api\/spots\/shares\/([^/]+)/);
+  if (match) {
+    const row = await db.prepare(
+      "SELECT project_id FROM external_project_shares WHERE org_id = ? AND id = ?",
+    ).bind(orgId, decodeURIComponent(match[1])).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
+  match = pathname.match(/^\/api\/cues\/projects\/([^/]+)/);
+  if (match) return { kind: "project", projectId: decodeURIComponent(match[1]) };
+
+  match = pathname.match(/^\/api\/cues\/sources\/([^/]+)/);
+  if (match) {
+    const row = await db.prepare(
+      "SELECT project_id FROM cue_sources WHERE org_id = ? AND id = ?",
+    ).bind(orgId, decodeURIComponent(match[1])).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+
+  match = pathname.match(/^\/api\/cues\/shares\/([^/]+)/);
+  if (match) {
+    const row = await db.prepare(
+      "SELECT project_id FROM cue_dashboard_shares WHERE org_id = ? AND id = ?",
+    ).bind(orgId, decodeURIComponent(match[1])).first();
+    return { kind: "resource", projectId: row?.project_id ?? null };
+  }
+  return null;
+}
+
 export function requiredApiTokenScope(pathname, method) {
   const access = ["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase()) ? "read" : "write";
   const match = pathname.match(/^\/api\/v1\/services\/([^/]+)/);
   if (match) return `${match[1]}:${access}`;
   if (pathname === "/api/v1/services" && access === "read") return "services:read";
-  if (pathname.startsWith("/api/v1/api-tokens")) return "noxconnect:write";
-  if (/^\/api\/(features|specs)(?:\/|$)/.test(pathname)) return `noxticket:${access}`;
   if (pathname === "/api/v1/feed" || /^\/api\/(issues|prs|engineer-activity|llm-settings)(?:\/|$)/.test(pathname) || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return `noxfeed:${access}`;
   if (/^\/api\/spots(?:\/|$)/.test(pathname)) return `noxspot:${access}`;
   if (/^\/api\/cues(?:\/|$)/.test(pathname)) return `noxcue:${access}`;
-  if (pathname.startsWith("/api/")) return `noxconnect:${access}`;
   return null;
+}
+
+export function projectScopedApiTokenPathSupported(pathname, method) {
+  const verb = method.toUpperCase();
+  if (verb === "GET" && /^\/api\/v1\/services(?:\/[^/]+(?:\/(?:setup|health))?)?$/.test(pathname)) return true;
+  if (verb === "GET" && pathname === "/api/v1/feed") return true;
+  if (verb === "GET" && /^\/api\/(?:issues|prs)(?:\/|$)/.test(pathname)) return true;
+  if (verb === "POST" && /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return true;
+  if (/^\/api\/spots\/sites(?:\/|$)/.test(pathname)) return true;
+  if (/^\/api\/cues\/sources(?:\/|$)/.test(pathname)) return true;
+  if (verb === "GET" && (pathname === "/api/cues/events" || pathname === "/api/cues/metrics")) return true;
+  if (/^\/api\/cues\/projects\/[^/]+\/metrics$/.test(pathname)) return true;
+  return false;
 }
 
 export async function auditAuth(db, entry) {

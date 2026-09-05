@@ -21,6 +21,10 @@
       "organization": []
     },
     {
+      "nativeSession": [],
+      "organization": []
+    },
+    {
       "noxApiToken": []
     },
     {
@@ -76,6 +80,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -126,6 +134,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -198,6 +210,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -266,6 +282,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -319,6 +339,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -369,6 +393,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -440,6 +468,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -516,6 +548,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -569,6 +605,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -619,6 +659,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -727,6 +771,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -2326,6 +2374,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -2404,6 +2456,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -2529,6 +2585,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -2588,6 +2648,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -2651,6 +2715,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -2706,6 +2774,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -2778,6 +2850,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -2821,6 +2897,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -2889,6 +2969,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -2962,6 +3046,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3015,6 +3103,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -3096,6 +3188,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -3187,6 +3283,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3253,6 +3353,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3316,6 +3420,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -3390,6 +3498,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3455,6 +3567,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -3544,6 +3660,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3593,6 +3713,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -3646,6 +3770,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3694,6 +3822,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -3792,6 +3924,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3864,6 +4000,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -3930,6 +4070,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -4409,6 +4553,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -4490,6 +4638,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -4534,6 +4686,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -4612,6 +4768,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -4840,6 +5000,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -4882,6 +5046,10 @@
         "security": [
           {
             "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
             "organization": []
           },
           {
@@ -4952,6 +5120,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -5009,6 +5181,10 @@
             "organization": []
           },
           {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
             "bearerAuth": [],
             "organization": []
           }
@@ -5044,6 +5220,601 @@
         "x-authentication": "admin",
         "x-change-safety": "write_not_safe_to_retry"
       }
+    },
+    "/api/auth/native/device/start": {
+      "post": {
+        "operationId": "startNativeDeviceAuthorization",
+        "summary": "Start native GitHub authorization",
+        "description": "Returns an opaque NoxConnect device handle plus the GitHub verification URI and user code.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "client"
+                ],
+                "properties": {
+                  "client": {
+                    "const": "noxfeed-mac"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Authorization is still pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, expired, or rejected authorization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Polling faster than the advertised interval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication provider temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "public",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/auth/native/device/poll": {
+      "post": {
+        "operationId": "pollNativeDeviceAuthorization",
+        "summary": "Poll native GitHub authorization",
+        "description": "NoxConnect completes the GitHub exchange server-side and returns its own short-lived access and rotating refresh credentials.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "client",
+                  "device_code"
+                ],
+                "properties": {
+                  "client": {
+                    "const": "noxfeed-mac"
+                  },
+                  "device_code": {
+                    "type": "string",
+                    "pattern": "^noxdc_"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Authorization is still pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, expired, or rejected authorization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Polling faster than the advertised interval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication provider temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "public",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/auth/native/refresh": {
+      "post": {
+        "operationId": "refreshNativeSession",
+        "summary": "Rotate a native session",
+        "description": "Rotates both native credentials. The previous access and refresh values stop working immediately.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refresh_token"
+                ],
+                "properties": {
+                  "refresh_token": {
+                    "type": "string",
+                    "pattern": "^nox_rt_",
+                    "writeOnly": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Authorization is still pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, expired, or rejected authorization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Polling faster than the advertised interval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication provider temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "public",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/auth/native/exchange": {
+      "post": {
+        "operationId": "exchangeLegacyNativeCredential",
+        "summary": "Upgrade a legacy native session",
+        "description": "Temporary one-time migration route for older NoxFeed releases. Normal sign-in uses the brokered device flow.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "client",
+                  "access_token"
+                ],
+                "properties": {
+                  "client": {
+                    "const": "noxfeed-mac"
+                  },
+                  "access_token": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "refresh_token": {
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Authorization is still pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, expired, or rejected authorization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Polling faster than the advertised interval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication provider temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "public",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/auth/native/revoke": {
+      "post": {
+        "operationId": "revokeNativeSession",
+        "summary": "Revoke the current native session",
+        "description": "Send the rotating refresh credential so sign-out can revoke the server session even after the short-lived access credential expires. A valid access bearer remains supported for older clients.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refresh_token"
+                ],
+                "properties": {
+                  "refresh_token": {
+                    "type": "string",
+                    "pattern": "^nox_rt_",
+                    "writeOnly": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-native-refresh": true,
+        "responses": {
+          "200": {
+            "description": "Session revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "native_refresh",
+        "x-change-safety": "destructive"
+      }
+    },
+    "/api/cues/github-issues": {
+      "get": {
+        "operationId": "getNoxCueGitHubIssueSettings",
+        "summary": "List project GitHub-incident settings",
+        "description": "Returns each active project's repository mapping, routing policy, and open NoxCue incident count.",
+        "x-required-role": "admin",
+        "responses": {
+          "200": {
+            "description": "Project incident settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      },
+      "put": {
+        "operationId": "putNoxCueGitHubIssueSettings",
+        "summary": "Update project GitHub-incident settings",
+        "description": "Controls whether NoxCue opens or updates a GitHub issue for incidents in the selected project and environments.",
+        "x-required-role": "admin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoxCueGitHubIssueSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project incident settings updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access or service not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Active project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project has no linked GitHub repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
     }
   },
   "components": {
@@ -5051,7 +5822,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Legacy GitHub bearer compatibility for native and local development clients. New integrations use a scoped NoxConnect API token; browsers use an HttpOnly session."
+        "description": "Deprecated GitHub bearer compatibility for local development and one-time native migration. It will be removed after supported native clients have upgraded."
       },
       "organization": {
         "type": "apiKey",
@@ -5074,6 +5845,12 @@
         "scheme": "bearer",
         "bearerFormat": "nox_sk_live_…",
         "description": "Organization- and project-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once."
+      },
+      "nativeSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "nox_at_…",
+        "description": "Short-lived first-party native application session. Refresh with a rotating nox_rt_ credential; provider credentials remain encrypted in NoxConnect."
       }
     },
     "parameters": {
@@ -7156,6 +7933,52 @@
             "minimum": 1,
             "maximum": 365,
             "default": 90
+          }
+        }
+      },
+      "NoxCueGitHubIssueSettingsUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projectId",
+          "enabled",
+          "environments"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "environments": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "production",
+                "staging",
+                "development",
+                "preview",
+                "test",
+                "local"
+              ]
+            }
+          },
+          "commentOnRepeat": {
+            "type": "boolean",
+            "default": false
+          },
+          "repeatIntervalMinutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 10080,
+            "default": 360
           }
         }
       }

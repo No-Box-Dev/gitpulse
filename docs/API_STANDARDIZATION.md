@@ -15,10 +15,10 @@ Last integrated verification: **2026-09-05**, rebased on `origin/main` at
 | 2 | Service and capability discovery | Complete | `/api/v1/services`; every capability includes checked operation metadata |
 | 3 | Per-service setup and readiness | Complete | consistent `/setup` and `/health` routes for all five services |
 | 4 | Service-scoped config ownership and validation | Complete | strict `/config` schemas and explicit service/resource ownership |
-| 5 | Authentication, authorization, and project scoping | Complete | HttpOnly browser sessions + CSRF; hashed, expiring, one-project API tokens; server-enforced service/resource scopes; secure GitHub-owner admin bootstrap; legacy native/local bearer compatibility |
+| 5 | Authentication, authorization, and project scoping | Complete | HttpOnly browser sessions + CSRF; brokered native sessions; hashed, expiring, one-project API tokens; server-enforced service/resource scopes; secure GitHub-owner admin bootstrap |
 | 6 | Safe writes, revisions, errors, and compatibility | Complete | ETag/If-Match CAS, coded v1 errors, normalized legacy boundary |
-| 7 | OpenAPI, machine guidance, and overview | Complete | 57 paths and 79 classified operations, generated reference, agent guide, this overview |
-| 8 | Local verification | Complete | full regression suite plus a 79-check real multi-Worker end-to-end run |
+| 7 | OpenAPI, machine guidance, and overview | Complete | 63 paths and 86 classified operations, generated reference, agent guide, this overview |
+| 8 | Local verification | Complete | full regression suite plus an 88-check real multi-Worker end-to-end run |
 
 ## Service ownership
 
@@ -81,7 +81,11 @@ PATCH returns a coded response with the correct child-resource links.
 
 Browser GitHub OAuth now ends in a random, hashed-at-rest NoxConnect session
 cookie; the GitHub token remains encrypted server-side. Browser mutations use a
-separate CSRF cookie/header proof. Automation tokens are organization- and one-project-bound,
+separate CSRF cookie/header proof. Native GitHub device approval is brokered by
+NoxConnect: the native app stores only a 15-minute `nox_at_…` access token and a
+rotating 30-day `nox_rt_…` refresh token, while provider credentials stay encrypted
+server-side. Existing NoxFeed installs exchange their legacy provider credential
+once and replace it in Keychain. Automation tokens are organization- and one-project-bound,
 expire within 365 days, are shown once, and store only a SHA-256 hash. Service
 read/write and project scopes are enforced before handlers run, token lifecycle actions are
 audited, and API tokens cannot mint other API tokens. New-organization admin
@@ -115,7 +119,7 @@ features/specs/attachments, NoxFeed work/activity/AI settings, NoxSpot sites and
 public capture, and NoxCue sources/keys/events/metrics. The capability catalog and
 OpenAPI are mechanically checked for alignment. Every operation classifies its
 authentication and change/retry safety, and every non-empty response has a
-machine-readable body. The developer page renders all 79 operations directly
+machine-readable body. The developer page renders all 86 operations directly
 from that contract. Agent guidance documents the supported first-party auth
 boundary, safe human OAuth handoffs, config concurrency, resource ownership,
 routing, retry behavior, and errors.
@@ -134,12 +138,12 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
 ## Final verification results
 
 - Focused documentation/API contract run: passed.
-- Complete Vitest run: 168 files and 1,314 tests passed.
+- Complete Vitest run: 172 files and 1,327 tests passed.
 - ESLint: passed.
 - Pages Functions TypeScript check: passed.
 - Production Vite build: passed.
 - HTML validation: passed.
-- OpenAPI: valid JSON; 57 paths and 79 operations; deterministic drift check
+- OpenAPI: valid JSON; 63 paths and 86 operations; deterministic drift check
   passed. Redocly validates the contract with one pre-existing ambiguity warning
   between the project-routing and project-archive path templates.
 - Patch hygiene: `git diff --check` passed.
@@ -148,8 +152,9 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
   ranges (React Router 7.18.3, Vite 7.3.6, and Vitest 4.1.11).
 - Local end-to-end runtime: Wrangler 4.129.0 started NoxConnect, NoxSpot,
   NoxFeed, NoxCue, the cron Worker, and a disposable RPC caller against one fresh
-  local D1 database. All 79 readiness and functional checks passed, including
-  live GitHub identity plus opaque browser-session authentication, CSRF rejection,
+  local D1 database. All 88 readiness and functional checks passed, including
+  live GitHub identity plus opaque browser- and native-session authentication,
+  native access/refresh rotation, CSRF rejection,
   project-scoped API-token create/list/rotate/revoke and adversarial isolation,
   private RPC, service-bound NoxCue ingest,
   persisted metrics, NoxSpot Queue submission, config compare-and-swap, and

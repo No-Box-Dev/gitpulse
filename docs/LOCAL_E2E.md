@@ -55,8 +55,10 @@ Worker, and checks:
 - developer documentation, its JavaScript, and the OpenAPI contract;
 - all three product HTTP health endpoints and the cron runtime;
 - private RPC contracts for NoxSpot, NoxCue, and NoxFeed;
-- anonymous rejection, real GitHub identity and org-membership auth, an opaque
-  browser session, CSRF enforcement, and one-project API-token create/list/rotate/revoke;
+- anonymous rejection, real GitHub identity and org-membership auth, opaque
+  browser and native sessions, native access/refresh rotation and revocation, CSRF enforcement,
+  project-scoped NoxCue GitHub-incident configuration,
+  and one-project API-token create/list/rotate/revoke;
 - all five service catalog, setup, health, and config contracts;
 - ETag/`If-Match` config writes, missing preconditions, and stale revisions;
 - project discovery from an installation record;

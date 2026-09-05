@@ -277,19 +277,46 @@ async function main() {
   if (!githubLogin) throw new Error("Could not resolve the authenticated GitHub login");
   const sessionToken = randomBytes(32).toString("base64url");
   const csrfToken = randomBytes(32).toString("base64url");
+  const nativeAccessToken = `nox_at_${randomBytes(32).toString("base64url")}`;
+  const nativeRefreshToken = `nox_rt_${randomBytes(32).toString("base64url")}`;
   const sessionHash = createHash("sha256").update(sessionToken).digest("hex");
   const csrfHash = createHash("sha256").update(csrfToken).digest("hex");
+  const nativeAccessHash = createHash("sha256").update(nativeAccessToken).digest("hex");
+  const nativeRefreshHash = createHash("sha256").update(nativeRefreshToken).digest("hex");
   const encryptedGitHubToken = await encryptToken(token, encryptionKey);
   const sessionExpires = new Date(Date.now() + 30 * 86400_000).toISOString();
+  const nativeAccessExpires = new Date(Date.now() + 15 * 60_000).toISOString();
+  const nativeRefreshExpires = new Date(Date.now() + 30 * 86400_000).toISOString();
   const authFixtureSql = [
     `INSERT OR IGNORE INTO org_admins (org_id, login, granted_by_login) VALUES (910004, '${githubLogin.replaceAll("'", "''")}', '${githubLogin.replaceAll("'", "''")}');`,
     `INSERT INTO browser_sessions (token_hash, github_login, encrypted_github_token, csrf_hash, expires_at) VALUES ('${sessionHash}', '${githubLogin.replaceAll("'", "''")}', '${encryptedGitHubToken}', '${csrfHash}', '${sessionExpires}');`,
+    `INSERT INTO native_sessions (id, client_name, github_login, access_token_hash, refresh_token_hash, encrypted_github_token, access_expires_at, refresh_expires_at) VALUES ('local-native-session', 'noxfeed-mac', '${githubLogin.replaceAll("'", "''")}', '${nativeAccessHash}', '${nativeRefreshHash}', '${encryptedGitHubToken}', '${nativeAccessExpires}', '${nativeRefreshExpires}');`,
   ].join(" ");
   run("seed a hashed browser session backed by an encrypted GitHub credential", wrangler, [
     "d1", "execute", "noxconnect", "--local", "--persist-to", persistence, "--command", authFixtureSql,
   ]);
 
   await request("browser session authenticates without exposing a GitHub bearer", "/api/v1/services", sessionOptions(sessionToken, csrfToken));
+  await request("native NoxConnect session authenticates without sending a GitHub bearer", "/api/v1/services", authOptions(nativeAccessToken));
+  await request("native NoxConnect session resolves the GitHub identity facade", "/api/auth/profile?scope=user", {
+    headers: { Authorization: `Bearer ${nativeAccessToken}` },
+  });
+  const nativeRotated = await request("native refresh rotates both NoxConnect credentials", "/api/auth/native/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: nativeRefreshToken }),
+  });
+  if (!String(nativeRotated.body?.access_token).startsWith("nox_at_") || !String(nativeRotated.body?.refresh_token).startsWith("nox_rt_")) {
+    throw new Error("Native refresh did not return NoxConnect credentials");
+  }
+  await request("native refresh immediately rejects the previous access token", "/api/v1/services", authOptions(nativeAccessToken), 401);
+  await request("rotated native access token authenticates", "/api/v1/services", authOptions(nativeRotated.body.access_token));
+  await request("native sign-out revokes with the rotating refresh credential", "/api/auth/native/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: nativeRotated.body.refresh_token }),
+  });
+  await request("revoked native access token is rejected", "/api/v1/services", authOptions(nativeRotated.body.access_token), 401);
   await request("browser mutation without CSRF proof is rejected", "/api/v1/api-tokens", {
     method: "POST",
     headers: { Cookie: `__Host-nox_session=${sessionToken}; nox_csrf=${csrfToken}`, "X-Org": org, "Content-Type": "application/json" },
@@ -333,6 +360,18 @@ async function main() {
     headers: { "If-Match": disabledServiceConfig.response.headers.get("etag") },
     body: JSON.stringify({ enabledServices: { noxspot: true, noxfeed: true } }),
   }));
+  await request("configure project-scoped NoxCue GitHub incident routing", "/api/cues/github-issues", sessionOptions(sessionToken, csrfToken, {
+    method: "PUT",
+    body: JSON.stringify({
+      projectId, enabled: false, environments: ["production", "staging"],
+      commentOnRepeat: false, repeatIntervalMinutes: 360,
+    }),
+  }));
+  const incidentSettings = await request("read NoxCue GitHub incident routing", "/api/cues/github-issues", sessionOptions(sessionToken, csrfToken));
+  if (!incidentSettings.body?.projects?.some((project) => project.projectId === projectId
+      && project.environments?.includes("staging"))) {
+    throw new Error("NoxCue GitHub incident settings were not persisted");
+  }
   const ownSource = await request("project token creates a source in its implicit project", "/api/cues/sources", authOptions(apiToken, {
     method: "POST",
     body: JSON.stringify({ name: "Token project", enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),

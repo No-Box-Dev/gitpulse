@@ -32,10 +32,12 @@ NoxConnect is multi-tenant. Each GitHub organisation is an `org` row, and core t
 Credentials are separated by caller and cannot be substituted for one another:
 
 - **Browser users** — GitHub OAuth creates an opaque, hashed-at-rest NoxConnect session in a `Secure`, `HttpOnly`, `SameSite=Lax` cookie. GitHub access and refresh tokens remain encrypted server-side. Browser mutations require a separate CSRF cookie/header proof.
+- **Native users** — NoxConnect brokers GitHub device approval, stores provider credentials encrypted, and returns a 15-minute `nox_at_…` access token plus a rotating 30-day `nox_rt_…` refresh token. Only hashes of those NoxConnect credentials are stored. Native sign-out revokes the server session.
+- **Native abuse control** — provider-facing device-start and legacy-exchange operations fail closed behind the `NATIVE_AUTH_RATE_LIMITER` binding before they call GitHub. Device polling also enforces GitHub's per-code interval atomically.
 - **Automation** — expiring `nox_sk_live_…` or `nox_sk_test_…` secrets are bound to one organization, exactly one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Values are shown once, stored only as hashes, audited, rotatable, and revocable.
 - **Public capture** — NoxCue source keys and origin-bound NoxSpot capture are limited to their ingestion contracts; they do not grant management access.
 - **Internal services** — Workers use private versioned service bindings and receive bounded product data, never provider tokens.
-- **Legacy native/local compatibility** — a GitHub bearer can still authenticate supported native and development callers during migration, but it is not the public automation contract.
+- **Legacy local compatibility** — a GitHub bearer can temporarily authenticate local development and one-time native upgrades. Supported native releases immediately exchange it for a NoxConnect session; it is deprecated and is not the public automation contract.
 
 ## Data freshness: three redundant paths
 

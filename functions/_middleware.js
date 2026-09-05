@@ -10,6 +10,12 @@ import {
   sha256,
   validateSessionCsrf,
 } from "./lib/api-auth.js";
+import {
+  NativeAuthError,
+  refreshProviderIfNeeded,
+  resolveNativeSession,
+  revokeNativeSession,
+} from "./lib/native-auth.js";
 
 // Cache validated tokens for 5 min to avoid hammering GitHub /user
 const tokenCache = new Map();
@@ -233,6 +239,7 @@ export async function onRequest(context) {
     ).bind(apiCredential.id).run());
   } else {
     let browserSession = null;
+    let nativeSession = null;
     if (!bearer) {
       try {
         browserSession = await resolveBrowserSession(context.env.DB, context.env.ENCRYPTION_KEY, context.request);
@@ -250,6 +257,22 @@ export async function onRequest(context) {
       credentialType = "session";
       credentialId = browserSession.token_hash;
       token = browserSession.githubToken;
+    } else if (bearer.startsWith("nox_at_")) {
+      try {
+        nativeSession = await resolveNativeSession(context.env.DB, context.env.ENCRYPTION_KEY, bearer);
+        if (nativeSession) {
+          nativeSession = await refreshProviderIfNeeded(context.env.DB, context.env, nativeSession);
+        }
+      } catch (error) {
+        console.error("[noxconnect] Native session resolution failed:", error);
+        if (error instanceof NativeAuthError) {
+          return apiError(url, error.code, error.message, error.status);
+        }
+      }
+      if (!nativeSession) return apiError(url, "unauthorized", "Native session expired; sign in again", 401);
+      credentialType = "native_session";
+      credentialId = nativeSession.id;
+      token = nativeSession.githubToken;
     } else {
       // Compatibility path for native clients and local `gh auth token` use.
       // Browser code no longer stores or sends this provider credential.
@@ -273,6 +296,9 @@ export async function onRequest(context) {
         context.waitUntil?.(context.env.DB.prepare(
           "UPDATE browser_sessions SET revoked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE token_hash = ?",
         ).bind(credentialId).run());
+      }
+      if (credentialType === "native_session") {
+        context.waitUntil?.(revokeNativeSession(context.env.DB, credentialId));
       }
       return apiError(url, "unauthorized", "Invalid session", 401);
     }
@@ -332,6 +358,11 @@ export async function onRequest(context) {
         "UPDATE browser_sessions SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE token_hash = ?",
       ).bind(credentialId).run());
     }
+    if (credentialType === "native_session") {
+      context.waitUntil?.(context.env.DB.prepare(
+        "UPDATE native_sessions SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
+      ).bind(credentialId).run());
+    }
   }
 
   if (!orgRow) return apiError(url, "organization_forbidden", "Organization is unavailable", 403);
@@ -364,6 +395,8 @@ export async function onRequest(context) {
       context.env.DB.batch([
         context.env.DB.prepare("DELETE FROM sessions WHERE updated_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')"),
         context.env.DB.prepare("DELETE FROM browser_sessions WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%SZ', 'now') OR revoked_at IS NOT NULL"),
+        context.env.DB.prepare("DELETE FROM native_sessions WHERE refresh_expires_at <= strftime('%Y-%m-%dT%H:%M:%SZ', 'now') OR revoked_at IS NOT NULL"),
+        context.env.DB.prepare("DELETE FROM native_device_authorizations WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%SZ', 'now') OR consumed_at IS NOT NULL"),
       ]).catch(async (err) => {
         console.error("[noxconnect] Session cleanup failed:", err);
         try {

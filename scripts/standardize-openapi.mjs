@@ -59,6 +59,21 @@ document.components.schemas.NoxCueIngestResponse = {
     period: { type: "string" },
   },
 };
+document.components.schemas.NoxCueGitHubIssueSettingsUpdate = {
+  type: "object",
+  additionalProperties: false,
+  required: ["projectId", "enabled", "environments"],
+  properties: {
+    projectId: { type: "string", minLength: 1, maxLength: 200 },
+    enabled: { type: "boolean" },
+    environments: {
+      type: "array", minItems: 1, maxItems: 6, uniqueItems: true,
+      items: { type: "string", enum: ["production", "staging", "development", "preview", "test", "local"] },
+    },
+    commentOnRepeat: { type: "boolean", default: false },
+    repeatIntervalMinutes: { type: "integer", minimum: 15, maximum: 10080, default: 360 },
+  },
+};
 document.components.schemas.ApiTokenCreate = {
   type: "object",
   additionalProperties: false,
@@ -80,12 +95,88 @@ document.components.securitySchemes.noxApiToken = {
   type: "http", scheme: "bearer", bearerFormat: "nox_sk_live_…",
   description: "Organization- and project-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once.",
 };
-document.components.securitySchemes.bearerAuth.description = "Legacy GitHub bearer compatibility for native and local development clients. New integrations use a scoped NoxConnect API token; browsers use an HttpOnly session.";
+document.components.securitySchemes.nativeSession = {
+  type: "http", scheme: "bearer", bearerFormat: "nox_at_…",
+  description: "Short-lived first-party native application session. Refresh with a rotating nox_rt_ credential; provider credentials remain encrypted in NoxConnect.",
+};
+document.components.securitySchemes.bearerAuth.description = "Deprecated GitHub bearer compatibility for local development and one-time native migration. It will be removed after supported native clients have upgraded.";
 document.security = [
   { browserSession: [], organization: [] },
+  { nativeSession: [], organization: [] },
   { noxApiToken: [] },
   { bearerAuth: [], organization: [] },
 ];
+
+document.paths["/api/auth/native/device/start"] = {
+  post: nativeAuthOperation("startNativeDeviceAuthorization", "Start native GitHub authorization", {
+    type: "object", additionalProperties: false, required: ["client"],
+    properties: { client: { const: "noxfeed-mac" } },
+  }, "Returns an opaque NoxConnect device handle plus the GitHub verification URI and user code."),
+};
+document.paths["/api/auth/native/device/poll"] = {
+  post: nativeAuthOperation("pollNativeDeviceAuthorization", "Poll native GitHub authorization", {
+    type: "object", additionalProperties: false, required: ["client", "device_code"],
+    properties: { client: { const: "noxfeed-mac" }, device_code: { type: "string", pattern: "^noxdc_" } },
+  }, "NoxConnect completes the GitHub exchange server-side and returns its own short-lived access and rotating refresh credentials."),
+};
+document.paths["/api/auth/native/refresh"] = {
+  post: nativeAuthOperation("refreshNativeSession", "Rotate a native session", {
+    type: "object", additionalProperties: false, required: ["refresh_token"],
+    properties: { refresh_token: { type: "string", pattern: "^nox_rt_", writeOnly: true } },
+  }, "Rotates both native credentials. The previous access and refresh values stop working immediately."),
+};
+document.paths["/api/auth/native/exchange"] = {
+  post: nativeAuthOperation("exchangeLegacyNativeCredential", "Upgrade a legacy native session", {
+    type: "object", additionalProperties: false, required: ["client", "access_token"],
+    properties: {
+      client: { const: "noxfeed-mac" },
+      access_token: { type: "string", writeOnly: true },
+      refresh_token: { type: "string", writeOnly: true },
+    },
+  }, "Temporary one-time migration route for older NoxFeed releases. Normal sign-in uses the brokered device flow."),
+};
+document.paths["/api/auth/native/revoke"] = {
+  post: {
+    operationId: "revokeNativeSession",
+    summary: "Revoke the current native session",
+    description: "Send the rotating refresh credential so sign-out can revoke the server session even after the short-lived access credential expires. A valid access bearer remains supported for older clients.",
+    security: [],
+    requestBody: {
+      required: true,
+      content: { "application/json": { schema: {
+        type: "object", additionalProperties: false, required: ["refresh_token"],
+        properties: { refresh_token: { type: "string", pattern: "^nox_rt_", writeOnly: true } },
+      } } },
+    },
+    "x-native-refresh": true,
+    responses: { "200": { description: "Session revoked" }, "401": { description: "Invalid or expired session" } },
+  },
+};
+
+document.paths["/api/cues/github-issues"] = {
+  get: {
+    operationId: "getNoxCueGitHubIssueSettings",
+    summary: "List project GitHub-incident settings",
+    description: "Returns each active project's repository mapping, routing policy, and open NoxCue incident count.",
+    "x-required-role": "admin",
+    responses: { "200": { description: "Project incident settings" } },
+  },
+  put: {
+    operationId: "putNoxCueGitHubIssueSettings",
+    summary: "Update project GitHub-incident settings",
+    description: "Controls whether NoxCue opens or updates a GitHub issue for incidents in the selected project and environments.",
+    "x-required-role": "admin",
+    requestBody: {
+      required: true,
+      content: { "application/json": { schema: { "$ref": "#/components/schemas/NoxCueGitHubIssueSettingsUpdate" } } },
+    },
+    responses: {
+      "200": { description: "Project incident settings updated" },
+      "404": { description: "Active project not found" },
+      "409": { description: "Project has no linked GitHub repository" },
+    },
+  },
+};
 
 function acceptsProjectToken(path, method) {
   if (method === "get" && /^\/api\/v1\/services(?:\/[^/]+(?:\/(?:setup|health))?)?$/.test(path)) return true;
@@ -186,6 +277,7 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
     if (["member", "admin"].includes(operation["x-authentication"]) && !acceptsProjectToken(path, method)) {
       operation.security = [
         { browserSession: [], organization: [] },
+        { nativeSession: [], organization: [] },
         { bearerAuth: [], organization: [] },
       ];
     }
@@ -228,6 +320,24 @@ function apiTokenOperation(operationId, summary, successStatus) {
   };
 }
 
+function nativeAuthOperation(operationId, summary, requestSchema, description) {
+  return {
+    operationId,
+    summary,
+    description,
+    security: [],
+    requestBody: { required: true, content: { "application/json": { schema: requestSchema } } },
+    responses: {
+      "200": { description: "Success", content: { "application/json": { schema: { "$ref": "#/components/schemas/JsonValue" } } } },
+      "202": { description: "Authorization is still pending" },
+      "400": { description: "Invalid, expired, or rejected authorization" },
+      "401": { description: "Invalid or expired credential" },
+      "429": { description: "Polling faster than the advertised interval" },
+      "503": { description: "Authentication provider temporarily unavailable" },
+    },
+  };
+}
+
 function serviceTag(path) {
   if (path.startsWith("/api/features") || path.startsWith("/api/specs")) return "NoxTicket";
   if (path === "/api/v1/feed" || path.startsWith("/api/issues") || path.startsWith("/api/prs") || path.startsWith("/api/engineer-activity") || path.startsWith("/api/llm-settings")) return "NoxFeed";
@@ -237,8 +347,10 @@ function serviceTag(path) {
 }
 
 function authenticationFor(operation) {
+  if (operation["x-native-refresh"]) return "native_refresh";
   if (Array.isArray(operation.security) && operation.security.length === 0) return "public";
   if (operation.security?.some((entry) => Object.hasOwn(entry, "noxCueKey"))) return "ingest_key";
+  if (operation.security?.length === 1 && Object.hasOwn(operation.security[0], "nativeSession")) return "native_session";
   const adminOperations = new Set([
     "startConnection", "disconnectConnection", "assignSlackConnectionProject",
     "getSlackRouting", "patchSlackRouting", "testSlackRoute", "archiveProject",
@@ -249,6 +361,7 @@ function authenticationFor(operation) {
     "updateNoxCueSource", "deleteNoxCueSource", "createNoxCueKey",
     "revokeNoxCueKey", "listNoxCueEvents", "getNoxCueDailyHealth",
     "patchNoxServiceConfig",
+    "getNoxCueGitHubIssueSettings", "putNoxCueGitHubIssueSettings",
   ]);
   return operation["x-required-role"] === "admin" || adminOperations.has(operation.operationId) ? "admin" : "member";
 }

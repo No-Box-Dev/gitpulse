@@ -22,7 +22,13 @@ describe("public NoxCue dashboard sections", () => {
           lastReason: "dependency_unavailable", successes24h: 2, rejections24h: 0, failures24h: 0,
           results: [{
             id: "feature-event-1", outcome: "failure", reason: "dependency_unavailable",
-            message: "Auth provider request failed", error: { name: "AuthError", message: "Provider unavailable", code: "AUTH_503", stack: "AuthError: Provider unavailable\n at signup.ts:42" },
+            message: "Auth provider request failed", error: { name: "AuthError", message: "Provider unavailable", code: "AUTH_503", status: 503, stack: "AuthError: Provider unavailable\n at signup.ts:42" },
+            context: { environment: "production", release: "playnist@abc123", runtime: "browser", url: "https://app.playnist.com/signup" },
+            diagnosis: {
+              summary: "Sign up failed: dependency unavailable.",
+              possibleCauses: ["The authentication provider returned a server error."],
+              possibleFixes: ["Check provider status and request logs.", "Verify production credentials."],
+            },
             durationMs: 842, occurredAt: "2026-09-03T08:00:00Z", receivedAt: "2026-09-03T08:00:02Z",
           }],
         }],
@@ -33,7 +39,8 @@ describe("public NoxCue dashboard sections", () => {
             id: "event-2", message: "ResizeObserver loop completed with undelivered notifications.",
             occurredAt: "2026-09-03T10:00:00Z", receivedAt: "2026-09-03T10:00:01Z",
             url: "https://app.playnist.com/signup", errorCode: "RESIZE_LOOP", component: "playnist-web",
-            environment: "production", fatal: false, unhandled: true,
+            environment: "production", release: "playnist@abc123", runtime: "browser",
+            errorName: "Error", errorStack: "Error: ResizeObserver loop", errorStatus: 500, fatal: false, unhandled: true,
           }],
         }],
       }],
@@ -62,6 +69,9 @@ describe("public NoxCue dashboard sections", () => {
     expect(screen.getAllByText("playnist-web ·", { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getByText("Auth provider request failed")).toBeInTheDocument();
     expect(screen.getByText("AuthError: Provider unavailable", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Possible causes")).toBeInTheDocument();
+    expect(screen.getByText("Check provider status and request logs.")).toBeInTheDocument();
+    expect(screen.getAllByText("release playnist@abc123").length).toBeGreaterThan(0);
     expect(screen.getByText(/received 2s later/)).toBeInTheDocument();
 
     const group = screen.getByRole("button", { name: /ResizeObserver loop completed/ });
@@ -71,7 +81,8 @@ describe("public NoxCue dashboard sections", () => {
     expect(group).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("ResizeObserver loop completed with undelivered notifications.")).toBeInTheDocument();
     expect(screen.getByText("Unhandled")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "https://app.playnist.com/signup" })).toHaveAttribute("href", "https://app.playnist.com/signup");
+    expect(screen.getByText("Error: ResizeObserver loop")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "https://app.playnist.com/signup" })[0]).toHaveAttribute("href", "https://app.playnist.com/signup");
     expect(screen.getByText("Showing the latest 1 retained occurrence of 2 total.")).toBeInTheDocument();
   });
 });

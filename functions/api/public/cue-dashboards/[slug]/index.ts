@@ -23,12 +23,16 @@ interface ErrorOccurrenceRow {
   id: string; source_id: string | null; fingerprint: string | null; message: string | null;
   occurred_at: string | null; received_at: string; url: string | null; error_code: string | null;
   component: string | null; environment: string | null; fatal: number | null; unhandled: number | null;
+  release: string | null; runtime: string | null; error_name: string | null; error_stack: string | null; error_status: number | null;
 }
 interface FeatureResultRow {
   event_id: string; source_id: string; feature_key: string;
   outcome: "success" | "rejected" | "failure"; reason: string | null;
   message: string | null; error_name: string | null; error_message: string | null;
-  error_code: string | null; error_stack: string | null; duration_ms: number | null;
+  error_code: string | null; error_stack: string | null; error_status: number | null; duration_ms: number | null;
+  context_environment: string | null; context_release: string | null;
+  context_runtime: string | null; context_url: string | null;
+  diagnosis_summary: string | null; diagnosis_causes: string | null; diagnosis_fixes: string | null;
   occurred_at: string; received_at: string;
 }
 
@@ -55,6 +59,17 @@ function safeErrorUrl(raw: string | null): string | null {
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
     return `${url.origin}${url.pathname}`;
   } catch { return null; }
+}
+
+function safeStringArray(raw: string | null, limit = 5): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string" && value.length > 0)
+        .slice(0, limit).map((value) => value.slice(0, 500))
+      : [];
+  } catch { return []; }
 }
 
 export async function onRequestGet(context: Ctx): Promise<Response> {
@@ -90,7 +105,12 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
               json_extract(event.payload_json, '$.data.component') AS component,
               json_extract(event.payload_json, '$.data.environment') AS environment,
               json_extract(event.payload_json, '$.data.fatal') AS fatal,
-              json_extract(event.payload_json, '$.data.unhandled') AS unhandled
+              json_extract(event.payload_json, '$.data.unhandled') AS unhandled,
+              json_extract(event.payload_json, '$.context.release') AS release,
+              json_extract(event.payload_json, '$.context.runtime') AS runtime,
+              json_extract(event.payload_json, '$.error.name') AS error_name,
+              json_extract(event.payload_json, '$.error.stack') AS error_stack,
+              json_extract(event.payload_json, '$.error.status') AS error_status
          FROM events event
         WHERE event.org_id = ? AND event.project_id = ?
           AND event.source = 'noxcue' AND event.type = 'error.occurred'
@@ -103,6 +123,14 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
               json_extract(result.error_json, '$.message') AS error_message,
               json_extract(result.error_json, '$.code') AS error_code,
               json_extract(result.error_json, '$.stack') AS error_stack,
+              json_extract(result.error_json, '$.status') AS error_status,
+              json_extract(result.error_json, '$.context.environment') AS context_environment,
+              json_extract(result.error_json, '$.context.release') AS context_release,
+              json_extract(result.error_json, '$.context.runtime') AS context_runtime,
+              json_extract(result.error_json, '$.context.url') AS context_url,
+              json_extract(result.error_json, '$.diagnosis.summary') AS diagnosis_summary,
+              json_extract(result.error_json, '$.diagnosis.possibleCauses') AS diagnosis_causes,
+              json_extract(result.error_json, '$.diagnosis.possibleFixes') AS diagnosis_fixes,
               result.duration_ms, result.occurred_at, result.received_at
          FROM cue_feature_results result
          JOIN cue_sources source ON source.id = result.source_id
@@ -175,8 +203,19 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
             id: result.event_id, outcome: result.outcome, reason: result.reason,
             message: result.message, error: result.error_message ? {
               name: result.error_name, message: result.error_message,
-              code: result.error_code, stack: result.error_stack,
+              code: result.error_code, status: result.error_status, stack: result.error_stack,
             } : null,
+            context: {
+              environment: result.context_environment,
+              release: result.context_release,
+              runtime: result.context_runtime,
+              url: safeErrorUrl(result.context_url),
+            },
+            diagnosis: {
+              summary: result.diagnosis_summary,
+              possibleCauses: safeStringArray(result.diagnosis_causes),
+              possibleFixes: safeStringArray(result.diagnosis_fixes),
+            },
             durationMs: result.duration_ms, occurredAt: result.occurred_at, receivedAt: result.received_at,
           })),
         };
@@ -194,6 +233,11 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
           errorCode: item.error_code,
           component: item.component,
           environment: item.environment,
+          release: item.release,
+          runtime: item.runtime,
+          errorName: item.error_name,
+          errorStack: item.error_stack,
+          errorStatus: item.error_status,
           fatal: item.fatal === 1,
           unhandled: item.unhandled === 1,
         })),

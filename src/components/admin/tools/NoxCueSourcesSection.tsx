@@ -611,6 +611,7 @@ function BrowserExample({ ingestKey, environment }: { ingestKey: string; environ
   const command = `const noxcue = createNoxCue({
   ingestKey: "${ingestKey}",
   environment: "${environment}",
+  release: __APP_VERSION__,
 });
 
 // One wrapper around the auth call. The original result is unchanged.
@@ -624,7 +625,7 @@ await noxcue.test();`;
   return <div className="mt-3 space-y-2">
     <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-semibold text-amber-900">Wrap each auth action</p><p className="mt-0.5 text-[11px] text-amber-800">Available: signup, login, passwordReset, emailVerification, oauth, mfa, sessionRefresh, logout.</p></div><button type="button" onClick={() => { void navigator.clipboard.writeText(command).then(() => setCopied(true)); }} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs text-amber-800">{copied ? <Check size={12} /> : <Clipboard size={12} />} {copied ? "Copied" : "Copy code"}</button></div>
     <pre className="overflow-x-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{command}</pre>
-    <p className="text-[11px] leading-5 text-amber-800">Failures include the bounded technical error returned by the operation. NoxCue never receives account data, credentials, tokens, request bodies, or headers.</p>
+    <p className="text-[11px] leading-5 text-amber-800">NoxCue automatically adds time, source, environment, release, runtime, safe URL and redacted error evidence. It detects and suggests possible fixes; it never changes the app or retries the operation.</p>
   </div>;
 }
 

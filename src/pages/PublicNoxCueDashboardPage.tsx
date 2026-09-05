@@ -24,13 +24,15 @@ interface DashboardSource {
     lastReason: string | null; successes24h: number; rejections24h: number; failures24h: number;
     results: Array<{
       id: string; outcome: "success" | "rejected" | "failure"; reason: string | null;
-      message: string | null; error: { name: string | null; message: string; code: string | null; stack: string | null } | null;
+      message: string | null; error: { name: string | null; message: string; code: string | null; status: number | null; stack: string | null } | null;
+      context: { environment: string | null; release: string | null; runtime: string | null; url: string | null };
+      diagnosis: { summary: string | null; possibleCauses: string[]; possibleFixes: string[] };
       durationMs: number | null; occurredAt: string; receivedAt: string;
     }>;
   }>;
   errors: Array<{
     title: string; errorCode: string | null; component: string | null; firstSeenAt: string; lastSeenAt: string; occurrenceCount: number;
-    occurrences: Array<{ id: string; message: string | null; occurredAt: string; receivedAt: string; url: string | null; errorCode: string | null; component: string | null; environment: string | null; fatal: boolean; unhandled: boolean }>;
+    occurrences: Array<{ id: string; message: string | null; occurredAt: string; receivedAt: string; url: string | null; errorCode: string | null; component: string | null; environment: string | null; release: string | null; runtime: string | null; errorName: string | null; errorStack: string | null; errorStatus: number | null; fatal: boolean; unhandled: boolean }>;
   }>;
 }
 interface DashboardData { project: { name: string }; generatedAt: string; sources: DashboardSource[] }
@@ -205,10 +207,14 @@ function Dashboard({ source, activeTab, onTabChange }: { source: DashboardSource
         {featureIssues.length ? <p className="mt-4 text-xs leading-5 text-stone-500">Open incidents need developer review. A quiet 24-hour window—or a later successful attempt—does not silently close a critical incident.</p> : null}
         {featureIssues.length ? <div className="mt-4 space-y-3">{featureIssues.map((feature, index) => {
           const expanded = expandedFeature === feature.key;
+          const failedResult = feature.results.find((result) => result.outcome === "failure");
+          const possibleCauses = failedResult?.diagnosis.possibleCauses ?? [];
+          const possibleFixes = failedResult?.diagnosis.possibleFixes.length
+            ? failedResult.diagnosis.possibleFixes : [featureAction(feature)];
           return <article key={feature.key} className={`overflow-hidden rounded-xl border transition ${expanded ? "border-red-300 bg-white" : "border-red-100 bg-red-50"}`}>
             <button type="button" aria-expanded={expanded} aria-controls={`feature-incident-${index}`} onClick={() => setExpandedFeature(expanded ? null : feature.key)} className="w-full p-4 text-left">
               <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-600">Action required</p><p className="mt-1 text-sm font-semibold text-stone-900">{feature.label}</p></div><ChevronDown size={16} className={`mt-1 shrink-0 text-red-500 transition-transform ${expanded ? "rotate-180" : ""}`} /></div>
-              <p className="mt-2 text-xs leading-5 text-stone-700">{featureAction(feature)}</p>
+              <p className="mt-2 text-xs leading-5 text-stone-700">Investigate: {possibleFixes[0]}</p>
               <p className="mt-2 text-[11px] text-stone-500">Open since {formatDate(feature.incidentStartedAt ?? feature.lastFailureAt)} · {feature.failures24h ? `${feature.failures24h} new failure${feature.failures24h === 1 ? "" : "s"} in 24h` : "No new failures in 24h"}</p>
             </button>
             {expanded ? <div id={`feature-incident-${index}`} className="border-t border-red-100 px-4 pb-4 pt-3">
@@ -219,11 +225,19 @@ function Dashboard({ source, activeTab, onTabChange }: { source: DashboardSource
                 <div><dt className="text-stone-400">Last successful attempt</dt><dd className="mt-1 font-medium text-stone-700">{feature.lastSuccessAt ? formatDate(feature.lastSuccessAt) : "None recorded"}</dd></div>
               </dl>
               {feature.successfulAttemptsSinceLastFailure > 0 ? <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">{feature.successfulAttemptsSinceLastFailure} successful attempt{feature.successfulAttemptsSinceLastFailure === 1 ? " has" : "s have"} been recorded since the last failure. This is useful evidence, but does not close a critical incident automatically.</p> : null}
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs leading-5 text-stone-700">
+                <p className="font-semibold text-stone-900">Diagnostic guidance</p>
+                <p className="mt-1 text-stone-500">NoxCue detected and explained the failure. It has not changed your application or attempted a fix.</p>
+                {possibleCauses.length ? <div className="mt-3"><p className="font-medium text-stone-800">Possible causes</p><ul className="mt-1 list-disc space-y-1 pl-4">{possibleCauses.map((cause) => <li key={cause}>{cause}</li>)}</ul></div> : null}
+                <div className="mt-3"><p className="font-medium text-stone-800">Possible fixes to investigate</p><ul className="mt-1 list-disc space-y-1 pl-4">{possibleFixes.map((fix) => <li key={fix}>{fix}</li>)}</ul></div>
+              </div>
               <div className="mt-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-400">NoxCue event history</p>
                 {feature.results.length ? <div className="mt-2 space-y-2">{feature.results.map((result) => <div key={result.id} className="rounded-lg bg-stone-50 p-3 text-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${result.outcome === "failure" ? "bg-red-100 text-red-700" : result.outcome === "success" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{result.outcome}</span><span className="text-[11px] text-stone-400">{formatDate(result.occurredAt)}</span></div>
                   <p className="mt-2 font-medium text-stone-700">{result.message ?? result.error?.message ?? humanizeReason(result.reason)}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">{[result.context.environment, result.context.runtime, result.context.release ? `release ${result.context.release}` : null, result.error?.status ? `HTTP ${result.error.status}` : null].filter(Boolean).map((value) => <span key={value} className="rounded-full bg-stone-200/70 px-2 py-1 text-[10px] text-stone-600">{value}</span>)}</div>
                   {result.error?.stack ? <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-stone-900 p-2 font-mono text-[10px] leading-4 text-stone-200">{result.error.stack}</pre> : null}
+                  {result.context.url ? <a href={result.context.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full items-center gap-1 text-[11px] text-[#b7524f] hover:text-[#93403d]"><span className="truncate">{result.context.url}</span><ExternalLink size={11} className="shrink-0" /></a> : null}
                   <p className="mt-2 break-all font-mono text-[10px] text-stone-400">{result.id}</p>
                   <p className="mt-1 text-[10px] text-stone-400">Occurred {formatDate(result.occurredAt)} · {receiptTiming(result.occurredAt, result.receivedAt)}{result.durationMs !== null ? ` · ${result.durationMs} ms` : ""}</p>
                 </div>)}</div> : <p className="mt-2 text-xs text-stone-400">Detailed events are no longer retained for this incident.</p>}
@@ -246,7 +260,8 @@ function Dashboard({ source, activeTab, onTabChange }: { source: DashboardSource
           {item.occurrences.length ? <div className="space-y-3">{item.occurrences.map((log, logIndex) => <div key={log.id} className="rounded-xl bg-stone-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-medium text-stone-700">Occurrence {item.occurrenceCount - logIndex}</p><p className="text-[11px] text-stone-400">{formatDate(log.occurredAt)}</p></div>
             {log.message ? <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-xs leading-5 text-stone-700">{log.message}</pre> : <p className="mt-3 text-xs italic text-stone-400">No error message was supplied.</p>}
-            <div className="mt-3 flex flex-wrap gap-2">{[log.component, log.errorCode, log.environment].filter(Boolean).map((value) => <span key={value} className="rounded-full bg-stone-200/70 px-2 py-1 text-[10px] text-stone-600">{value}</span>)}{log.fatal ? <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] text-red-700">Fatal</span> : null}{log.unhandled ? <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] text-red-700">Unhandled</span> : null}</div>
+            <div className="mt-3 flex flex-wrap gap-2">{[log.component, log.errorCode, log.environment, log.runtime, log.release ? `release ${log.release}` : null, log.errorStatus ? `HTTP ${log.errorStatus}` : null].filter(Boolean).map((value) => <span key={value} className="rounded-full bg-stone-200/70 px-2 py-1 text-[10px] text-stone-600">{value}</span>)}{log.fatal ? <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] text-red-700">Fatal</span> : null}{log.unhandled ? <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] text-red-700">Unhandled</span> : null}</div>
+            {log.errorStack ? <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-stone-900 p-3 font-mono text-[10px] leading-4 text-stone-200">{log.errorStack}</pre> : null}
             {log.url ? <a href={log.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex max-w-full items-center gap-1 text-[11px] text-[#b7524f] hover:text-[#93403d]"><span className="truncate">{log.url}</span><ExternalLink size={11} className="shrink-0" /></a> : null}
           </div>)}</div> : <p className="text-xs text-stone-400">Detailed logs were not retained for this older error group.</p>}
           {item.occurrenceCount > item.occurrences.length ? <p className="mt-3 text-[11px] text-stone-400">Showing the latest {item.occurrences.length} retained occurrence{item.occurrences.length === 1 ? "" : "s"} of {item.occurrenceCount} total.</p> : null}

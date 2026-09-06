@@ -24,6 +24,12 @@ cp .env.example .env.local
 
 Edit `wrangler.toml` and `cron/wrangler.toml`: replace `database_id` (and, if you like, the `*-noxconnect*` resource names) with your own — the committed IDs point at the canonical hosted instance and you cannot deploy to them.
 
+`PLATFORM_ADMIN_GITHUB_IDS` in `wrangler.toml` is a comma-separated allowlist
+of verified numeric GitHub user ids. Those users can open the internal,
+read-only `/operator` business dashboard across organizations. Use ids from
+GitHub's `/user` response rather than mutable login names; remove the variable
+entirely on self-hosted instances that do not need a platform operator.
+
 ## 2. Provision Cloudflare resources
 
 ```bash
@@ -184,6 +190,10 @@ cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 - **Background failures:** terminal queue failures land in the `op_failures` table; view them in Settings → Background failures (admin-only).
 - **Manual event backfill:** Settings → Live Activity Backfill (admin-only) re-derives missing events over a 30-day window. Rate-limited to once per org per day.
 - **Suspending an org:** set `suspended_at` on its `orgs` row to block all API access (`UPDATE orgs SET suspended_at = datetime('now') WHERE github_login = '<org>'`); set it back to `NULL` to restore.
+- **Business overview:** allowlisted platform operators sign in through the
+  normal GitHub OAuth flow and open `/operator`. Platform access is distinct
+  from organization administration, and the page exposes account/activity
+  aggregates and service configuration—not repository or customer content.
 
 ## Costs
 

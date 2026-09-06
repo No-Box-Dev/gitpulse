@@ -2,6 +2,11 @@ name = "noxconnect"
 compatibility_date = "2024-12-01"
 pages_build_output_dir = "dist"
 
+# Verified numeric GitHub user ids allowed to open the internal, read-only
+# business dashboard. Numeric ids remain stable when a GitHub login changes.
+[vars]
+PLATFORM_ADMIN_GITHUB_IDS = "196446605"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "noxconnect"

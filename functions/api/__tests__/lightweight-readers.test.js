@@ -56,12 +56,17 @@ describe("GET /api/bootstrap-status", () => {
 describe("GET /api/me", () => {
   it("returns login, org, and isAdmin from context", async () => {
     const res = await meGet(makeCtx({ data: { userLogin: "alice", orgLogin: "acme", isAdmin: true } }));
-    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: true });
+    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: true, isPlatformOperator: false });
   });
 
   it("coerces isAdmin to boolean", async () => {
     const res = await meGet(makeCtx({ data: { userLogin: "alice", orgLogin: "acme", isAdmin: 0 } }));
-    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false });
+    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false, isPlatformOperator: false });
+  });
+
+  it("reports platform access independently from organization admin access", async () => {
+    const res = await meGet(makeCtx({ data: { userLogin: "alice", orgLogin: "acme", isAdmin: false, isPlatformOperator: true } }));
+    expect(await res.json()).toEqual({ login: "alice", org: "acme", isAdmin: false, isPlatformOperator: true });
   });
 });
 

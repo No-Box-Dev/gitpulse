@@ -30,7 +30,7 @@ async function validateGitHubToken(token) {
   const cacheKey = await hashToken(token);
   const cached = tokenCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return { login: cached.login, _cacheKey: cacheKey };
+    return { login: cached.login, id: cached.id, _cacheKey: cacheKey };
   }
 
   const res = await fetch("https://api.github.com/user", {
@@ -59,9 +59,19 @@ async function validateGitHubToken(token) {
   const user = await res.json();
   tokenCache.set(cacheKey, {
     login: user.login,
+    id: user.id,
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
-  return { login: user.login, _cacheKey: cacheKey };
+  return { login: user.login, id: user.id, _cacheKey: cacheKey };
+}
+
+export function isPlatformOperator(env, githubUserId) {
+  if (!Number.isSafeInteger(githubUserId)) return false;
+  const allowed = String(env.PLATFORM_ADMIN_GITHUB_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return allowed.includes(String(githubUserId));
 }
 
 /**
@@ -179,7 +189,25 @@ export async function onRequest(context) {
   }
 
   const userLogin = validation.login;
+  const userId = Number(validation.id);
   const tokenHash = validation._cacheKey;
+  const platformOperator = isPlatformOperator(context.env, userId);
+
+  // Platform operators use the same GitHub OAuth identity as customers, but
+  // their global, read-only endpoints are deliberately outside organization
+  // scope. A verified numeric GitHub id is used because logins can be renamed.
+  if (url.pathname.startsWith("/api/operator/")) {
+    if (!platformOperator) {
+      return new Response(JSON.stringify({ error: "Platform operator access required" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+    context.data.userLogin = userLogin;
+    context.data.userId = userId;
+    context.data.isPlatformOperator = true;
+    return context.next();
+  }
 
   // Resolve org from header or query param
   const orgLogin =
@@ -298,8 +326,10 @@ export async function onRequest(context) {
   context.data.orgId = orgRow.id;
   context.data.orgLogin = orgLogin;
   context.data.userLogin = userLogin;
+  context.data.userId = userId;
   context.data.token = token;
   context.data.isAdmin = isAdmin;
+  context.data.isPlatformOperator = platformOperator;
 
   return context.next();
 }

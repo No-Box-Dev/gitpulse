@@ -13,16 +13,18 @@ vi.mock("@/hooks/useGitHub", () => ({
   useRateLimit: vi.fn(),
   useUnacknowledgedRepos: vi.fn(),
   useIsAdmin: vi.fn(),
+  useMe: vi.fn(),
 }));
 
 import { TopNav } from "../TopNav";
 import { useAuth } from "@/lib/auth";
-import { useRateLimit, useUnacknowledgedRepos, useIsAdmin } from "@/hooks/useGitHub";
+import { useRateLimit, useUnacknowledgedRepos, useIsAdmin, useMe } from "@/hooks/useGitHub";
 
 const mockAuth = useAuth as unknown as ReturnType<typeof vi.fn>;
 const mockRate = useRateLimit as unknown as ReturnType<typeof vi.fn>;
 const mockUnacked = useUnacknowledgedRepos as unknown as ReturnType<typeof vi.fn>;
 const mockIsAdmin = useIsAdmin as unknown as ReturnType<typeof vi.fn>;
+const mockMe = useMe as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   mockAuth.mockReturnValue({
@@ -33,6 +35,7 @@ beforeEach(() => {
   mockRate.mockReturnValue({ data: { remaining: 1000, limit: 5000 } });
   mockUnacked.mockReturnValue([]);
   mockIsAdmin.mockReturnValue(false);
+  mockMe.mockReturnValue({ data: { isPlatformOperator: false } });
 });
 
 describe("TopNav", () => {
@@ -105,5 +108,12 @@ describe("TopNav", () => {
     fireEvent.click(screen.getByAltText("alice").closest("button")!);
     expect(screen.queryByText("Sync features")).not.toBeInTheDocument();
     expect(screen.queryByText("Sync from GitHub")).not.toBeInTheDocument();
+  });
+
+  it("shows the business overview only to platform operators", () => {
+    mockMe.mockReturnValue({ data: { isPlatformOperator: true } });
+    render(<TopNav activeTab="sprint" onTabChange={vi.fn()} />);
+    fireEvent.click(screen.getByAltText("alice").closest("button")!);
+    expect(screen.getByRole("link", { name: "Business overview" })).toHaveAttribute("href", "/operator");
   });
 });

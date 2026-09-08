@@ -50,6 +50,12 @@ migration without changing the API contract.
 8. Run the smoke checks below. Only after they pass should the previous domains
    redirect permanently to their corresponding `noxhere.com` hosts.
 
+The application smoke checks passed on 2026-09-08. The retired
+`app.unticket.ai` Pages project now deploys only the redirect Worker in
+[`legacy-redirect/`](../legacy-redirect/): browser navigation receives a `308`
+to the same path and query on `app.noxhere.com`. Non-idempotent requests receive
+`410 Gone` instead of having credentials or mutations replayed across hosts.
+
 ## Required smoke checks
 
 - `GET https://app.noxhere.com/api/v1/services` reaches the authenticated API.
@@ -72,3 +78,8 @@ checks pass. If a provider callback fails, restore that provider's previous URL
 without changing D1, Queue, R2, service bindings, or encrypted credentials. A
 domain rollback must never require copying provider tokens into a product
 service.
+
+The redirect deployment is intentionally isolated from the NoxConnect build.
+To roll it back during the limited migration window, redeploy the last known
+application deployment to the `unticket` Pages project; do not move current
+NoxConnect secrets or bindings back to the legacy project.

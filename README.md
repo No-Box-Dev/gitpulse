@@ -7,6 +7,8 @@ The hosted workspace at [app.noxhere.com](https://app.noxhere.com) is branded **
 The separate one-page product site for [noxhere.com](https://noxhere.com) lives
 in [`nox-site/`](./nox-site/) and deploys to its own static Cloudflare Pages
 project. It deliberately shares no application bindings or credentials.
+The retired `app.unticket.ai` host is a redirect-only deployment maintained in
+[`legacy-redirect/`](./legacy-redirect/); it does not run the application or API.
 
 - **NoxConnect** — GitHub/Slack connections, project-owned multi-workspace routing, organization identity, people, repositories, issues, and pull-request plumbing
 - **NoxFeed** — current work, activity feed, issues, and release narratives

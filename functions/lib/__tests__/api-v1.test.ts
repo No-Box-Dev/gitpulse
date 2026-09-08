@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { normalizeLegacyError, requireV1Admin, requireV1Member, v1Error, v1Response } from "../api-v1";
+import {
+  normalizeLegacyError,
+  normalizeV1Response,
+  requireV1Admin,
+  requireV1Member,
+  v1Error,
+  v1Response,
+} from "../api-v1";
 
 describe("API v1 response contract", () => {
   it("applies safe, non-cacheable JSON headers to success responses", async () => {
@@ -36,6 +43,49 @@ describe("API v1 response contract", () => {
     expect(await response.json()).toEqual({
       apiVersion: 1,
       error: { code: "conflict", message: "Bad route", details: { route: "noxfeed" } },
+    });
+  });
+
+  it("preserves response metadata while normalizing legacy errors", async () => {
+    const response = await normalizeLegacyError(new Response(JSON.stringify({ error: "Try later" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json", "Retry-After": "30" },
+    }));
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(response.headers.get("Link")).toContain("/openapi.json");
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: { code: "rate_limited", message: "Try later" },
+    });
+  });
+
+  it("does not double-wrap native v1 errors", async () => {
+    const original = v1Error("invalid_scope", "Invalid scope", 400, { scope: "admin" });
+    const response = await normalizeLegacyError(original);
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: { code: "invalid_scope", message: "Invalid scope", details: { scope: "admin" } },
+    });
+  });
+
+  it("adds transport headers without changing a non-JSON response", async () => {
+    const response = normalizeV1Response(new Response("export-data", {
+      headers: { "Content-Type": "text/plain", "Content-Disposition": "attachment; filename=export.txt" },
+    }));
+    expect(response.headers.get("Content-Type")).toContain("text/plain");
+    expect(response.headers.get("Content-Disposition")).toContain("export.txt");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(await response.text()).toBe("export-data");
+  });
+
+  it("does not buffer oversized legacy error bodies", async () => {
+    const response = await normalizeLegacyError(new Response(JSON.stringify({
+      error: "must not be copied",
+      payload: "x".repeat(70 * 1024),
+    }), { status: 502, headers: { "Content-Type": "application/json" } }));
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: { code: "internal_error", message: "Request failed" },
     });
   });
 });

@@ -26,7 +26,7 @@ describe("developer documentation", () => {
 
   it("documents the supported auth boundary and stable NoxCue gateway", () => {
     expect(guide).toContain("does not issue third-party OAuth client credentials");
-    expect(guide).toContain("POST /api/cues/public/v1/events");
+    expect(guide).toContain("POST /api/v1/cues/public/events");
     expect(guide).toContain("honor `Retry-After`");
   });
 

@@ -123,6 +123,17 @@ async function request(label, path, options = {}, expected = 200) {
   if (!statuses.includes(response.status)) {
     throw new Error(`${label}: expected HTTP ${statuses.join("/")}, got ${response.status}: ${raw.slice(0, 500)}`);
   }
+  if (path.startsWith("/api/v1/")) {
+    if (response.headers.get("cache-control") !== "no-store") {
+      throw new Error(`${label}: canonical API response is missing Cache-Control: no-store`);
+    }
+    if (!response.headers.get("link")?.includes("/openapi.json")) {
+      throw new Error(`${label}: canonical API response is missing the OpenAPI discovery link`);
+    }
+    if (response.status >= 400 && (body?.apiVersion !== 1 || typeof body?.error?.code !== "string")) {
+      throw new Error(`${label}: canonical API error did not use the v1 coded envelope: ${raw.slice(0, 500)}`);
+    }
+  }
   results.push(label);
   print(`✓ ${label} (${response.status})`);
   return { response, body };
@@ -298,10 +309,12 @@ async function main() {
 
   await request("browser session authenticates without exposing a GitHub bearer", "/api/v1/services", sessionOptions(sessionToken, csrfToken));
   await request("native NoxConnect session authenticates without sending a GitHub bearer", "/api/v1/services", authOptions(nativeAccessToken));
+  await request("native access cannot mint long-lived automation credentials", "/api/v1/api-tokens", authOptions(nativeAccessToken), 403);
+  await request("legacy GitHub bearer cannot manage NoxConnect API tokens", "/api/v1/api-tokens", authOptions(token), 403);
   await request("native NoxConnect session resolves the GitHub identity facade", "/api/auth/profile?scope=user", {
     headers: { Authorization: `Bearer ${nativeAccessToken}` },
   });
-  const nativeRotated = await request("native refresh rotates both NoxConnect credentials", "/api/auth/native/refresh", {
+  const nativeRotated = await request("native refresh rotates both NoxConnect credentials", "/api/v1/auth/native/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: nativeRefreshToken }),
@@ -311,7 +324,7 @@ async function main() {
   }
   await request("native refresh immediately rejects the previous access token", "/api/v1/services", authOptions(nativeAccessToken), 401);
   await request("rotated native access token authenticates", "/api/v1/services", authOptions(nativeRotated.body.access_token));
-  await request("native sign-out revokes with the rotating refresh credential", "/api/auth/native/revoke", {
+  await request("native sign-out revokes with the rotating refresh credential", "/api/v1/auth/native/revoke", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: nativeRotated.body.refresh_token }),
@@ -347,7 +360,7 @@ async function main() {
     headers: { "If-Match": serviceSwitchConfig.response.headers.get("etag") },
     body: JSON.stringify({ enabledServices: { noxspot: false, noxfeed: false } }),
   }));
-  const disabledService = await request("disabled service returns the standard project API error", "/api/spots/sites", authOptions(apiToken), 403);
+  const disabledService = await request("legacy route keeps its compatibility error while the service is disabled", "/api/spots/sites", authOptions(apiToken), 403);
   if (disabledService.body?.error !== "NoxSpot is not enabled. Enable it in NoxConnect before trying again.") {
     throw new Error("Disabled service response did not use the standard message");
   }
@@ -355,56 +368,57 @@ async function main() {
   if (disabledV1Service.body?.error?.code !== "service_not_enabled" || disabledV1Service.body.error.message !== "NoxFeed is not enabled. Enable it in NoxConnect before trying again.") {
     throw new Error("Disabled v1 service response did not use the standard error contract");
   }
+  await request("disabled NoxFeed blocks its canonical issue API", "/api/v1/issues", authOptions(apiToken), 403);
   await request("restore NoxSpot after the service gate check", "/api/v1/services/noxconnect/config", sessionOptions(sessionToken, csrfToken, {
     method: "PATCH",
     headers: { "If-Match": disabledServiceConfig.response.headers.get("etag") },
     body: JSON.stringify({ enabledServices: { noxspot: true, noxfeed: true } }),
   }));
-  await request("configure project-scoped NoxCue GitHub incident routing", "/api/cues/github-issues", sessionOptions(sessionToken, csrfToken, {
+  await request("configure project-scoped NoxCue GitHub incident routing", "/api/v1/cues/github-issues", sessionOptions(sessionToken, csrfToken, {
     method: "PUT",
     body: JSON.stringify({
       projectId, enabled: false, environments: ["production", "staging"],
       commentOnRepeat: false, repeatIntervalMinutes: 360,
     }),
   }));
-  const incidentSettings = await request("read NoxCue GitHub incident routing", "/api/cues/github-issues", sessionOptions(sessionToken, csrfToken));
+  const incidentSettings = await request("read NoxCue GitHub incident routing", "/api/v1/cues/github-issues", sessionOptions(sessionToken, csrfToken));
   if (!incidentSettings.body?.projects?.some((project) => project.projectId === projectId
       && project.environments?.includes("staging"))) {
     throw new Error("NoxCue GitHub incident settings were not persisted");
   }
-  const ownSource = await request("project token creates a source in its implicit project", "/api/cues/sources", authOptions(apiToken, {
+  const ownSource = await request("project token creates a source in its implicit project", "/api/v1/cues/sources", authOptions(apiToken, {
     method: "POST",
     body: JSON.stringify({ name: "Token project", enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
   }), 201);
   if (ownSource.body?.projectId !== projectId) throw new Error("Token-created source was not assigned to the token project");
-  const ownSite = await request("project token creates a site in its implicit project", "/api/spots/sites", authOptions(apiToken, {
+  const ownSite = await request("project token creates a site in its implicit project", "/api/v1/spots/sites", authOptions(apiToken, {
     method: "POST", body: JSON.stringify({ name: "Token project", widgetMode: "development" }),
   }), 201);
   if (ownSite.body?.site?.projectId !== projectId) throw new Error("Token-created site was not assigned to the token project");
-  const otherSource = await request("create another project's NoxCue source as a browser admin", "/api/cues/sources", sessionOptions(sessionToken, csrfToken, {
+  const otherSource = await request("create another project's NoxCue source as a browser admin", "/api/v1/cues/sources", sessionOptions(sessionToken, csrfToken, {
     method: "POST",
     body: JSON.stringify({ name: "Other project", projectId: otherProjectId, enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
   }), 201);
-  await request("project token cannot read another project's source", `/api/cues/sources/${otherSource.body.id}`, authOptions(apiToken), 404);
-  await request("project token cannot read another project's metrics", `/api/cues/metrics?sourceId=${encodeURIComponent(otherSource.body.id)}&days=1`, authOptions(apiToken), 404);
-  await request("project token cannot create a source for another project", "/api/cues/sources", authOptions(apiToken, {
+  await request("project token cannot read another project's source", `/api/v1/cues/sources/${otherSource.body.id}`, authOptions(apiToken), 404);
+  await request("project token cannot read another project's metrics", `/api/v1/cues/metrics?sourceId=${encodeURIComponent(otherSource.body.id)}&days=1`, authOptions(apiToken), 404);
+  await request("project token cannot create a source for another project", "/api/v1/cues/sources", authOptions(apiToken, {
     method: "POST",
     body: JSON.stringify({ name: "Cross-project source", projectId: otherProjectId, enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
   }), 404);
-  const scopedSources = await request("project token lists only its own sources", "/api/cues/sources", authOptions(apiToken));
+  const scopedSources = await request("project token lists only its own sources", "/api/v1/cues/sources", authOptions(apiToken));
   if (!scopedSources.body?.sources?.length || scopedSources.body.sources.some((source) => source.projectId !== projectId)) {
     throw new Error("NoxCue source collection crossed the token project boundary");
   }
-  const otherSite = await request("create another project's NoxSpot site as a browser admin", "/api/spots/sites", sessionOptions(sessionToken, csrfToken, {
+  const otherSite = await request("create another project's NoxSpot site as a browser admin", "/api/v1/spots/sites", sessionOptions(sessionToken, csrfToken, {
     method: "POST", body: JSON.stringify({ name: "Other project", projectId: otherProjectId, widgetMode: "development" }),
   }), 201);
-  await request("project token cannot change another project's site", `/api/spots/sites/${otherSite.body.site.id}`, authOptions(apiToken, {
+  await request("project token cannot change another project's site", `/api/v1/spots/sites/${otherSite.body.site.id}`, authOptions(apiToken, {
     method: "PATCH", body: JSON.stringify({ name: "Cross-project change" }),
   }), 404);
-  await request("project token cannot create a site for another project", "/api/spots/sites", authOptions(apiToken, {
+  await request("project token cannot create a site for another project", "/api/v1/spots/sites", authOptions(apiToken, {
     method: "POST", body: JSON.stringify({ name: "Cross-project site", projectId: otherProjectId, widgetMode: "development" }),
   }), 404);
-  const scopedSites = await request("project token lists only its own sites", "/api/spots/sites", authOptions(apiToken));
+  const scopedSites = await request("project token lists only its own sites", "/api/v1/spots/sites", authOptions(apiToken));
   if (!scopedSites.body?.sites?.length || scopedSites.body.sites.some((site) => site.projectId !== projectId)) {
     throw new Error("NoxSpot site collection crossed the token project boundary");
   }
@@ -447,40 +461,46 @@ async function main() {
     method: "PATCH", headers: { "If-Match": updated.response.headers.get("etag") }, body: JSON.stringify({ newRepositoryPolicy: "include" }),
   }));
 
-  const projects = await request("project discovery from local installation fixture", "/api/projects", authOptions(token));
+  const projects = await request("project discovery from local installation fixture", "/api/v1/projects", authOptions(token));
   if (!projects.body?.projects?.some((project) => project.id === projectId)) throw new Error("Fixture project was not returned");
+  const legacyProjects = await request("legacy project discovery remains available during migration", "/api/projects", authOptions(token));
+  const canonicalProjectIds = projects.body.projects.map((project) => project.id).sort();
+  const legacyProjectIds = legacyProjects.body?.projects?.map((project) => project.id).sort();
+  if (JSON.stringify(canonicalProjectIds) !== JSON.stringify(legacyProjectIds)) {
+    throw new Error("Canonical and legacy project discovery returned different resources");
+  }
 
-  const source = await request("create a NoxCue source through the control API", "/api/cues/sources", authOptions(token, {
+  const source = await request("create a NoxCue source through the control API", "/api/v1/cues/sources", authOptions(token, {
     method: "POST",
     body: JSON.stringify({ name: "Local E2E", projectId, enabled: true, timezone: "UTC", digestEnabled: false, digestTimeLocal: "00:30", allowedOrigins: [], healthEnabled: false, healthUrl: null, slackChannelId: null, slackConnectionId: null }),
   }), 201);
   const sourceId = source.body.id;
-  const key = await request("create a one-time NoxCue ingest key", `/api/cues/sources/${sourceId}/keys`, authOptions(token, {
+  const key = await request("create a one-time NoxCue ingest key", `/api/v1/cues/sources/${sourceId}/keys`, authOptions(token, {
     method: "POST", body: JSON.stringify({ name: "Local E2E", kind: "secret" }),
   }), 201);
   const keyId = key.body.key.id;
   const keyValue = key.body.key.value;
-  const event = await request("ingest a real NoxCue event through the NoxConnect binding", "/api/cues/public/v1/events", {
+  const event = await request("ingest a real NoxCue event through the NoxConnect binding", "/api/v1/cues/public/events", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Nox-Ingest-Key": keyValue },
     body: JSON.stringify({ version: 1, type: "user.registered", userId: "local-e2e-user", idempotencyKey: "local-e2e-registration" }),
   }, 202);
   if (!event.body?.accepted || event.body?.stored !== true) throw new Error("NoxCue did not persist the event");
-  const duplicate = await request("NoxCue ingestion is idempotent", "/api/cues/public/v1/events", {
+  const duplicate = await request("NoxCue ingestion is idempotent", "/api/v1/cues/public/events", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Nox-Ingest-Key": keyValue },
     body: JSON.stringify({ version: 1, type: "user.registered", userId: "local-e2e-user", idempotencyKey: "local-e2e-registration" }),
   }, 202);
   if (duplicate.body?.duplicate !== true) throw new Error("NoxCue duplicate was not detected");
-  const metrics = await request("read persisted NoxCue metrics", `/api/cues/metrics?sourceId=${encodeURIComponent(sourceId)}&days=1`, authOptions(token));
+  const metrics = await request("read persisted NoxCue metrics", `/api/v1/cues/metrics?sourceId=${encodeURIComponent(sourceId)}&days=1`, authOptions(token));
   if (!Array.isArray(metrics.body?.days)) throw new Error("NoxCue metrics response is malformed");
-  await request("revoke the NoxCue ingest key", `/api/cues/sources/${sourceId}/keys/${keyId}`, authOptions(token, { method: "DELETE" }));
-  await request("revoked NoxCue key is rejected", "/api/cues/public/v1/events", {
+  await request("revoke the NoxCue ingest key", `/api/v1/cues/sources/${sourceId}/keys/${keyId}`, authOptions(token, { method: "DELETE" }));
+  await request("revoked NoxCue key is rejected", "/api/v1/cues/public/events", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Nox-Ingest-Key": keyValue },
     body: JSON.stringify({ version: 1, type: "user.active", userId: "local-e2e-user" }),
   }, 401);
 
-  const site = await request("create a NoxSpot site through the control API", "/api/spots/sites", authOptions(token, {
+  const site = await request("create a NoxSpot site through the control API", "/api/v1/spots/sites", authOptions(token, {
     method: "POST", body: JSON.stringify({ name: "Local E2E", projectId, widgetMode: "development", autoErrorLogging: true }),
   }), 201);
   const siteId = site.body.site.id;

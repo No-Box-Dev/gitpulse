@@ -64,7 +64,7 @@ to the same path and query on `app.noxhere.com`. Non-idempotent requests receive
 - A GitHub webhook signed with the configured secret receives a `2xx` response.
 - Slack install/reconnect completes and the stored workspace passes its test.
 - A pasted Nox PR or issue URL unfurls in Slack.
-- NoxCue public ingest reaches `/api/cues/public/v1/events` without exposing the
+- NoxCue public ingest reaches `/api/v1/cues/public/events` without exposing the
   private service binding.
 - `https://feed.noxhere.com` serves canonical, Open Graph, robots, and sitemap
   URLs from the same host.

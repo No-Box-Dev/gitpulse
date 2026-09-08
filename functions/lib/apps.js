@@ -1,4 +1,5 @@
 import { LEGACY_NOXTICKET_SOURCE } from "./naming-compat.js";
+import { compatibilityApiPath } from "./api-paths.js";
 
 export const OPTIONAL_APP_IDS = ["noxticket", "noxfeed", "noxspot", "noxcue"];
 
@@ -40,10 +41,13 @@ export async function isAppEnabledForOwner(db, ownerId, appId) {
 }
 
 export function appForApiPath(pathname) {
+  pathname = compatibilityApiPath(pathname);
   if (/^\/api\/features(?:\/|$)/.test(pathname) || /^\/api\/specs(?:\/|$)/.test(pathname)) {
     return "noxticket";
   }
-  if (pathname === "/api/v1/feed" || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) {
+  if (pathname === "/api/v1/feed"
+      || /^\/api\/(?:issues|prs|engineer-activity|llm-settings)(?:\/|$)/.test(pathname)
+      || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) {
     return "noxfeed";
   }
   if (/^\/api\/spots(?:\/|$)/.test(pathname)) return "noxspot";

@@ -1,5 +1,7 @@
 import { encryptToken } from "./lib/crypto";
 import { appForApiPath, isAppEnabled, serviceDisabledResponse } from "./lib/apps.js";
+import { isNativeAuthPath } from "./lib/api-paths.js";
+import { normalizeLegacyError } from "./lib/api-v1";
 import {
   apiTokenProjectResource,
   projectScopedApiTokenPathSupported,
@@ -135,13 +137,13 @@ export async function onRequest(context) {
 
   // Public ingestion is authenticated by the NoxCue source key inside the
   // bound product Worker, not by a GitHub user bearer token.
-  if (url.pathname === "/api/cues/public/v1/events") {
-    return context.next();
+  if (url.pathname === "/api/cues/public/v1/events" || url.pathname === "/api/v1/cues/public/events") {
+    return nextApiResponse(context, url);
   }
 
   // Skip auth for OAuth callback and webhook
-  if (url.pathname.startsWith("/api/auth/") || url.pathname === "/api/webhook") {
-    return context.next();
+  if (url.pathname.startsWith("/api/auth/") || isNativeAuthPath(url.pathname) || url.pathname === "/api/webhook") {
+    return nextApiResponse(context, url);
   }
 
   // Slack OAuth callback is hit by Slack as a browser redirect — no
@@ -452,7 +454,19 @@ export async function onRequest(context) {
   context.data.projectId = projectId;
   context.data.auth = { type: credentialType, id: credentialId, scopes, projectId };
 
-  return context.next();
+  return nextApiResponse(context, url);
+}
+
+async function nextApiResponse(context, url) {
+  const versioned = url.pathname.startsWith("/api/v1/");
+  try {
+    const response = await context.next();
+    return versioned ? normalizeLegacyError(response) : response;
+  } catch (error) {
+    if (!versioned) throw error;
+    console.error("[noxconnect] API v1 handler failed:", error);
+    return apiError(url, "internal_error", "Request failed", 500);
+  }
 }
 
 function apiError(url, code, message, status, details, extraHeaders) {

@@ -4,6 +4,20 @@ const target = new URL("../public/openapi.json", import.meta.url);
 const original = await readFile(target, "utf8");
 const document = JSON.parse(original);
 
+// The first API inventory documented existing UI routes in place. Promote all
+// first-party operations into the canonical v1 namespace while leaving the
+// old handlers deployed as compatibility adapters. NoxSpot's anonymous
+// capture API stays on its separately isolated public origin.
+for (const [path, pathItem] of Object.entries(document.paths)) {
+  const canonicalPath = canonicalApiPath(path);
+  if (canonicalPath === path) continue;
+  if (document.paths[canonicalPath]) {
+    throw new Error(`Cannot promote ${path}: ${canonicalPath} already exists`);
+  }
+  document.paths[canonicalPath] = pathItem;
+  delete document.paths[path];
+}
+
 document.servers = [{ url: "https://app.noxhere.com", description: "Hosted NoxConnect API" }];
 document.tags = [
   { name: "NoxConnect", description: "Connections, identity, repositories, projects, and shared delivery." },
@@ -92,7 +106,7 @@ document.components.securitySchemes.browserSession = {
   description: "Opaque HttpOnly session created by GitHub OAuth for the first-party web application. Browser mutations also require X-CSRF-Token.",
 };
 document.components.securitySchemes.noxApiToken = {
-  type: "http", scheme: "bearer", bearerFormat: "nox_sk_live_…",
+  type: "http", scheme: "bearer", bearerFormat: "nox_sk_{environment}_…",
   description: "Organization- and project-bound, service-scoped NoxConnect automation token. Store as a secret; the value is shown only once.",
 };
 document.components.securitySchemes.nativeSession = {
@@ -100,6 +114,7 @@ document.components.securitySchemes.nativeSession = {
   description: "Short-lived first-party native application session. Refresh with a rotating nox_rt_ credential; provider credentials remain encrypted in NoxConnect.",
 };
 document.components.securitySchemes.bearerAuth.description = "Deprecated GitHub bearer compatibility for local development and one-time native migration. It will be removed after supported native clients have upgraded.";
+document.components.responses.Unauthorized.description = "Missing, invalid, or expired supported credential";
 document.security = [
   { browserSession: [], organization: [] },
   { nativeSession: [], organization: [] },
@@ -107,25 +122,25 @@ document.security = [
   { bearerAuth: [], organization: [] },
 ];
 
-document.paths["/api/auth/native/device/start"] = {
+document.paths["/api/v1/auth/native/device/start"] = {
   post: nativeAuthOperation("startNativeDeviceAuthorization", "Start native GitHub authorization", {
     type: "object", additionalProperties: false, required: ["client"],
     properties: { client: { const: "noxfeed-mac" } },
   }, "Returns an opaque NoxConnect device handle plus the GitHub verification URI and user code."),
 };
-document.paths["/api/auth/native/device/poll"] = {
+document.paths["/api/v1/auth/native/device/poll"] = {
   post: nativeAuthOperation("pollNativeDeviceAuthorization", "Poll native GitHub authorization", {
     type: "object", additionalProperties: false, required: ["client", "device_code"],
     properties: { client: { const: "noxfeed-mac" }, device_code: { type: "string", pattern: "^noxdc_" } },
   }, "NoxConnect completes the GitHub exchange server-side and returns its own short-lived access and rotating refresh credentials."),
 };
-document.paths["/api/auth/native/refresh"] = {
+document.paths["/api/v1/auth/native/refresh"] = {
   post: nativeAuthOperation("refreshNativeSession", "Rotate a native session", {
     type: "object", additionalProperties: false, required: ["refresh_token"],
     properties: { refresh_token: { type: "string", pattern: "^nox_rt_", writeOnly: true } },
   }, "Rotates both native credentials. The previous access and refresh values stop working immediately."),
 };
-document.paths["/api/auth/native/exchange"] = {
+document.paths["/api/v1/auth/native/exchange"] = {
   post: nativeAuthOperation("exchangeLegacyNativeCredential", "Upgrade a legacy native session", {
     type: "object", additionalProperties: false, required: ["client", "access_token"],
     properties: {
@@ -135,7 +150,7 @@ document.paths["/api/auth/native/exchange"] = {
     },
   }, "Temporary one-time migration route for older NoxFeed releases. Normal sign-in uses the brokered device flow."),
 };
-document.paths["/api/auth/native/revoke"] = {
+document.paths["/api/v1/auth/native/revoke"] = {
   post: {
     operationId: "revokeNativeSession",
     summary: "Revoke the current native session",
@@ -153,7 +168,7 @@ document.paths["/api/auth/native/revoke"] = {
   },
 };
 
-document.paths["/api/cues/github-issues"] = {
+document.paths["/api/v1/cues/github-issues"] = {
   get: {
     operationId: "getNoxCueGitHubIssueSettings",
     summary: "List project GitHub-incident settings",
@@ -181,6 +196,7 @@ document.paths["/api/cues/github-issues"] = {
 function acceptsProjectToken(path, method) {
   if (method === "get" && /^\/api\/v1\/services(?:\/[^/]+(?:\/(?:setup|health))?)?$/.test(path)) return true;
   if (method === "get" && path === "/api/v1/feed") return true;
+  path = compatibilityApiPath(path);
   if (method === "get" && /^\/api\/(?:issues|prs)(?:\/|$)/.test(path)) return true;
   if (method === "post" && /^\/api\/projects\/[^/]+\/backfill-prs$/.test(path)) return true;
   if (/^\/api\/spots\/sites(?:\/|$)/.test(path)) return true;
@@ -208,10 +224,10 @@ document.paths["/api/v1/api-tokens/{id}/rotate"] = {
 
 const oldCuePath = document.paths["/v1/events"];
 if (oldCuePath) {
-  document.paths["/api/cues/public/v1/events"] = oldCuePath;
+  document.paths["/api/v1/cues/public/events"] = oldCuePath;
   delete document.paths["/v1/events"];
 }
-const cueIngest = document.paths["/api/cues/public/v1/events"].post;
+const cueIngest = document.paths["/api/v1/cues/public/events"].post;
 delete cueIngest.servers;
 cueIngest.summary = "Submit one standardized NoxCue event through the stable NoxConnect gateway";
 cueIngest.description = "Authenticated by X-Nox-Ingest-Key. Supply eventId or idempotencyKey when retrying error and feature events. User lifecycle facts are intrinsically deduplicated by source, user, type, and period.";
@@ -233,7 +249,7 @@ const queryParameters = {
     parameter("limit", { type: "integer", minimum: 1, maximum: 200, default: 25 }, "Maximum events"),
     parameter("before", { type: "string", maxLength: 200 }, "Composite cursor returned by the previous page"),
   ],
-  "/api/issues": [
+  "/api/v1/issues": [
     parameter("state", { type: "string" }, "Issue state filter"),
     parameter("repo", { type: "string" }, "Repository name"),
     parameter("page", { type: "integer", minimum: 1, default: 1 }, "Page number"),
@@ -241,14 +257,14 @@ const queryParameters = {
     parameter("sort", { type: "string" }, "Sort field"),
     parameter("sort_dir", { type: "string", enum: ["asc", "desc"] }, "Sort direction"),
   ],
-  "/api/prs": [
+  "/api/v1/prs": [
     parameter("state", { type: "string" }, "Pull-request state filter"),
     parameter("author", { type: "string" }, "GitHub author login"),
     parameter("repo", { type: "string" }, "Repository name"),
     parameter("page", { type: "integer", minimum: 1, default: 1 }, "Page number"),
     parameter("page_size", { type: "integer", minimum: 1, maximum: 500, default: 100 }, "Results per page"),
   ],
-  "/api/cues/events": [
+  "/api/v1/cues/events": [
     parameter("sourceId", { type: "string", format: "uuid" }, "Optional source filter"),
     parameter("limit", { type: "integer", minimum: 1, maximum: 100, default: 25 }, "Maximum recent events"),
   ],
@@ -257,13 +273,18 @@ for (const [path, parameters] of Object.entries(queryParameters)) {
   document.paths[path].get.parameters = parameters;
 }
 
-document.components.schemas.NoxFeedConfigPatch.properties.projectScope.description = "Null selects all projects; otherwise use the ID of an active project returned by GET /api/projects.";
+document.components.schemas.NoxFeedConfigPatch.properties.projectScope.description = "Null selects all projects; otherwise use the ID of an active project returned by GET /api/v1/projects.";
 
 for (const [path, pathItem] of Object.entries(document.paths)) {
   for (const [method, operation] of Object.entries(pathItem)) {
     if (!new Set(["get", "post", "put", "patch", "delete"]).has(method)) continue;
     const isV1 = path.startsWith("/api/v1/");
     if (isV1) {
+      for (const status of Object.keys(operation.responses)) {
+        if (/^[45]/.test(status) || status === "default") {
+          operation.responses[status] = { "$ref": "#/components/responses/V1Error" };
+        }
+      }
       for (const status of ["400", "401", "403", "429"]) {
         operation.responses[status] ??= { "$ref": "#/components/responses/V1Error" };
       }
@@ -274,7 +295,9 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
       operation.responses["401"] ??= { description: "Authentication required" };
       operation.responses["403"] ??= { description: "Insufficient access or service not enabled" };
     }
-    if (["member", "admin"].includes(operation["x-authentication"]) && !acceptsProjectToken(path, method)) {
+    if (["member", "admin"].includes(operation["x-authentication"])
+        && !operation["x-browser-session-only"]
+        && !acceptsProjectToken(path, method)) {
       operation.security = [
         { browserSession: [], organization: [] },
         { nativeSession: [], organization: [] },
@@ -317,6 +340,7 @@ function apiTokenOperation(operationId, summary, successStatus) {
       [successStatus]: { description: "Success", content: { "application/json": { schema: { "$ref": "#/components/schemas/JsonValue" } } } },
     },
     "x-required-role": "admin",
+    "x-browser-session-only": true,
   };
 }
 
@@ -339,11 +363,32 @@ function nativeAuthOperation(operationId, summary, requestSchema, description) {
 }
 
 function serviceTag(path) {
-  if (path.startsWith("/api/features") || path.startsWith("/api/specs")) return "NoxTicket";
-  if (path === "/api/v1/feed" || path.startsWith("/api/issues") || path.startsWith("/api/prs") || path.startsWith("/api/engineer-activity") || path.startsWith("/api/llm-settings")) return "NoxFeed";
-  if (path.startsWith("/api/spots")) return "NoxSpot";
-  if (path.startsWith("/api/cues")) return "NoxCue";
+  const compatibilityPath = compatibilityApiPath(path);
+  if (compatibilityPath.startsWith("/api/features") || compatibilityPath.startsWith("/api/specs")) return "NoxTicket";
+  if (path === "/api/v1/feed" || compatibilityPath.startsWith("/api/issues") || compatibilityPath.startsWith("/api/prs") || compatibilityPath.startsWith("/api/engineer-activity") || compatibilityPath.startsWith("/api/llm-settings")) return "NoxFeed";
+  if (compatibilityPath.startsWith("/api/spots")) return "NoxSpot";
+  if (compatibilityPath.startsWith("/api/cues")) return "NoxCue";
   return "NoxConnect";
+}
+
+function canonicalApiPath(path) {
+  if (path.startsWith("/api/v1/")) return path;
+  if (path.startsWith("/api/spots/public/v1/")) return path;
+  if (path === "/api/cues/public/v1/events") return "/api/v1/cues/public/events";
+  if (path === "/api/projects/routing/{projectId}") return "/api/v1/projects/{projectId}/routing";
+  if (path.startsWith("/api/")) return path.replace(/^\/api\//, "/api/v1/");
+  return path;
+}
+
+function compatibilityApiPath(path) {
+  if (!path.startsWith("/api/v1/")) return path;
+  if (/^\/api\/v1\/(?:services|api-tokens|feed)(?:\/|$)/.test(path)) return path;
+  if (/^\/api\/v1\/projects\/[^/]+\/routing$/.test(path)) return path.replace(
+    /^\/api\/v1\/projects\/([^/]+)\/routing$/,
+    "/api/projects/routing/$1",
+  );
+  if (path === "/api/v1/cues/public/events") return "/api/cues/public/v1/events";
+  return path.replace(/^\/api\/v1\//, "/api/");
 }
 
 function authenticationFor(operation) {

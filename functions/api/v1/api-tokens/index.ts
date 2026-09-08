@@ -96,8 +96,12 @@ export async function onRequestPost(context: AuthContext): Promise<Response> {
 function lifecycleDenied(context: AuthContext): Response | null {
   const denied = requireAdmin(context);
   if (denied) return apiError("admin_required", "Only an organization admin can manage API tokens", 403);
-  if (context.data.auth?.type === "api_token") {
-    return apiError("session_required", "API tokens cannot create, list, rotate, or revoke API tokens", 403);
+  if (context.data.auth?.type !== "session") {
+    return apiError(
+      "session_required",
+      "API token management requires an organization-admin browser session",
+      403,
+    );
   }
   return null;
 }

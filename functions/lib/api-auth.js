@@ -1,5 +1,6 @@
 import { decryptToken, encryptToken } from "./crypto";
 import { findOAuthRow, refreshWithGitHub, saveOAuthTokens } from "./oauth-tokens.js";
+import { compatibilityApiPath } from "./api-paths.js";
 
 export const SESSION_COOKIE = "__Host-nox_session";
 export const CSRF_COOKIE = "nox_csrf";
@@ -168,6 +169,7 @@ export async function resolveApiToken(db, bearer) {
 }
 
 export async function apiTokenProjectResource(db, pathname, orgId, searchParams = new URLSearchParams()) {
+  pathname = compatibilityApiPath(pathname);
   if (pathname === "/api/cues/metrics" && searchParams.get("sourceId")) {
     const row = await db.prepare(
       "SELECT project_id FROM cue_sources WHERE org_id = ? AND id = ?",
@@ -227,6 +229,7 @@ export function requiredApiTokenScope(pathname, method) {
   const match = pathname.match(/^\/api\/v1\/services\/([^/]+)/);
   if (match) return `${match[1]}:${access}`;
   if (pathname === "/api/v1/services" && access === "read") return "services:read";
+  pathname = compatibilityApiPath(pathname);
   if (pathname === "/api/v1/feed" || /^\/api\/(issues|prs|engineer-activity|llm-settings)(?:\/|$)/.test(pathname) || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return `noxfeed:${access}`;
   if (/^\/api\/spots(?:\/|$)/.test(pathname)) return `noxspot:${access}`;
   if (/^\/api\/cues(?:\/|$)/.test(pathname)) return `noxcue:${access}`;
@@ -236,6 +239,7 @@ export function requiredApiTokenScope(pathname, method) {
 export function projectScopedApiTokenPathSupported(pathname, method) {
   const verb = method.toUpperCase();
   if (verb === "GET" && /^\/api\/v1\/services(?:\/[^/]+(?:\/(?:setup|health))?)?$/.test(pathname)) return true;
+  pathname = compatibilityApiPath(pathname);
   if (verb === "GET" && pathname === "/api/v1/feed") return true;
   if (verb === "GET" && /^\/api\/(?:issues|prs)(?:\/|$)/.test(pathname)) return true;
   if (verb === "POST" && /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return true;

@@ -149,10 +149,10 @@
               <tr><td><span class="method write">POST</span>/api/v1/api-tokens</td><td>Create a one-project secret shown exactly once.</td><td>Admin browser session + CSRF</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/api-tokens/{id}/rotate</td><td>Revoke and replace a secret atomically.</td><td>Admin browser session + CSRF</td></tr>
               <tr><td><span class="method write">DELETE</span>/api/v1/api-tokens/{id}</td><td>Immediately revoke future API access.</td><td>Admin browser session + CSRF</td></tr>
-              <tr><td><span class="method write">POST</span>/api/auth/native/device/start</td><td>Start GitHub device approval without embedding a provider client secret.</td><td>First-party native client</td></tr>
-              <tr><td><span class="method write">POST</span>/api/auth/native/device/poll</td><td>Complete approval server-side and return only NoxConnect credentials.</td><td>Opaque device handle</td></tr>
-              <tr><td><span class="method write">POST</span>/api/auth/native/refresh</td><td>Rotate the access and refresh credentials.</td><td><code>nox_rt_…</code> refresh token</td></tr>
-              <tr><td><span class="method write">POST</span>/api/auth/native/revoke</td><td>Revoke the current native session on sign-out, including after access expiry.</td><td><code>nox_rt_…</code> rotating refresh credential</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/auth/native/device/start</td><td>Start GitHub device approval without embedding a provider client secret.</td><td>First-party native client</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/auth/native/device/poll</td><td>Complete approval server-side and return only NoxConnect credentials.</td><td>Opaque device handle</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/auth/native/refresh</td><td>Rotate the access and refresh credentials.</td><td><code>nox_rt_…</code> refresh token</td></tr>
+              <tr><td><span class="method write">POST</span>/api/v1/auth/native/revoke</td><td>Revoke the current native session on sign-out, including after access expiry.</td><td><code>nox_rt_…</code> rotating refresh credential</td></tr>
             </tbody>
           </table>
         </div>
@@ -298,7 +298,7 @@ curl -X PATCH https://app.noxhere.com/api/v1/services/noxfeed/config \
   -H <span class="token-string">"Content-Type: application/json"</span> \
   --data <span class="token-string">'{"projectScope":null}'</span></code></pre>
         </div>
-        <p class="field-note"><code>projectScope: null</code> means all projects. Otherwise supply an active project ID returned by <code>GET /api/projects</code>; arbitrary strings are rejected.</p>
+        <p class="field-note"><code>projectScope: null</code> means all projects. Otherwise supply an active project ID returned by <code>GET /api/v1/projects</code>; arbitrary strings are rejected.</p>
         <div class="callouts">
           <article class="callout safe"><h3>Service-scoped</h3><p>NoxConnect, NoxTicket, and NoxFeed expose strict writable fields in their service config response.</p></article>
           <article class="callout caution"><h3>Resource-scoped</h3><p>NoxSpot sites and NoxCue sources remain authoritative. Their service config is read-only and links to the correct child resources.</p></article>

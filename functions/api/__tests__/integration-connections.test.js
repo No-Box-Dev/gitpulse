@@ -59,7 +59,7 @@ describe("NoxConnect provider API", () => {
       expect.objectContaining({ id: "github", status: "connected", required: true }),
       expect.objectContaining({ id: "slack", status: "disconnected", required: false }),
     ]);
-    expect(body.connections[0].actions.connect.href).toBe("/api/integrations/connections/github/start");
+    expect(body.connections[0].actions.connect.href).toBe("/api/v1/integrations/connections/github/start");
     expect(JSON.stringify(body)).not.toContain("private");
     expect(JSON.stringify(body)).not.toContain("secret");
   });
@@ -73,7 +73,7 @@ describe("NoxConnect provider API", () => {
       status: "requires_user_action",
       url: "https://github.com/apps/noxconnect/installations/new",
       userAction: expect.objectContaining({ type: "open_url" }),
-      resume: expect.objectContaining({ href: "/api/integrations/setup" }),
+      resume: expect.objectContaining({ href: "/api/v1/integrations/setup" }),
     }));
   });
 

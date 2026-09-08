@@ -22,6 +22,13 @@ const services = buildServiceCatalog({
 });
 
 describe("capability discovery and OpenAPI stay aligned", () => {
+  it("publishes every first-party operation under the canonical v1 namespace", () => {
+    const nonCanonicalPaths = Object.keys(openapi.paths).filter((path) =>
+      !path.startsWith("/api/v1/") && !path.startsWith("/api/spots/public/v1/"),
+    );
+    expect(nonCanonicalPaths).toEqual([]);
+  });
+
   it("documents every operation advertised by every capability", () => {
     for (const service of services) {
       for (const capability of service.capabilities) {
@@ -77,7 +84,7 @@ describe("capability discovery and OpenAPI stay aligned", () => {
   });
 
   it("publishes NoxCue ingest through the stable application gateway", () => {
-    expect(openapi.paths["/api/cues/public/v1/events"]?.post).toBeDefined();
+    expect(openapi.paths["/api/v1/cues/public/events"]?.post).toBeDefined();
     expect(JSON.stringify(openapi)).not.toContain("workers.dev");
   });
 
@@ -91,8 +98,8 @@ describe("capability discovery and OpenAPI stay aligned", () => {
       id: "github_incidents",
       requires: ["github"],
       operations: expect.arrayContaining([
-        expect.objectContaining({ method: "GET", path: "/api/cues/github-issues" }),
-        expect.objectContaining({ method: "PUT", path: "/api/cues/github-issues" }),
+        expect.objectContaining({ method: "GET", path: "/api/v1/cues/github-issues" }),
+        expect.objectContaining({ method: "PUT", path: "/api/v1/cues/github-issues" }),
       ]),
     }));
 

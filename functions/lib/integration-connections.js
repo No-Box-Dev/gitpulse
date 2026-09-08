@@ -49,7 +49,7 @@ function buildGitHubConnection(provider, overview) {
     } : null,
     actions: {
       connect: overview.canConfigure && github.configured
-        ? action("POST", "/api/integrations/connections/github/start")
+        ? action("POST", "/api/v1/integrations/connections/github/start")
         : null,
       manage: github.connected ? action("GET", github.manageUrl, true) : null,
       disconnect: null,
@@ -80,11 +80,11 @@ function buildSlackConnection(provider, overview) {
     } : null,
     actions: {
       connect: overview.canConfigure && slack.configured
-        ? action("POST", "/api/integrations/connections/slack/start")
+        ? action("POST", "/api/v1/integrations/connections/slack/start")
         : null,
       manage: null,
       disconnect: overview.canConfigure && slack.connected
-        ? action("POST", "/api/integrations/connections/slack/disconnect")
+        ? action("POST", "/api/v1/integrations/connections/slack/disconnect")
         : null,
     },
   };

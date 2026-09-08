@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { onRequestPost as startDevice } from "../auth/native/device/start";
 import { onRequestPost as pollDevice } from "../auth/native/device/poll";
+import { nativeAuthRateLimit } from "../../lib/native-auth.js";
 
 const encryptionKey = "22".repeat(32);
 
@@ -61,6 +62,23 @@ describe("brokered native device authentication", () => {
     });
     expect(response.status).toBe(429);
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("uses an atomic D1 window when deployed on Pages", async () => {
+    const first = vi.fn(async () => ({ attempt_count: 11 }));
+    const bind = vi.fn(() => ({ first }));
+    const prepare = vi.fn(() => ({ bind }));
+    const result = await nativeAuthRateLimit(
+      { DB: { prepare } },
+      new Request("https://app.unticket.ai/api/auth/native/device/start", {
+        headers: { "CF-Connecting-IP": "192.0.2.10" },
+      }),
+      "device-start",
+    );
+
+    expect(result).toBe("limited");
+    expect(prepare).toHaveBeenCalledWith(expect.stringContaining("ON CONFLICT(rate_key) DO UPDATE"));
+    expect(bind).toHaveBeenCalledWith(expect.stringMatching(/^[a-f0-9]{64}$/), expect.any(Number));
   });
 
   it("keeps the GitHub device and provider tokens out of the native response and D1 plaintext", async () => {

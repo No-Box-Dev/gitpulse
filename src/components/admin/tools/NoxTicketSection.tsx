@@ -51,7 +51,7 @@ export function NoxTicketSection({ noxConnect }: { noxConnect: IntegrationsStatu
               {noxConnect.slack.connected ? (
                 <SlackRouteField label="NoxTicket" helpText="Feature and backlog activity. Leave blank to use the NoxConnect fallback." kind="noxticket" routeKey="noxTicketChannelId" />
               ) : (
-                <p className="text-xs text-stone-400">Connect Slack in NoxConnect before choosing a channel.</p>
+                <p className="text-xs text-stone-400">Connect Slack in Nox before choosing a channel.</p>
               )}
             </div>
           </div>

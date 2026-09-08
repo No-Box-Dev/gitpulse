@@ -59,9 +59,9 @@ export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enable
           type="button"
           onClick={() => onTabChange(getDefaultEnabledTab(enabledApps))}
           className="shrink-0 cursor-pointer font-display text-base tracking-tight text-stone-800"
-          aria-label="NoxConnect home"
+          aria-label="Nox home"
         >
-          <span className="font-bold">Nox</span><span className="font-normal">Connect</span>
+          <span className="font-bold">Nox</span>
         </button>
 
         <nav aria-label="Main views" aria-busy={pendingTab ? true : undefined} className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 md:flex">

@@ -35,7 +35,7 @@ describe("agent setup APIs", () => {
     const payload = `nonce:7:alice:${Date.now()}`;
     const state = `${payload}.${await signOAuthState("secret", payload)}`;
     const response = await slackHandoff({
-      request: new Request(`https://app.unticket.ai/api/slack/oauth/handoff?state=${encodeURIComponent(state)}`),
+      request: new Request(`https://app.noxhere.com/api/slack/oauth/handoff?state=${encodeURIComponent(state)}`),
       env: { SLACK_CLIENT_ID: "client", SLACK_CLIENT_SECRET: "secret" },
     });
     expect(response.status).toBe(302);
@@ -48,7 +48,7 @@ describe("agent setup APIs", () => {
     const payload = `nonce:7:alice:${Date.now() - 600_001}`;
     const state = `${payload}.${await signOAuthState("secret", payload)}`;
     const response = await slackHandoff({
-      request: new Request(`https://app.unticket.ai/api/slack/oauth/handoff?state=${encodeURIComponent(state)}`),
+      request: new Request(`https://app.noxhere.com/api/slack/oauth/handoff?state=${encodeURIComponent(state)}`),
       env: { SLACK_CLIENT_ID: "client", SLACK_CLIENT_SECRET: "secret" },
     });
     expect(response.status).toBe(400);
@@ -65,7 +65,7 @@ describe("agent setup APIs", () => {
   it("rejects unknown route names without mutating config", async () => {
     const DB = dbWithSettings({});
     const response = await patchRouting({
-      request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
+      request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { surprise: "C1" } }),
       }),
       env: { DB },
@@ -79,7 +79,7 @@ describe("agent setup APIs", () => {
   it("merges a routing patch with compare-and-swap and retires the combined NoxFeed route", async () => {
     const DB = dbWithSettings({ theme: "dark", slack: { noxFeedChannelId: "" } });
     const response = await patchRouting({
-      request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
+      request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
       env: { DB },
@@ -109,7 +109,7 @@ describe("agent setup APIs", () => {
       configRows: [{ data: JSON.stringify(oldSettings) }, { data: JSON.stringify(desiredSettings) }],
     });
     const response = await patchRouting({
-      request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
+      request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
       env: { DB }, data: { orgId: 7, orgLogin: "acme", isAdmin: true }, params: {},
@@ -124,7 +124,7 @@ describe("agent setup APIs", () => {
       configRows: [{ data: JSON.stringify(oldSettings) }, { data: JSON.stringify({ theme: "light", slack: {} }) }],
     });
     const response = await patchRouting({
-      request: new Request("https://app.unticket.ai/api/integrations/slack/routing", {
+      request: new Request("https://app.noxhere.com/api/integrations/slack/routing", {
         method: "PATCH", body: JSON.stringify({ routes: { noxfeed_posts: null } }),
       }),
       env: { DB }, data: { orgId: 7, orgLogin: "acme", isAdmin: true }, params: {},
@@ -142,7 +142,7 @@ describe("agent setup APIs", () => {
     ["noxfeed_daily_summary", "noxfeed_daily_summary"],
   ])("delegates the %s route using the legacy handler's accepted kind", async (route, kind) => {
     const response = await testRoute({
-      request: new Request("https://app.unticket.ai/api/integrations/slack/test", {
+      request: new Request("https://app.noxhere.com/api/integrations/slack/test", {
         method: "POST", body: JSON.stringify({ route, channelId: "C1" }),
       }),
       env: { DB: dbWithSettings({}) },

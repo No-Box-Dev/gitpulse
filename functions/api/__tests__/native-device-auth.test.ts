@@ -56,7 +56,7 @@ describe("brokered native device authentication", () => {
         GITHUB_APP_CLIENT_ID: "client-id",
         NATIVE_AUTH_RATE_LIMITER: { limit: vi.fn(async () => ({ success: false })) } as unknown as RateLimit,
       },
-      request: new Request("https://app.unticket.ai/api/auth/native/device/start", {
+      request: new Request("https://app.noxhere.com/api/auth/native/device/start", {
         method: "POST", body: JSON.stringify({ client: "noxfeed-mac" }),
       }),
     });
@@ -70,7 +70,7 @@ describe("brokered native device authentication", () => {
     const prepare = vi.fn(() => ({ bind }));
     const result = await nativeAuthRateLimit(
       { DB: { prepare } },
-      new Request("https://app.unticket.ai/api/auth/native/device/start", {
+      new Request("https://app.noxhere.com/api/auth/native/device/start", {
         headers: { "CF-Connecting-IP": "192.0.2.10" },
       }),
       "device-start",
@@ -108,7 +108,7 @@ describe("brokered native device authentication", () => {
 
     const started = await startDevice({
       env,
-      request: new Request("https://app.unticket.ai/api/auth/native/device/start", {
+      request: new Request("https://app.noxhere.com/api/auth/native/device/start", {
         method: "POST", body: JSON.stringify({ client: "noxfeed-mac" }),
         headers: { "Content-Type": "application/json" },
       }),
@@ -120,7 +120,7 @@ describe("brokered native device authentication", () => {
 
     const polled = await pollDevice({
       env,
-      request: new Request("https://app.unticket.ai/api/auth/native/device/poll", {
+      request: new Request("https://app.noxhere.com/api/auth/native/device/poll", {
         method: "POST", body: JSON.stringify({ client: "noxfeed-mac", device_code: startBody.device_code }),
         headers: { "Content-Type": "application/json" },
       }),

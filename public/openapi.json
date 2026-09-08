@@ -11,7 +11,7 @@
   },
   "servers": [
     {
-      "url": "https://app.unticket.ai",
+      "url": "https://app.noxhere.com",
       "description": "Hosted NoxConnect API"
     }
   ],

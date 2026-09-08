@@ -57,7 +57,7 @@ npx wrangler d1 migrations apply noxconnect --remote
 
 Create a GitHub App (Settings → Developer settings → GitHub Apps → New) with:
 
-- **Callback URL:** `https://<your-pages-domain>/api/auth/callback`
+- **Callback URL:** `https://<your-pages-domain>/auth/github/callback`
 - **Webhook URL:** `https://<your-pages-domain>/api/webhook`
 - **Webhook secret:** generate a random string; you'll set it as `GITHUB_WEBHOOK_SECRET`
 - **Permissions:** Repository → Contents (read), Issues (read/write), Pull requests (read), Metadata (read); Organization → Members (read)
@@ -74,26 +74,26 @@ Frontend build var (public) — set in `.env.local` for local builds and as a Pa
 VITE_GITHUB_APP_CLIENT_ID=<your app client id>
 ```
 
-Server-side secrets on the **Pages** project. The hosted instance deliberately
-keeps the legacy `unticket` project name because it owns `app.unticket.ai`:
+Server-side secrets on the **Pages** project. The canonical hosted project is
+`noxconnect`, which owns `app.noxhere.com`:
 
 ```bash
-npx wrangler pages secret put GITHUB_APP_ID         --project-name unticket
-npx wrangler pages secret put GITHUB_APP_CLIENT_ID  --project-name unticket
-npx wrangler pages secret put GITHUB_APP_CLIENT_SECRET --project-name unticket
-npx wrangler pages secret put GITHUB_APP_PRIVATE_KEY --project-name unticket
-npx wrangler pages secret put GITHUB_WEBHOOK_SECRET --project-name unticket
-npx wrangler pages secret put ENCRYPTION_KEY        --project-name unticket   # 64-char hex
-npx wrangler pages secret put ANTHROPIC_API_KEY     --project-name unticket
-npx wrangler pages secret put SLACK_CLIENT_ID       --project-name unticket
-npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name unticket
-npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name unticket
+npx wrangler pages secret put GITHUB_APP_ID         --project-name noxconnect
+npx wrangler pages secret put GITHUB_APP_CLIENT_ID  --project-name noxconnect
+npx wrangler pages secret put GITHUB_APP_CLIENT_SECRET --project-name noxconnect
+npx wrangler pages secret put GITHUB_APP_PRIVATE_KEY --project-name noxconnect
+npx wrangler pages secret put GITHUB_WEBHOOK_SECRET --project-name noxconnect
+npx wrangler pages secret put ENCRYPTION_KEY        --project-name noxconnect   # 64-char hex
+npx wrangler pages secret put ANTHROPIC_API_KEY     --project-name noxconnect
+npx wrangler pages secret put SLACK_CLIENT_ID       --project-name noxconnect
+npx wrangler pages secret put SLACK_CLIENT_SECRET   --project-name noxconnect
+npx wrangler pages secret put SLACK_SIGNING_SECRET  --project-name noxconnect
 ```
 
 Generate `ENCRYPTION_KEY` with `openssl rand -hex 32`. `REVIEW_RUNNER_TOKEN` (generate the same way) authorizes the local noxreview runner against `/api/review/*` — keep it out of any client-visible config:
 
 ```bash
-npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name unticket
+npx wrangler pages secret put REVIEW_RUNNER_TOKEN   --project-name noxconnect
 ```
 
 The **cron Worker** needs its own copy of the secrets it uses:
@@ -109,7 +109,7 @@ npx wrangler secret put ENCRYPTION_KEY       --name unticket-cron
 
 ### Provision the NoxConnect Slack app
 
-The versioned [`slack-app-manifest.json`](./slack-app-manifest.json) is the single source of truth for NoxConnect, the shared Slack app for NoxCue, NoxFeed, NoxKey, and NoxTicket. It configures the centralized OAuth callbacks, least-privilege bot scopes, Events API endpoint, and `app.unticket.ai` link unfurls. Generate a temporary **app configuration token** under [Your Apps](https://api.slack.com/apps), then create the shared app—or use `slack:push` with the existing app ID to rename and migrate that installation without creating a duplicate app:
+The versioned [`slack-app-manifest.json`](./slack-app-manifest.json) is the single source of truth for NoxConnect, the shared Slack app for NoxCue, NoxFeed, NoxKey, and NoxTicket. It configures the centralized OAuth callbacks, least-privilege bot scopes, Events API endpoint, and `app.noxhere.com` link unfurls. Generate a temporary **app configuration token** under [Your Apps](https://api.slack.com/apps), then create the shared app—or use `slack:push` with the existing app ID to rename and migrate that installation without creating a duplicate app:
 
 ```bash
 SLACK_CONFIG_TOKEN=xoxe.xoxp-... npm run slack:validate
@@ -173,7 +173,7 @@ proved locally.
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name unticket --branch main
+npx wrangler pages deploy dist --project-name noxconnect --branch main
 cd cron && npx wrangler deploy && cd ..
 cd workers/noxspot-capture && npm ci && npm run types && npm test && npx wrangler deploy && cd ../..
 ```
@@ -203,7 +203,7 @@ response Worker is built from the NoxFeed repository's `service/` directory.
 The safe manual order is NoxSpot API, NoxCue, NoxFeed response, Pages, then
 cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 Public NoxCue clients use the stable Pages gateway
-`https://app.unticket.ai/api/cues/public/v1/events`. It forwards through the
+`https://app.noxhere.com/api/cues/public/v1/events`. It forwards through the
 private `NOXCUE_RESPONSE` service binding, so copyable snippets do not expose or
 depend on the product Worker's deployment hostname. Keep the direct Worker URL
 for operator diagnostics only; it is not part of the public contract.

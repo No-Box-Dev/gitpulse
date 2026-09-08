@@ -16,7 +16,7 @@ function context(payload) {
   return {
     pending,
     value: {
-      request: new Request("https://app.unticket.ai/api/slack/interactions", {
+      request: new Request("https://app.noxhere.com/api/slack/interactions", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",

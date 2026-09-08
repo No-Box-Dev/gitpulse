@@ -35,7 +35,7 @@ function makeCtx({ body, timestamp, signature, env = {}, waitUntil = () => {} })
 
 describe("parseNoxConnectUrl", () => {
   it("parses a PR URL", () => {
-    expect(parseNoxConnectUrl("https://app.unticket.ai/prs/api/123")).toEqual({
+    expect(parseNoxConnectUrl("https://app.noxhere.com/prs/api/123")).toEqual({
       kind: "pr",
       repo: "api",
       number: 123,
@@ -43,7 +43,7 @@ describe("parseNoxConnectUrl", () => {
   });
 
   it("parses an issue URL", () => {
-    expect(parseNoxConnectUrl("https://app.unticket.ai/issues/api/45")).toEqual({
+    expect(parseNoxConnectUrl("https://app.noxhere.com/issues/api/45")).toEqual({
       kind: "issue",
       repo: "api",
       number: 45,
@@ -51,7 +51,7 @@ describe("parseNoxConnectUrl", () => {
   });
 
   it("parses a feature deep-link", () => {
-    expect(parseNoxConnectUrl("https://app.unticket.ai/?tab=sprint&f=7")).toEqual({
+    expect(parseNoxConnectUrl("https://app.noxhere.com/?tab=sprint&f=7")).toEqual({
       kind: "feature",
       number: 7,
     });
@@ -62,11 +62,11 @@ describe("parseNoxConnectUrl", () => {
   });
 
   it("returns null for unknown paths", () => {
-    expect(parseNoxConnectUrl("https://app.unticket.ai/random/path")).toBeNull();
+    expect(parseNoxConnectUrl("https://app.noxhere.com/random/path")).toBeNull();
   });
 
   it("returns null when the PR number isn't a number", () => {
-    expect(parseNoxConnectUrl("https://app.unticket.ai/prs/api/notanumber")).toBeNull();
+    expect(parseNoxConnectUrl("https://app.noxhere.com/prs/api/notanumber")).toBeNull();
   });
 });
 
@@ -120,7 +120,7 @@ describe("onRequestPost — signature gating", () => {
         type: "link_shared",
         channel: "C1",
         message_ts: "1.0",
-        links: [{ url: "https://app.unticket.ai/prs/api/1", domain: "app.unticket.ai" }],
+        links: [{ url: "https://app.noxhere.com/prs/api/1", domain: "app.noxhere.com" }],
       },
     });
     const sig = await signBody(SECRET, ts, body);

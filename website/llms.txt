@@ -18,12 +18,12 @@
 
 ## Backend
 
-- Workspace at app.unticket.ai — Cloudflare Workers + D1
+- Workspace at app.noxhere.com — Cloudflare Workers + D1
 - Connects to GitHub via a GitHub App installation
 - Data flows GitHub → workspace → app; nothing exposed publicly
 
 ## Docs
 
-- [Home](https://unticket.ai/)
-- [Privacy](https://unticket.ai/privacy.html)
-- [Terms](https://unticket.ai/terms.html)
+- [Home](https://feed.noxhere.com/)
+- [Privacy](https://feed.noxhere.com/privacy.html)
+- [Terms](https://feed.noxhere.com/terms.html)

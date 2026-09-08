@@ -25,7 +25,7 @@ import {
   verifySlackSignature,
 } from "../../lib/slack.js";
 
-const APP_HOST = "app.unticket.ai";
+const APP_HOST = "app.noxhere.com";
 
 export async function onRequestPost(context) {
   const { request, env } = context;

@@ -1,7 +1,7 @@
 # NoxConnect API standardization
 
 This document tracks the eight local standardization gates for the API served by
-`app.unticket.ai`. NoxConnect remains the shared foundation; the product services
+`app.noxhere.com`. NoxConnect remains the shared foundation; the product services
 remain bounded by capability and storage ownership.
 
 Last integrated verification: **2026-09-05**, rebased on `origin/main` at

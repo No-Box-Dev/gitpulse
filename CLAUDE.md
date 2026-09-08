@@ -12,16 +12,16 @@
 
 ## URLs
 
-- **Live:** https://app.unticket.ai
+- **Live:** https://app.noxhere.com
 - **Repo:** https://github.com/No-Box-Dev/noxconnect
-- **OAuth Callback:** https://app.unticket.ai/api/auth/callback
+- **OAuth Callback:** https://app.noxhere.com/auth/github/callback
 
 ## OAuth
 
 - GitHub App client ID (`Iv23l…`) — stored in noxkey at `noboxdev/noxconnect/GITHUB_APP_CLIENT_ID`. Used at BOTH build time (Vite injects it as `VITE_GITHUB_APP_CLIENT_ID` via the `VITE_GITHUB_CLIENT_ID` repo variable, see `deploy-pages.yml`) AND runtime (Cloudflare Pages secret `GITHUB_APP_CLIENT_ID` consumed by `functions/api/auth/callback.js`). Both must reference the same App — a mismatch makes the code exchange fail with "The code passed is incorrect or expired."
 - **Do not use the legacy OAuth App** (`Ov23l…`). NoxConnect auth is the GitHub App's user-authorization flow (`Iv23l…`); only that App has install + webhook permissions. An OAuth App client ID used for sign-in cannot be exchanged at the GitHub App callback.
 - Cloudflare Pages secrets: `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` (+ `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_ID`, `GITHUB_WEBHOOK_SECRET`, `ENCRYPTION_KEY`).
-- OAuth callback handled by Cloudflare Pages Function at `functions/api/auth/callback.js`
+- OAuth callback is exposed at `functions/auth/github/callback.js` and handled by the shared implementation in `functions/api/auth/callback.js`.
 
 ## Stack
 
@@ -182,7 +182,7 @@ Admins complete Slack OAuth once per organization, then configure shared fallbac
 - Bot scopes: `channels:read`, `groups:read`, `chat:write`, `chat:write.public`, `links:read`, `links:write` (the `chat:write.public` scope lets the bot post to public channels without being invited; `links:*` powers the unfurl handler below). Private channels require manual invite of the bot.
 - Provisioning: `slack-app-manifest.json` is the source of truth for the shared Slack app. `npm run slack:create` provisions it and `npm run slack:push` updates it via Slack's Manifest API; both use a temporary `SLACK_CONFIG_TOKEN`, while push also uses `SLACK_APP_ID`. The resulting `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, and `SLACK_SIGNING_SECRET` must be stored as Cloudflare Pages secrets. See `DEPLOY.md` for the full flow.
 
-**Link unfurls** — `functions/api/slack/events.js` handles the Slack Events API `link_shared` event so `app.unticket.ai` URLs pasted into Slack auto-expand into rich Block Kit cards (the same UX GitHub's app has). Three URL shapes unfurl: `/prs/{repo}/{n}` (PR title + author + draft/merged/closed/open state), `/issues/{repo}/{n}` (issue title + assignee + labels), and `/?tab=sprint&f={n}` (feature title + owners + kanban stage). Anything else falls through and Slack renders the raw URL. Endpoint is middleware-bypassed (auth is the Slack signing secret, not a bearer token); every request is verified via HMAC-SHA256 (`verifySlackSignature` in `slack.js` — 5-minute replay window). Data comes straight from D1 (`pull_requests`, `issues`, `features`), so unfurls reflect the last-webhook / last-sync state instantly. The unfurl work runs on `waitUntil` (Slack wants a fast ack); failures land in `op_failures` once the org is resolved. **Provisioning:** set the `SLACK_SIGNING_SECRET` Cloudflare Pages secret (Slack app → Basic Information → App Credentials → Signing Secret), then in Slack app admin: Event Subscriptions → **Request URL** = `https://app.unticket.ai/api/slack/events` (verifies via the `url_verification` handshake), and under **App Unfurl Domains** add `app.unticket.ai`. Existing installs from before the `links:*` scopes were added will stop unfurling until an admin re-runs Connect Slack (Slack scope additions require a re-consent).
+**Link unfurls** — `functions/api/slack/events.js` handles the Slack Events API `link_shared` event so `app.noxhere.com` URLs pasted into Slack auto-expand into rich Block Kit cards (the same UX GitHub's app has). Three URL shapes unfurl: `/prs/{repo}/{n}` (PR title + author + draft/merged/closed/open state), `/issues/{repo}/{n}` (issue title + assignee + labels), and `/?tab=sprint&f={n}` (feature title + owners + kanban stage). Anything else falls through and Slack renders the raw URL. Endpoint is middleware-bypassed (auth is the Slack signing secret, not a bearer token); every request is verified via HMAC-SHA256 (`verifySlackSignature` in `slack.js` — 5-minute replay window). Data comes straight from D1 (`pull_requests`, `issues`, `features`), so unfurls reflect the last-webhook / last-sync state instantly. The unfurl work runs on `waitUntil` (Slack wants a fast ack); failures land in `op_failures` once the org is resolved. **Provisioning:** set the `SLACK_SIGNING_SECRET` Cloudflare Pages secret (Slack app → Basic Information → App Credentials → Signing Secret), then in Slack app admin: Event Subscriptions → **Request URL** = `https://app.noxhere.com/api/slack/events` (verifies via the `url_verification` handshake), and under **App Unfurl Domains** add `app.noxhere.com`. Existing installs from before the `links:*` scopes were added will stop unfurling until an admin re-runs Connect Slack (Slack scope additions require a re-consent).
 
 ### Webhooks
 Real-time updates via GitHub org webhooks. Endpoint: `POST /api/webhook`. Verified with `GITHUB_WEBHOOK_SECRET` env var (HMAC-SHA256). Handles `issues`, `pull_request`, `member` events. On `issues.closed`, captures `sender.login` as `closed_by`. Setup instructions shown in Settings UI. Requires manual webhook creation in GitHub org settings (no `admin:org_hook` scope needed).

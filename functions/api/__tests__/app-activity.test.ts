@@ -28,7 +28,7 @@ function makeContext(existing: { registered_at: string; last_active_period: stri
         NOXCUE_INGEST: { fetch },
       },
       data: { userLogin: "Alice" },
-      request: new Request("https://app.unticket.ai/api/app-activity", app ? {
+      request: new Request("https://app.noxhere.com/api/app-activity", app ? {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ app }),

@@ -88,7 +88,7 @@ describe("NoxSpot daily Slack summaries", () => {
       [expect.objectContaining({ number: 31, submittedBy: "Ada" })],
       [expect.objectContaining({ number: 30, submittedBy: "Lin", resolution: expect.objectContaining({ number: 55 }) })],
       { filed: 1, solved: 1 },
-      "https://app.unticket.ai/share/storefront-portal",
+      "https://app.noxhere.com/share/storefront-portal",
     );
     expect(queue.send).toHaveBeenCalledWith(expect.objectContaining({ outboxId: "delivery-1" }));
     expect(statements.some(({ sql }) => sql.includes("source_id = ?"))).toBe(true);

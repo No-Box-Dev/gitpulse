@@ -28,7 +28,7 @@ function context({ count = 1, projectFound = true } = {}) {
     calls,
     value: {
       request: new Request(
-        "https://app.unticket.ai/api/slack/connections/conn-1",
+        "https://app.noxhere.com/api/slack/connections/conn-1",
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

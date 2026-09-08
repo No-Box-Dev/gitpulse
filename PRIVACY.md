@@ -1,8 +1,8 @@
 # Privacy Policy
 
-_Last updated: 2026-09-06_
+_Last updated: 2026-09-08_
 
-This describes how the **hosted** NoxConnect service at [app.unticket.ai](https://app.unticket.ai), operated by No-Box-Dev, handles data. Self-hosted instances store everything in your own Cloudflare account and are not covered here.
+This describes how the hosted **Nox** workspace at [app.noxhere.com](https://app.noxhere.com), operated by No-Box-Dev, handles data. NoxConnect is the connection layer used by the workspace. Self-hosted instances store everything in your own Cloudflare account and are not covered here.
 
 > This document is provided for transparency and is **not legal advice**. Have a lawyer review it before relying on it.
 

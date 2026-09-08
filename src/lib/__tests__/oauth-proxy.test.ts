@@ -20,14 +20,14 @@ describe("getOAuthLoginUrl", () => {
     expect(() => getOAuthLoginUrl()).toThrow(/VITE_GITHUB_APP_CLIENT_ID/);
   });
 
-  it("without proxy, uses /api/auth/callback redirect", async () => {
+  it("without proxy, uses the canonical GitHub callback redirect", async () => {
     await loadModule({
       VITE_GITHUB_APP_CLIENT_ID: "client1",
       VITE_OAUTH_PROXY_URL: undefined,
     });
     const url = getOAuthLoginUrl();
     expect(url).toContain("client_id=client1");
-    expect(url).toContain(encodeURIComponent(`${window.location.origin}/api/auth/callback`));
+    expect(url).toContain(encodeURIComponent(`${window.location.origin}/auth/github/callback`));
     expect(url).toContain("github.com/login/oauth/authorize");
   });
 

@@ -51,7 +51,7 @@ function context(db: ReturnType<typeof makeDb>, method: string, body?: unknown, 
     env: { DB: db },
     data: { orgId: 7, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin: admin },
     params: { id: "source-1", featureKey: "custom.journal.publish" },
-    request: new Request("https://app.unticket.ai/api/cues/sources/source-1/features", {
+    request: new Request("https://app.noxhere.com/api/cues/sources/source-1/features", {
       method,
       headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

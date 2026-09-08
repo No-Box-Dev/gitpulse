@@ -4,7 +4,7 @@ const target = new URL("../public/openapi.json", import.meta.url);
 const original = await readFile(target, "utf8");
 const document = JSON.parse(original);
 
-document.servers = [{ url: "https://app.unticket.ai", description: "Hosted NoxConnect API" }];
+document.servers = [{ url: "https://app.noxhere.com", description: "Hosted NoxConnect API" }];
 document.tags = [
   { name: "NoxConnect", description: "Connections, identity, repositories, projects, and shared delivery." },
   { name: "NoxTicket", description: "Features, workflow, specifications, and attachments." },

@@ -25,7 +25,7 @@ function context(authenticated: boolean, found = true, serviceResponse: Response
     context: {
       env: { DB: db, NOXSPOT_ASSETS: { get }, ...(serviceResponse ? { NOXSPOT_RESPONSE: { fetch: serviceFetch } } : {}) },
       params: { slug: "portal-token", siteId: "site-1", objectId: "shot.png" },
-      request: new Request("https://app.unticket.ai/screenshot", {
+      request: new Request("https://app.noxhere.com/screenshot", {
         headers: authenticated ? { Cookie: "noxspot_share_portal-token=session-token" } : {},
       }),
     },

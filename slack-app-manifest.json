@@ -13,12 +13,12 @@
       "always_online": false
     },
     "unfurl_domains": [
-      "app.unticket.ai"
+      "app.noxhere.com"
     ]
   },
   "oauth_config": {
     "redirect_urls": [
-      "https://app.unticket.ai/api/slack/oauth/callback"
+      "https://app.noxhere.com/api/slack/oauth/callback"
     ],
     "scopes": {
       "bot": [
@@ -33,14 +33,14 @@
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://app.unticket.ai/api/slack/events",
+      "request_url": "https://app.noxhere.com/api/slack/events",
       "bot_events": [
         "link_shared"
       ]
     },
     "interactivity": {
       "is_enabled": true,
-      "request_url": "https://app.unticket.ai/api/slack/interactions"
+      "request_url": "https://app.noxhere.com/api/slack/interactions"
     },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,

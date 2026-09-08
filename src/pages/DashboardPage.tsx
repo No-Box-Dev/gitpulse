@@ -66,7 +66,7 @@ export function DashboardPage() {
   const tabParam = searchParams.get("tab");
   const shouldStartOnSetup = !tabParam && noxConnect.data?.setup.needsOnboarding === true;
   // Repositories used to be a top-level view. Keep old bookmarks working,
-  // but resolve them directly into NoxConnect Admin.
+  // but resolve them directly into Nox Admin.
   const requestedTab = tabParam === "repos"
     ? "admin"
     : tabParam && VALID_TABS.has(tabParam) ? tabParam as TabId : null;

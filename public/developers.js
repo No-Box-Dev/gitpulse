@@ -138,7 +138,7 @@ function operationCard(operation) {
   body.append(badges);
   if (operation.description) body.append(element("p", operation.description));
   body.append(definition("Operation ID", operation.id));
-  if (operation.server && operation.server !== "https://app.unticket.ai") body.append(definition("Server", operation.server));
+  if (operation.server && operation.server !== "https://app.noxhere.com") body.append(definition("Server", operation.server));
   if (operation.parameters.length > 0) {
     const list = document.createElement("ul");
     for (const parameter of operation.parameters) {

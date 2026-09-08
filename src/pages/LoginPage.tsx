@@ -8,9 +8,9 @@ export function LoginPage() {
     <main className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-display mb-3 text-stone-800"><span className="font-bold">Nox</span><span className="font-normal">Connect</span></h1>
+          <h1 className="text-3xl font-display font-bold mb-3 text-stone-800">Nox</h1>
           <p className="text-stone-500">
-            AI-powered project management for GitHub
+            Your GitHub workspace for planning, feedback, and delivery
           </p>
         </div>
 
@@ -25,7 +25,7 @@ export function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-stone-600 mt-4">
-          Sign in installs NoxConnect on the orgs you choose. No personal access tokens — ever.
+          Nox uses the NoxConnect GitHub App for the organizations you choose. No personal access tokens — ever.
         </p>
       </div>
     </main>

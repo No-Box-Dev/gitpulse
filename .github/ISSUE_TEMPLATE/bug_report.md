@@ -26,7 +26,7 @@ What actually happened. Include screenshots or console/network errors if relevan
 
 ## Environment
 
-- Hosted (app.unticket.ai) or self-hosted:
+- Hosted (app.noxhere.com) or self-hosted:
 - Auth mode (GitHub App / PAT):
 - Browser + OS:
 - Commit / version (if self-hosted):

@@ -39,7 +39,7 @@ describe("external project share credentials", () => {
   });
 
   it("treats malformed cookie encoding as an absent session", () => {
-    const request = new Request("https://app.unticket.ai", { headers: { Cookie: "noxspot_share_demo=%" } });
+    const request = new Request("https://app.noxhere.com", { headers: { Cookie: "noxspot_share_demo=%" } });
     expect(readCookie(request, "noxspot_share_demo")).toBeNull();
   });
 });

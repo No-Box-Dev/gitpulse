@@ -19,7 +19,7 @@ const STATUS_PREFIX = "status:";
 // derived from the org's configured board stages — see ensureNoxTicketRepoLabels.
 export const FEATURE_LABELS = [
   { name: NOXTICKET_LABEL, color: "1B6971", description: "Tracked by NoxTicket" },
-  { name: "feature", color: "1B6971", description: "Feature managed by unticket.ai" },
+  { name: "feature", color: "1B6971", description: "Feature managed by Nox" },
   { name: "backlog", color: "94A3B8", description: "Feature parked in the backlog (hidden from the board)" },
 ];
 

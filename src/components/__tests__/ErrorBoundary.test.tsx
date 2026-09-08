@@ -77,7 +77,7 @@ describe("ErrorBoundary", () => {
     });
 
     function ChunkErrorChild(): React.JSX.Element {
-      throw new Error("Failed to fetch dynamically imported module: https://app.unticket.ai/assets/IssuesTab-DNuPGSj7.js");
+      throw new Error("Failed to fetch dynamically imported module: https://app.noxhere.com/assets/IssuesTab-DNuPGSj7.js");
     }
 
     render(
@@ -107,7 +107,7 @@ describe("ErrorBoundary", () => {
     );
 
     function ChunkErrorChild(): React.JSX.Element {
-      throw new Error("Failed to fetch dynamically imported module: https://app.unticket.ai/assets/CurrentTab-XYZ.js");
+      throw new Error("Failed to fetch dynamically imported module: https://app.noxhere.com/assets/CurrentTab-XYZ.js");
     }
 
     render(

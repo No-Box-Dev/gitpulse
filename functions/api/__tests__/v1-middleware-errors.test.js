@@ -4,7 +4,7 @@ import { onRequest } from "../../_middleware.js";
 describe("v1 middleware errors", () => {
   it("uses the coded v1 envelope before a handler runs", async () => {
     const response = await onRequest({
-      request: new Request("https://app.unticket.ai/api/v1/services"),
+      request: new Request("https://app.noxhere.com/api/v1/services"),
       env: {},
       data: {},
       next() { throw new Error("handler should not run"); },
@@ -19,7 +19,7 @@ describe("v1 middleware errors", () => {
 
   it("preserves the legacy error shape outside v1", async () => {
     const response = await onRequest({
-      request: new Request("https://app.unticket.ai/api/projects"),
+      request: new Request("https://app.noxhere.com/api/projects"),
       env: {},
       data: {},
       next() { throw new Error("handler should not run"); },
@@ -30,7 +30,7 @@ describe("v1 middleware errors", () => {
   it("lets the source-key-authenticated NoxCue gateway bypass GitHub auth", async () => {
     let continued = false;
     const response = await onRequest({
-      request: new Request("https://app.unticket.ai/api/cues/public/v1/events", { method: "POST" }),
+      request: new Request("https://app.noxhere.com/api/cues/public/v1/events", { method: "POST" }),
       env: {},
       data: {},
       next() { continued = true; return new Response(null, { status: 204 }); },

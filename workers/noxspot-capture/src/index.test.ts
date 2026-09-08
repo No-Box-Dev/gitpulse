@@ -215,7 +215,7 @@ describe("public capture Worker", () => {
   it("forwards only known Slack callback parameters to NoxConnect", async () => {
     const response = await SELF.fetch("https://capture.test/slack/callback?code=abc&state=signed&next=https://evil.test", { redirect: "manual" });
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("https://app.unticket.ai/api/slack/oauth/callback?code=abc&state=signed");
+    expect(response.headers.get("Location")).toBe("https://app.noxhere.com/api/slack/oauth/callback?code=abc&state=signed");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 

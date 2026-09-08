@@ -43,7 +43,7 @@ export function LlmSettingsSection() {
       </div>
 
       <p className="text-xs text-stone-400">
-        NoxConnect securely provides Anthropic for NoxFeed narration and matching. Clients do not need an API account or key.
+        Nox securely provides Anthropic for NoxFeed narration and matching. Clients do not need an API account or key.
       </p>
 
       {isLoading ? (

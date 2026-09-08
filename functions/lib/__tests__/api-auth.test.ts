@@ -59,9 +59,9 @@ describe("API authentication primitives", () => {
   it("requires same-origin double-submit CSRF proof on mutations", async () => {
     const csrfHash = await sha256("proof");
     const session = { csrf_hash: csrfHash };
-    const valid = new Request("https://app.unticket.ai/api/v1/services/noxfeed/config", {
+    const valid = new Request("https://app.noxhere.com/api/v1/services/noxfeed/config", {
       method: "PATCH",
-      headers: { Cookie: "nox_csrf=proof", "X-CSRF-Token": "proof", Origin: "https://app.unticket.ai" },
+      headers: { Cookie: "nox_csrf=proof", "X-CSRF-Token": "proof", Origin: "https://app.noxhere.com" },
     });
     const crossOrigin = new Request(valid.url, {
       method: "PATCH",

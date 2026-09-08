@@ -46,7 +46,7 @@ function context({ service = "noxticket", raw = null, method = "GET", body, etag
       env: { DB: db },
       data: { orgId: 7, orgLogin: "acme", userLogin: "alice", isAdmin },
       params: { service },
-      request: new Request(`https://app.unticket.ai/api/v1/services/${service}/config`, {
+      request: new Request(`https://app.noxhere.com/api/v1/services/${service}/config`, {
         method,
         headers,
         body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),

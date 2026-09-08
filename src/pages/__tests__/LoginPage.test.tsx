@@ -13,6 +13,13 @@ beforeEach(() => {
 });
 
 describe("LoginPage", () => {
+  it("presents Nox as the product and NoxConnect as its GitHub integration", () => {
+    mAuth.mockReturnValue({ loginWithOAuth: vi.fn() });
+    render(<LoginPage />);
+    expect(screen.getByRole("heading", { name: "Nox" })).toBeInTheDocument();
+    expect(screen.getByText(/Nox uses the NoxConnect GitHub App/)).toBeInTheDocument();
+  });
+
   it("calls loginWithOAuth when the GitHub button is clicked", () => {
     const loginWithOAuth = vi.fn();
     mAuth.mockReturnValue({ loginWithOAuth });

@@ -84,7 +84,7 @@ export function completedDailyDigestPeriod(nowMs: number) {
   return previousPeriod(localDateTime(nowMs, "UTC").period);
 }
 
-export function externalProjectPortalUrl(slug: unknown, publicOrigin = "https://app.unticket.ai") {
+export function externalProjectPortalUrl(slug: unknown, publicOrigin = "https://app.noxhere.com") {
   if (typeof slug !== "string" || !slug.trim()) return null;
   try {
     const origin = new URL(publicOrigin);

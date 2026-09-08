@@ -251,6 +251,14 @@ h1 {
 .button:hover { border-color: #c9c5c1; transform: translateY(-1px); }
 .button.accent { border-color: var(--coral-dark); background: var(--coral-dark); color: #fff9f7; }
 
+.compact-code {
+  margin: 18px 0 0;
+}
+
+.compact-code pre {
+  min-height: 252px;
+}
+
 .meta-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

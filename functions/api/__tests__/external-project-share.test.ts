@@ -76,7 +76,7 @@ function context(authenticated: boolean) {
   return {
     env: { DB: database(authenticated) },
     params: { slug: "portal-token" },
-    request: new Request("https://app.unticket.ai/api/public/project-shares/portal-token", {
+    request: new Request("https://app.noxhere.com/api/public/project-shares/portal-token", {
       headers: authenticated ? { Cookie: "noxspot_share_portal-token=session-token" } : {},
     }),
   };

@@ -52,7 +52,7 @@ function context(db: ReturnType<typeof makeDb>, method: "GET" | "POST" | "PUT", 
     env: { DB: db },
     data: { orgId: 7, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin: true },
     params: { id: "source-1" },
-    request: new Request("https://app.unticket.ai/api/cues/sources", {
+    request: new Request("https://app.noxhere.com/api/cues/sources", {
       method,
       headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

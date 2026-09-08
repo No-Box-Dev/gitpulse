@@ -101,7 +101,7 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
   });
 
-  it("redirects the former repos view into NoxConnect Admin", async () => {
+  it("redirects the former repos view into Nox Admin", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     renderAt("/?tab=repos");
     await waitFor(() => expect(screen.getByTestId("tab-admin")).toBeInTheDocument());
@@ -137,7 +137,7 @@ describe("DashboardPage", () => {
     expect(screen.queryByTestId("tab-issues")).not.toBeInTheDocument();
   });
 
-  it("keeps NoxConnect available when every optional app is disabled", async () => {
+  it("keeps the Nox workspace available when every optional app is disabled", async () => {
     mAuth.mockReturnValue({ selectedOrg: "acme" });
     mSettings.mockReturnValue({
       data: { apps: { noxfeed: false, noxticket: false, noxspot: false, noxcue: false } },

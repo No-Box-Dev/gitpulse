@@ -39,6 +39,12 @@ beforeEach(() => {
 });
 
 describe("TopNav", () => {
+  it("uses the Nox product brand for the main app", () => {
+    render(<TopNav activeTab="sprint" onTabChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Nox home" })).toHaveTextContent("Nox");
+    expect(screen.getByRole("button", { name: "Nox home" })).not.toHaveTextContent("Connect");
+  });
+
   it("renders one flat navigation menu", () => {
     render(<TopNav activeTab="sprint" onTabChange={vi.fn()} />);
     expect(screen.getAllByText("Features").length).toBeGreaterThan(0);

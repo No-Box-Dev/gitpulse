@@ -47,8 +47,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.129.0"
-          # Keep the legacy Pages project name: it owns app.unticket.ai.
-          command: pages deploy dist --project-name=unticket --branch=main
+          # app.noxhere.com is attached to the canonical NoxConnect project.
+          command: pages deploy dist --project-name=noxconnect --branch=main
 
       # Deploy the sibling cron Worker. It imports from functions/lib/, so
       # without this step Pages and cron drift out of sync — every change

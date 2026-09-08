@@ -226,7 +226,7 @@ function AddSiteModal({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
         <form onSubmit={submit} className="px-5 py-4 space-y-4">
           <p className="text-xs text-stone-500">
-            It uses this Unticket organization, project access, and Slack connection.
+            It uses this Nox workspace, project access, and Slack connection.
           </p>
           <label className="block text-xs font-medium text-stone-600">
             Name

@@ -31,7 +31,7 @@ function statementFor(sql) {
 
 function context({ provider, isAdmin = true } = {}) {
   return {
-    request: new Request("https://app.unticket.ai/api/integrations/connections"),
+    request: new Request("https://app.noxhere.com/api/integrations/connections"),
     params: { provider },
     env: {
       DB: { prepare: vi.fn((sql) => statementFor(sql)) },

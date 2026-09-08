@@ -5,12 +5,13 @@
  *   https://github.com/login/oauth/authorize?client_id=<App client id>...
  * No `scope` query param — GitHub Apps grant whatever the App was configured for.
  *
- * The Cloudflare Pages Function at /api/auth/callback exchanges the code.
+ * The Cloudflare Pages Function at /auth/github/callback exchanges the code.
  * VITE_OAUTH_PROXY_URL can override with an external proxy.
  */
 
 const PROXY_URL = import.meta.env.VITE_OAUTH_PROXY_URL as string | undefined;
 const CLIENT_ID = import.meta.env.VITE_GITHUB_APP_CLIENT_ID as string | undefined;
+const CALLBACK_PATH = "/auth/github/callback";
 
 export function getOAuthLoginUrl(): string {
   if (!CLIENT_ID) {
@@ -25,7 +26,7 @@ export function getOAuthLoginUrl(): string {
 
   const redirectUri = PROXY_URL
     ? `${PROXY_URL}?redirect=${encodeURIComponent(window.location.origin)}`
-    : `${window.location.origin}/api/auth/callback`;
+    : `${window.location.origin}${CALLBACK_PATH}`;
 
   const stateArray = new Uint8Array(32);
   crypto.getRandomValues(stateArray);

@@ -498,7 +498,7 @@ const REDIRECT_PATH = "/api/slack/oauth/callback";
 // NoxConnect is owned by central Nox. Every product starts OAuth here and the
 // code exchange must use this exact allowlisted URI as well; Slack rejects a
 // callback when the authorize and exchange redirect URIs differ.
-export const SLACK_OAUTH_REDIRECT_URI = "https://app.unticket.ai/api/slack/oauth/callback";
+export const SLACK_OAUTH_REDIRECT_URI = "https://app.noxhere.com/api/slack/oauth/callback";
 
 // NoxConnect has one OAuth owner and one callback. Ignore the retired
 // SLACK_OAUTH_REDIRECT_URI deployment variable so an old NoxSpot/Blindspot

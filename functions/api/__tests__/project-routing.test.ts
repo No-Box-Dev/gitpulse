@@ -56,7 +56,7 @@ function context(db: ReturnType<typeof makeDb>, { body, admin = true }:
     env: { DB: db, ENCRYPTION_KEY: "test" },
     data: { orgId: 7, orgLogin: "acme", isAdmin: admin },
     params: { id: "proj-playnist" },
-    request: new Request("https://app.unticket.ai/api/projects/routing/proj-playnist", {
+    request: new Request("https://app.noxhere.com/api/projects/routing/proj-playnist", {
       method: body === undefined ? "GET" : "PUT",
       headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

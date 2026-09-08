@@ -13,7 +13,7 @@ import { checkSlackOrgHealth, postSlackMessage } from "../../lib/slack.js";
 function context(body) {
   const calls = [];
   return {
-    request: new Request("https://app.unticket.ai/api/slack/test", {
+    request: new Request("https://app.noxhere.com/api/slack/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -103,7 +103,7 @@ describe("Slack route tests", () => {
     expect(postSlackMessage).toHaveBeenCalledWith(
       "xoxb-test",
       "C-ALERT",
-      expect.objectContaining({ text: expect.stringMatching(/^Playnist — test \d{4}-\d{2}-\d{2}: 0 filed, 0 solved — https:\/\/app\.unticket\.ai\/share\/playnist-portal$/) }),
+      expect.objectContaining({ text: expect.stringMatching(/^Playnist — test \d{4}-\d{2}-\d{2}: 0 filed, 0 solved — https:\/\/app\.noxhere\.com\/share\/playnist-portal$/) }),
     );
   });
 

@@ -42,7 +42,7 @@ function SiteSetup({ sites, loading }: { sites: NonNullable<ReturnType<typeof us
       <form onSubmit={submit} className="h-fit space-y-4 rounded-xl border border-stone-200 bg-white p-5">
         <div>
           <h2 className="font-medium text-stone-900">Add a capture site</h2>
-          <p className="mt-1 text-xs text-stone-500">It uses this NoxConnect organization, GitHub project access, and optional Slack connection.</p>
+          <p className="mt-1 text-xs text-stone-500">It uses this Nox workspace, GitHub project access, and optional Slack connection.</p>
         </div>
         <label className="block text-xs font-medium text-stone-600">
           Name

@@ -13,7 +13,7 @@ function context({
   unassignedCount = connectionCount,
   projectExists = true,
 } = {}) {
-  const request = new Request("https://app.unticket.ai/api/slack/oauth/start", {
+  const request = new Request("https://app.noxhere.com/api/slack/oauth/start", {
     method: "POST",
     ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }),
   });
@@ -113,7 +113,7 @@ describe("POST /api/slack/oauth/start team pinning", () => {
     const noBody = await onRequestPost(context({}));
     expect(noBody.status).toBe(200);
 
-    const broken = new Request("https://app.unticket.ai/api/slack/oauth/start", { method: "POST", body: "not-json" });
+    const broken = new Request("https://app.noxhere.com/api/slack/oauth/start", { method: "POST", body: "not-json" });
     const brokenResponse = await onRequestPost({ ...context(), request: broken });
     expect(brokenResponse.status).toBe(200);
   });

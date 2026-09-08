@@ -32,9 +32,9 @@ export const SERVICE_OFF_TEXT: Record<OptionalNoxAppId, string> = {
 export const NOX_APPS: readonly NoxAppDefinition[] = [
   {
     id: "noxconnect",
-    name: "NoxConnect",
-    shortName: "Connect",
-    description: "The base for all Nox apps.",
+    name: "Nox",
+    shortName: "Nox",
+    description: "Your shared workspace for every Nox app.",
     includes: "GitHub and Slack links, people, and shared setup",
     tabs: [{ id: "admin", label: "Admin" }],
     defaultTab: "admin",
@@ -95,7 +95,7 @@ export function getNoxApp(id: NoxAppId): NoxAppDefinition {
 
 export function getAppForTab(tab: TabId): NoxAppId | null {
   // `repos` is retained as a navigation alias for old links and command
-  // palette shortcuts; the view now lives under NoxConnect's Admin area.
+  // palette shortcuts; the view now lives under Nox's Admin area.
   if (tab === "repos") return "noxconnect";
   if (tab === "prs" || tab === "engineers") return "noxfeed";
   return APP_BY_TAB.get(tab) ?? null;

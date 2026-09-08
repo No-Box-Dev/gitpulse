@@ -23,7 +23,7 @@ function database(hasProject = true) {
 function context(db: ReturnType<typeof database>) {
   return {
     env: { DB: db }, data: { orgId: 7, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin: true },
-    request: new Request("https://app.unticket.ai/api/cues/shares", {
+    request: new Request("https://app.noxhere.com/api/cues/shares", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId: "playnist", password: "a-secure-dashboard-password" }),
     }),

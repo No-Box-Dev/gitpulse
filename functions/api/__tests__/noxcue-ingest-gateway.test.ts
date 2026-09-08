@@ -10,7 +10,7 @@ describe("NoxCue stable ingest gateway", () => {
     });
     const response = await onRequest({
       env: { NOXCUE_RESPONSE: { fetch } as unknown as Fetcher },
-      request: new Request("https://app.unticket.ai/api/cues/public/v1/events", {
+      request: new Request("https://app.noxhere.com/api/cues/public/v1/events", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Nox-Ingest-Key": "nox_secret_test" },
         body: JSON.stringify({ type: "user.active", userId: "user-1" }),
@@ -23,7 +23,7 @@ describe("NoxCue stable ingest gateway", () => {
   it("returns a retriable response when the service binding is unavailable", async () => {
     const response = await onRequest({
       env: {},
-      request: new Request("https://app.unticket.ai/api/cues/public/v1/events", { method: "POST" }),
+      request: new Request("https://app.noxhere.com/api/cues/public/v1/events", { method: "POST" }),
     });
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("60");
@@ -37,7 +37,7 @@ describe("NoxCue stable ingest gateway", () => {
           fetch: vi.fn().mockRejectedValue(new Error("binding unavailable")),
         } as unknown as Fetcher,
       },
-      request: new Request("https://app.unticket.ai/api/cues/public/v1/events", { method: "POST" }),
+      request: new Request("https://app.noxhere.com/api/cues/public/v1/events", { method: "POST" }),
     });
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("60");
@@ -51,7 +51,7 @@ describe("NoxCue stable ingest gateway", () => {
           fetch: vi.fn().mockResolvedValue(new Response("Worker not found", { status: 503 })),
         } as unknown as Fetcher,
       },
-      request: new Request("https://app.unticket.ai/api/cues/public/v1/events", { method: "POST" }),
+      request: new Request("https://app.noxhere.com/api/cues/public/v1/events", { method: "POST" }),
     });
     expect(response.status).toBe(503);
     expect(response.headers.get("Content-Type")).toContain("application/json");

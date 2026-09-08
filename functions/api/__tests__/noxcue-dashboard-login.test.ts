@@ -32,7 +32,7 @@ function database(password: Awaited<ReturnType<typeof hashSharePassword>>, attem
 function context(db: ReturnType<typeof database>, password: string) {
   return {
     env: { DB: db }, params: { slug: "dashboard-token" },
-    request: new Request("https://app.unticket.ai/api/public/cue-dashboards/dashboard-token/login", {
+    request: new Request("https://app.noxhere.com/api/public/cue-dashboards/dashboard-token/login", {
       method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.8" },
       body: JSON.stringify({ password }),
     }),

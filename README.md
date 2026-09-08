@@ -2,13 +2,19 @@
 
 NoxConnect is the shared GitHub, Slack, identity, and delivery foundation for the Nox product suite. It keeps provider access and organization data in one place while NoxFeed, NoxTicket, NoxSpot, and NoxCue own their product-specific views, setup, and behavior.
 
-- **NoxConnect** — GitHub/Slack connections, organization identity, people, repositories, issues, and pull-request plumbing
+The hosted workspace at [app.noxhere.com](https://app.noxhere.com) is branded **Nox**. The **NoxConnect** name is reserved for this connection layer, its API, and the shared GitHub and Slack app identities.
+
+The separate one-page product site for [noxhere.com](https://noxhere.com) lives
+in [`nox-site/`](./nox-site/) and deploys to its own static Cloudflare Pages
+project. It deliberately shares no application bindings or credentials.
+
+- **NoxConnect** — GitHub/Slack connections, project-owned multi-workspace routing, organization identity, people, repositories, issues, and pull-request plumbing
 - **NoxFeed** — current work, activity feed, issues, and release narratives
 - **NoxTicket** — features, backlog, specs, and board stages
 - **NoxSpot** — feedback widgets, sites, reports, and screenshots
 - **NoxCue** — closed user lifecycle events, governed feature health, immediate critical-error alerts, and project-configurable daily reports
 
-**Hosted (free):** [app.unticket.ai](https://app.unticket.ai) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md) · **Local E2E:** see [docs/LOCAL_E2E.md](./docs/LOCAL_E2E.md)
+**Hosted (free):** [app.noxhere.com](https://app.noxhere.com) · **Self-host:** see [DEPLOY.md](./DEPLOY.md) · **Architecture:** see [ARCHITECTURE.md](./ARCHITECTURE.md) · **Local E2E:** see [docs/LOCAL_E2E.md](./docs/LOCAL_E2E.md)
 
 > **License:** NoxConnect is **source-available** under the [PolyForm Noncommercial License 1.0.0](./LICENSE) — free for any non-commercial use, modify and self-host freely, but **commercial use is not permitted**. It is not an OSI "open source" license. See [LICENSE](./LICENSE).
 

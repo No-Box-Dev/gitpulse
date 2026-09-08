@@ -39,7 +39,7 @@ const NoxSpotAdminPage = lazy(() => import("@/components/admin/pages/NoxSpotAdmi
 const NoxCueAdminPage = lazy(() => import("@/components/admin/pages/NoxCueAdminPage").then((module) => ({ default: module.NoxCueAdminPage })));
 
 const ADMIN_SERVICES: AdminServiceDef[] = [
-  { id: "noxconnect", label: "NoxConnect" },
+  { id: "noxconnect", label: "Nox" },
   { id: "noxticket", label: "NoxTicket" },
   { id: "noxfeed", label: "NoxFeed" },
   { id: "noxspot", label: "NoxSpot" },
@@ -157,9 +157,9 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
     : !status.github.connected
       ? "Connect GitHub to get started"
       : status.github.bootstrapping
-        ? "NoxConnect is syncing your organization"
+        ? "Nox is syncing your organization"
         : !status.github.configured
-          ? "NoxConnect needs deployment setup"
+          ? "Nox needs deployment setup"
           : "The GitHub connection needs attention";
 
   return (
@@ -167,9 +167,9 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
       <AdminServiceNav sections={ADMIN_SERVICES} activeId={activeService} onChange={selectService} />
 
       <div className="min-w-0">
-          {/* NoxConnect — visible to everyone; controls gated per card */}
+          {/* Nox workspace — visible to everyone; controls gated per card */}
           {activeService === "noxconnect" ? <section className="space-y-6">
-            <div><h1 className="text-xl font-semibold text-stone-900">NoxConnect</h1><p className="mt-1 text-sm text-stone-500">{ADMIN_INTRO}</p></div>
+            <div><h1 className="text-xl font-semibold text-stone-900">Nox</h1><p className="mt-1 text-sm text-stone-500">{ADMIN_INTRO}</p></div>
             <div className="grid items-start gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
               <NoxConnectNavigation activeId={activeNoxConnectPanel} onChange={selectNoxConnectPanel} />
 
@@ -180,7 +180,7 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
                 className="min-w-0 space-y-6"
               >
                 {activeNoxConnectPanel === "overview" ? <>
-                  <SectionHeading title="Overview" description="See what is active and what NoxConnect is tracking." />
+                  <SectionHeading title="Overview" description="See what is active and what Nox is tracking." />
 
                   {noxConnect.isError ? connectionsError : status && (
                     <section className={`rounded-xl border p-5 ${status.setup.ready ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
@@ -204,7 +204,7 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h2 className="text-sm font-semibold text-stone-900">Tools</h2>
-                        <p className="mt-1 text-xs text-stone-500">Enabled products using this NoxConnect workspace.</p>
+                        <p className="mt-1 text-xs text-stone-500">Enabled products using this Nox workspace.</p>
                       </div>
                       <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
                         {OPTIONAL_NOX_APP_IDS.filter((appId) => isNoxAppEnabled(settings, appId)).length} active
@@ -293,7 +293,7 @@ export function AdminTab({ repoNames = [] }: { repoNames?: string[] }) {
                 </> : null}
 
                 {activeNoxConnectPanel === "repositories" ? <>
-                  <SectionHeading title="Repositories" description="Choose what NoxConnect tracks, then inspect repository activity." />
+                  <SectionHeading title="Repositories" description="Choose what Nox tracks, then inspect repository activity." />
                   <NewReposSection />
                   <TrackedReposSection />
                   <AdminGate title="Projects and routing" description="Group repositories into projects and choose project-specific product destinations.">
@@ -377,7 +377,7 @@ function NoxConnectNavigation({
   return (
     <nav
       role="tablist"
-      aria-label="NoxConnect settings"
+      aria-label="Nox settings"
       className="flex gap-1 overflow-x-auto border-b border-stone-200 pb-2 lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0"
     >
       {NOXCONNECT_PANELS.map((panel) => {

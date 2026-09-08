@@ -4,7 +4,7 @@ compatibility_date = "2024-12-01"
 
 [vars]
 SLACK_ACCEPT_LEGACY_INSTALLS = "true"
-NOXCONNECT_PUBLIC_URL = "https://app.unticket.ai"
+NOXCONNECT_PUBLIC_URL = "https://app.noxhere.com"
 
 # NoxSpot owns issue/Slack presentation. This private service binding exposes
 # its versioned renderer without sending product data over the public Internet.

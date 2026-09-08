@@ -23,7 +23,7 @@ function context(db: ReturnType<typeof makeDb>, q = "login") {
   return {
     env: { DB: db },
     data: { orgId: 7, orgLogin: "acme" },
-    request: new Request(`https://app.unticket.ai/api/search?q=${encodeURIComponent(q)}`),
+    request: new Request(`https://app.noxhere.com/api/search?q=${encodeURIComponent(q)}`),
   };
 }
 

@@ -21,7 +21,7 @@ describe("public NoxCue dashboard", () => {
     };
     const response = await onRequestGet({
       env: { DB: db }, params: { slug: "private-slug" },
-      request: new Request("https://app.unticket.ai/api/public/cue-dashboards/private-slug"),
+      request: new Request("https://app.noxhere.com/api/public/cue-dashboards/private-slug"),
     } as never);
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Password required", projectName: "Playnist" });

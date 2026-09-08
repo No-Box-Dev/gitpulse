@@ -40,7 +40,7 @@ function context(db: ReturnType<typeof makeDb>, body?: unknown, isAdmin = true) 
     env: { DB: db },
     data: { orgId: 2, orgLogin: "No-Box-Dev", userLogin: "jasper", isAdmin },
     params: { projectId: "playnist" },
-    request: new Request("https://app.unticket.ai/api/cues/projects/playnist/metrics", {
+    request: new Request("https://app.noxhere.com/api/cues/projects/playnist/metrics", {
       method: body === undefined ? "GET" : "PUT",
       headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

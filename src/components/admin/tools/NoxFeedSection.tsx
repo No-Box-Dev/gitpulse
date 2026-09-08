@@ -70,7 +70,7 @@ export function NoxFeedSection({ noxConnect }: { noxConnect: IntegrationsStatus 
                   />
                   <NoxFeedDailySummary />
                 </div>
-              ) : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">Connect Slack in NoxConnect before choosing channels.</p>}
+              ) : <p className="border-t border-stone-100 pt-4 text-xs text-stone-400">Connect Slack in Nox before choosing channels.</p>}
             </div>
           </div>
         ) : null}

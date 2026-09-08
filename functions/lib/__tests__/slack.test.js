@@ -135,7 +135,7 @@ describe("buildOAuthAuthorizeUrl", () => {
   });
 
   it("uses the direct central callback for NoxConnect", () => {
-    expect(SLACK_OAUTH_REDIRECT_URI).toBe("https://app.unticket.ai/api/slack/oauth/callback");
+    expect(SLACK_OAUTH_REDIRECT_URI).toBe("https://app.noxhere.com/api/slack/oauth/callback");
     const url = new URL(buildOAuthAuthorizeUrl(
       "client-123",
       "https://app.example.com",
@@ -186,17 +186,17 @@ describe("Slack app manifest", () => {
     expect(manifest.features.bot_user.display_name).toBe("NoxConnect");
     expect(manifest.oauth_config.scopes.bot).toEqual(SLACK_BOT_SCOPES);
     expect(manifest.oauth_config.redirect_urls).toEqual([
-      "https://app.unticket.ai/api/slack/oauth/callback",
+      "https://app.noxhere.com/api/slack/oauth/callback",
     ]);
     expect(manifest.settings.event_subscriptions).toEqual({
-      request_url: "https://app.unticket.ai/api/slack/events",
+      request_url: "https://app.noxhere.com/api/slack/events",
       bot_events: ["link_shared"],
     });
     expect(manifest.settings.interactivity).toEqual({
       is_enabled: true,
-      request_url: "https://app.unticket.ai/api/slack/interactions",
+      request_url: "https://app.noxhere.com/api/slack/interactions",
     });
-    expect(manifest.features.unfurl_domains).toEqual(["app.unticket.ai"]);
+    expect(manifest.features.unfurl_domains).toEqual(["app.noxhere.com"]);
   });
 });
 

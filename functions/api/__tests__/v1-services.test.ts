@@ -48,7 +48,7 @@ function statementFor(sql: string) {
 
 function context(service = "noxconnect") {
   return {
-    request: new Request(`https://app.unticket.ai/api/v1/services/${service}`),
+    request: new Request(`https://app.noxhere.com/api/v1/services/${service}`),
     params: { service },
     env: {
       DB: { prepare: vi.fn((sql: string) => statementFor(sql)) },

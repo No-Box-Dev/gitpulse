@@ -1,7 +1,17 @@
 import { saveOAuthTokens } from "../../lib/oauth-tokens";
 import { createBrowserSession, sessionCookies } from "../../lib/api-auth.js";
 
-export async function onRequestGet(context) {
+const CALLBACK_SECURITY_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, private",
+  "CDN-Cache-Control": "no-store",
+  "Cloudflare-CDN-Cache-Control": "no-store",
+  "Content-Security-Policy": "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+};
+
+export async function handleGitHubOAuthCallback(context) {
   const url = new URL(context.request.url);
   const code = url.searchParams.get("code");
   const setupAction = url.searchParams.get("setup_action");
@@ -14,27 +24,21 @@ export async function onRequestGet(context) {
     return new Response(null, {
       status: 302,
       headers: {
+        ...CALLBACK_SECURITY_HEADERS,
         Location: `${url.origin}/?install=ok`,
-        "Cache-Control": "no-store",
       },
     });
   }
 
   if (!code) {
-    return new Response(JSON.stringify({ error: "Missing code" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError("Missing code", 400);
   }
 
   const clientId = context.env.GITHUB_APP_CLIENT_ID;
   const clientSecret = context.env.GITHUB_APP_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return new Response(JSON.stringify({ error: "OAuth not configured" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError("OAuth not configured", 500);
   }
 
   // --- Server-side CSRF validation ---
@@ -45,10 +49,7 @@ export async function onRequestGet(context) {
   const stateCookie = cookies["ut_oauth_state"] || "";
 
   if (!stateParam || !stateCookie || stateParam !== stateCookie) {
-    return new Response(JSON.stringify({ error: "OAuth state mismatch — possible CSRF attack" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError("OAuth state mismatch — possible CSRF attack", 403);
   }
 
   // Exchange code for token with GitHub
@@ -67,10 +68,7 @@ export async function onRequestGet(context) {
 
   if (!tokenRes.ok) {
     console.error("[noxconnect oauth] token exchange returned", tokenRes.status);
-    return new Response(JSON.stringify({ error: "Authentication service temporarily unavailable" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError("Authentication service temporarily unavailable", 502);
   }
 
   let data;
@@ -78,24 +76,15 @@ export async function onRequestGet(context) {
     data = await tokenRes.json();
   } catch (e) {
     console.error("[noxconnect oauth] token exchange returned non-JSON:", e);
-    return new Response(JSON.stringify({ error: "Authentication service returned invalid response" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError("Authentication service returned invalid response", 502);
   }
 
   if (data.error) {
-    return new Response(JSON.stringify({ error: data.error_description }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError(data.error_description || "GitHub rejected the authorization code", 400);
   }
 
   if (!data.access_token) {
-    return new Response(JSON.stringify({ error: "OAuth response missing access token" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+    return callbackError("OAuth response missing access token", 502);
   }
 
   const encryptionKey = context.env.ENCRYPTION_KEY;
@@ -153,10 +142,8 @@ export async function onRequestGet(context) {
 
   const origin = url.origin;
   const headers = new Headers({
+    ...CALLBACK_SECURITY_HEADERS,
     Location: `${origin}/?login=ok`,
-    "Cache-Control": "no-store, no-cache, must-revalidate, private",
-    "CDN-Cache-Control": "no-store",
-    "Cloudflare-CDN-Cache-Control": "no-store",
     Pragma: "no-cache",
     Vary: "*",
   });
@@ -167,6 +154,22 @@ export async function onRequestGet(context) {
   return new Response(null, {
     status: 302,
     headers,
+  });
+}
+
+// Retired route tombstone. Returning 410 prevents Cloudflare Pages' SPA
+// fallback from making this removed OAuth endpoint look live.
+export function onRequestGet() {
+  return Response.json({ error: "OAuth callback removed" }, {
+    status: 410,
+    headers: CALLBACK_SECURITY_HEADERS,
+  });
+}
+
+function callbackError(error, status) {
+  return Response.json({ error }, {
+    status,
+    headers: CALLBACK_SECURITY_HEADERS,
   });
 }
 
@@ -182,6 +185,6 @@ function parseCookies(cookieHeader) {
 function jsonError(message, status) {
   return new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: { ...CALLBACK_SECURITY_HEADERS, "Content-Type": "application/json" },
   });
 }

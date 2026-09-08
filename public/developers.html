@@ -6,7 +6,7 @@
   <title>NoxConnect API — Developer documentation</title>
   <meta name="description" content="Build against the NoxConnect capability API: authentication, services, configuration, safe writes, and errors.">
   <meta name="theme-color" content="#FAFAF8">
-  <link rel="canonical" href="https://app.unticket.ai/developers">
+  <link rel="canonical" href="https://app.noxhere.com/developers">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/developers.css">
 </head>
@@ -60,7 +60,7 @@
           <a class="button" href="/openapi.json">Download OpenAPI</a>
         </div>
         <div class="meta-strip" role="group" aria-label="API facts">
-          <div class="meta-item"><span>Base URL</span><strong>https://app.unticket.ai</strong></div>
+          <div class="meta-item"><span>Base URL</span><strong>https://app.noxhere.com</strong></div>
           <div class="meta-item"><span>API version</span><strong>/api/v1</strong></div>
           <div class="meta-item"><span>Format</span><strong>application/json</strong></div>
           <div class="meta-item"><span>Contract</span><strong id="operation-total">Loading…</strong></div>
@@ -97,7 +97,7 @@
         </div>
         <div class="code-block">
           <div class="code-head"><span>terminal · list services</span><button class="copy-button" type="button" data-copy="curl-services">Copy</button></div>
-          <pre id="curl-services"><code>curl https://app.unticket.ai/api/v1/services \
+          <pre id="curl-services"><code>curl https://app.noxhere.com/api/v1/services \
   --header <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span></code></pre>
         </div>
         <div class="code-block">
@@ -139,7 +139,7 @@
         <p class="field-note">A NoxConnect <code>nox_sk_…</code> automation token authenticates API calls. It is separate from secrets stored or shared through NoxKey, and separate from the source keys used by public NoxCue/NoxSpot ingestion.</p>
         <div class="callouts">
           <article class="callout"><h3>Lifecycle and audit</h3><p>Automation tokens expire within 1–365 days, are shown once, and expose only a prefix afterward. Create, rotate, and revoke actions are audited. Browser provider-token refresh occurs only on the server.</p></article>
-          <article class="callout"><h3>API hosts</h3><p>Management and NoxCue ingest use <code>https://app.unticket.ai</code>. Origin-bound NoxSpot widget capture uses <code>https://api.noxspot.dev</code>; its operations declare that server in OpenAPI.</p></article>
+          <article class="callout"><h3>API hosts</h3><p>Management and NoxCue ingest use <code>https://app.noxhere.com</code>. Origin-bound NoxSpot widget capture uses <code>https://api.noxspot.dev</code>; its operations declare that server in OpenAPI.</p></article>
         </div>
         <div class="table-wrap">
           <table>
@@ -288,11 +288,11 @@ await noxcue.user.registered(user.id);</code></pre>
         <div class="code-block">
           <div class="code-head"><span>terminal · compare-and-swap update</span><button class="copy-button" type="button" data-copy="curl-config">Copy</button></div>
           <pre id="curl-config"><code><span class="token-comment"># 1. Read the current config and response ETag</span>
-curl -i https://app.unticket.ai/api/v1/services/noxfeed/config \
+curl -i https://app.noxhere.com/api/v1/services/noxfeed/config \
   -H <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span>
 
 <span class="token-comment"># 2. Patch only owned fields using that revision</span>
-curl -X PATCH https://app.unticket.ai/api/v1/services/noxfeed/config \
+curl -X PATCH https://app.noxhere.com/api/v1/services/noxfeed/config \
   -H <span class="token-string">"Authorization: Bearer $NOXCONNECT_API_TOKEN"</span> \
   -H <span class="token-string">'If-Match: "current-revision"'</span> \
   -H <span class="token-string">"Content-Type: application/json"</span> \
@@ -367,7 +367,7 @@ curl -X PATCH https://app.unticket.ai/api/v1/services/noxfeed/config \
           <article class="callout"><h3>Tenant-bound reads and writes</h3><p>The verified organization identity scopes backing queries and mutations.</p></article>
           <article class="callout"><h3>Conflict-safe changes</h3><p>Revision checks protect configuration from accidental lost updates and races.</p></article>
           <article class="callout"><h3>Human OAuth handoff</h3><p>Agents may initiate a connection, but a human approves provider authorization.</p></article>
-          <article class="callout"><h3>Stable migration path</h3><p>The contract begins at <code>app.unticket.ai/api/v1</code> and can move hosts without changing its shape.</p></article>
+          <article class="callout"><h3>Stable migration path</h3><p>The contract begins at <code>app.noxhere.com/api/v1</code> and can move hosts without changing its shape.</p></article>
           <article class="callout caution"><h3>Writes are not automatically retry-safe</h3><p>Retry reads freely. Retry configuration only after reading the latest revision. Do not retry other writes unless the operation documents idempotency or you can confirm the first attempt failed before processing.</p></article>
           <article class="callout caution"><h3>Destructive operations need confirmation</h3><p>Disconnect, delete, archive, close, and revoke operations are marked destructive. Confirm the target and organization immediately before calling them.</p></article>
           <article class="callout"><h3>Respect rate limits</h3><p>On <code>429</code>, wait for <code>Retry-After</code> when present and add jitter. Never poll setup more often than once every five seconds.</p></article>

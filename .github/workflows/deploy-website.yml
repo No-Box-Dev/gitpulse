@@ -1,12 +1,12 @@
 name: Deploy Website
 
-# unticket.ai publishes from this repo's `website/` on every push to main.
+# feed.noxhere.com publishes from this repo's `website/` on every push to main.
 # Mirror of NoxKey's deploy-website workflow.
 #
 # One-time provisioning (do this before the first push):
 #   1. In Cloudflare Dashboard → Workers & Pages → Create → Pages →
 #      Direct Upload. Name it `unticket-website`.
-#   2. Once created, add a custom domain `unticket.ai` (Cloudflare handles
+#   2. Once created, add the custom domain `feed.noxhere.com` (Cloudflare handles
 #      the cert if the zone is in your account).
 #   3. Add these repo secrets in GitHub:
 #        CLOUDFLARE_API_TOKEN   (Account → API Tokens → Edit Cloudflare

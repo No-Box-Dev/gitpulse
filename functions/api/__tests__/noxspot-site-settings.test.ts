@@ -38,7 +38,7 @@ function context(db: ReturnType<typeof database>, body: unknown) {
     env: { DB: db, ENCRYPTION_KEY: "key", TASK_QUEUE: { send: vi.fn() } },
     data: { orgId: 7, userLogin: "admin", isAdmin: true },
     params: { id: "site-1" },
-    request: new Request("https://app.unticket.ai/api/spots/sites/site-1", {
+    request: new Request("https://app.noxhere.com/api/spots/sites/site-1", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }),
   };

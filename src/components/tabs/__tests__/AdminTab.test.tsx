@@ -200,13 +200,13 @@ describe("AdminTab", () => {
     });
   });
 
-  it("names the core and ticket Admin pages NoxConnect and NoxTicket", () => {
+  it("names the main and ticket Admin pages Nox and NoxTicket", () => {
     render(
       <MemoryRouter>
         <AdminTab />
       </MemoryRouter>,
     );
-    expect(serviceButton("NoxConnect")).toHaveAttribute("aria-current", "page");
+    expect(serviceButton("Nox")).toHaveAttribute("aria-current", "page");
     expect(serviceButton("NoxTicket")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "General" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unticket" })).not.toBeInTheDocument();
@@ -255,7 +255,7 @@ describe("AdminTab", () => {
     expect(screen.getByText("Posts Backfill")).toBeInTheDocument();
     expect(screen.queryByText("Full Re-sync")).not.toBeInTheDocument();
 
-    fireEvent.click(serviceButton("NoxConnect"));
+    fireEvent.click(serviceButton("Nox"));
     fireEvent.click(screen.getByRole("tab", { name: /Maintenance/ }));
     expect((await screen.findAllByText("Full Re-sync")).length).toBeGreaterThan(0);
     expect(screen.getByText("Live Activity Backfill")).toBeInTheDocument();
@@ -270,12 +270,12 @@ describe("AdminTab", () => {
     expect(await screen.findByText("Project metric controls")).toBeInTheDocument();
   });
 
-  it("renders repositories inside NoxConnect", async () => {
+  it("renders repositories inside Nox", async () => {
     render(<MemoryRouter><AdminTab repoNames={["api", "web"]} /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole("tab", { name: /Repositories/ }));
     expect(await screen.findByTestId("admin-repositories")).toHaveTextContent("api,web");
-    expect(serviceButton("NoxConnect")).toHaveAttribute("aria-current", "page");
+    expect(serviceButton("Nox")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("tab", { name: /Repositories/ })).toHaveAttribute("aria-selected", "true");
   });
 
@@ -288,14 +288,14 @@ describe("AdminTab", () => {
     expect(screen.getByText(/Enable only the NoxConnect projects you actually use/i)).toBeInTheDocument();
   });
 
-  it("opens legacy repos links on NoxConnect", async () => {
+  it("opens legacy repos links on Nox", async () => {
     render(
       <MemoryRouter initialEntries={["/?tab=repos"]}>
         <AdminTab repoNames={["api"]} />
       </MemoryRouter>,
     );
 
-    expect(serviceButton("NoxConnect")).toHaveAttribute("aria-current", "page");
+    expect(serviceButton("Nox")).toHaveAttribute("aria-current", "page");
     expect(await screen.findByTestId("admin-repositories")).toHaveTextContent("api");
   });
 

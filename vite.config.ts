@@ -26,7 +26,7 @@ function oauthDevProxy(): Plugin {
       clientSecret = env.GITHUB_APP_CLIENT_SECRET ?? "";
     },
     configureServer(server) {
-      server.middlewares.use("/api/auth/callback", async (req, res) => {
+      server.middlewares.use("/auth/github/callback", async (req, res) => {
         const url = new URL(req.url ?? "", "http://localhost");
         const code = url.searchParams.get("code");
 
@@ -100,12 +100,8 @@ export default defineConfig(({ mode }) => {
       "/api": {
         // Where the dev server forwards /api/* calls. Override with VITE_API_TARGET
         // to point at your own deployed instance (defaults to the hosted app).
-        target: env.VITE_API_TARGET || "https://app.unticket.ai",
+        target: env.VITE_API_TARGET || "https://app.noxhere.com",
         changeOrigin: true,
-        // Don't proxy the OAuth callback — handled by oauthDevProxy above
-        bypass(req) {
-          if (req.url?.startsWith("/api/auth/callback")) return req.url;
-        },
       },
     },
   },

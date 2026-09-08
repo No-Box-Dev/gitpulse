@@ -15,7 +15,7 @@ import { onRequestGet as getRateLimit } from "../github/rate-limit.js";
 
 function context(path, { token = "user-token", orgId = 7, orgLogin = "acme" } = {}) {
   return {
-    request: new Request(`https://app.unticket.ai${path}`, {
+    request: new Request(`https://app.noxhere.com${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }),
     data: { orgId, orgLogin, userLogin: "ada" },

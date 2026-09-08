@@ -361,7 +361,7 @@ app.get("/health", (context) => {
 // never be supplied by the request.
 app.get("/slack/callback", (context) => {
   const source = new URL(context.req.url);
-  const target = new URL("https://app.unticket.ai/api/slack/oauth/callback");
+  const target = new URL("https://app.noxhere.com/api/slack/oauth/callback");
   for (const key of ["code", "state", "error"]) {
     const value = source.searchParams.get(key);
     if (value) target.searchParams.set(key, value);

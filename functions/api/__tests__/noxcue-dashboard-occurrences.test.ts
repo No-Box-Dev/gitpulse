@@ -76,7 +76,7 @@ describe("public NoxCue dashboard error logs", () => {
 
     const response = await onRequestGet({
       env: { DB: db }, params: { slug: "private-slug" },
-      request: new Request("https://app.unticket.ai/api/public/cue-dashboards/private-slug"),
+      request: new Request("https://app.noxhere.com/api/public/cue-dashboards/private-slug"),
     } as never);
     const body = await response.json() as { sources: Array<{
       features: Array<Record<string, unknown>>;

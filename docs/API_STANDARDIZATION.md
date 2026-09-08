@@ -4,8 +4,8 @@ This document tracks the eight local standardization gates for the API served by
 `app.noxhere.com`. NoxConnect remains the shared foundation; the product services
 remain bounded by capability and storage ownership.
 
-Last integrated verification: **2026-09-05**, rebased on `origin/main` at
-`ceb9c7a`.
+Last integrated verification: **2026-09-08**, based on `origin/main` at
+`40bd5b1`.
 
 ## Progress
 
@@ -18,7 +18,7 @@ Last integrated verification: **2026-09-05**, rebased on `origin/main` at
 | 5 | Authentication, authorization, and project scoping | Complete | HttpOnly browser sessions + CSRF; brokered native sessions; hashed, expiring, one-project API tokens; server-enforced service/resource scopes; secure GitHub-owner admin bootstrap |
 | 6 | Safe writes, revisions, errors, and compatibility | Complete | ETag/If-Match CAS, coded v1 errors, normalized legacy boundary |
 | 7 | OpenAPI, machine guidance, and overview | Complete | 63 paths and 86 classified operations, generated reference, agent guide, this overview |
-| 8 | Local verification | Complete | full regression suite plus an 88-check real multi-Worker end-to-end run |
+| 8 | Local verification | Complete | full regression suite plus a 92-check real multi-Worker end-to-end run |
 
 ## Service ownership
 
@@ -34,8 +34,11 @@ Last integrated verification: **2026-09-05**, rebased on `origin/main` at
 
 - This is the supported API contract, not an inventory of private callbacks,
   webhooks, or UI-only compatibility handlers.
-- Existing `/api/*` routes and the current UI remain operational during migration.
-- New automation starts at `/api/v1/services` and follows advertised operations.
+- Existing unversioned `/api/*` routes and the current UI remain operational as
+  compatibility adapters during migration.
+- Every first-party operation advertised for new clients is canonical under
+  `/api/v1/*`. New automation starts at `/api/v1/services` and follows those
+  advertised operations.
 - Provider credentials remain server-side and are never returned by discovery,
   setup, config, or health endpoints.
 - NoxSpot and NoxCue do not receive artificial organization-wide config documents;
@@ -57,8 +60,10 @@ routes were treated as compatibility contracts rather than rewritten in place.
 
 `GET /api/v1/services` and `GET /api/v1/services/{service}` now expose focus,
 description, enablement, blockers, access level, and every supported operation.
-An operation has a stable ID, method, path, authentication mode, and description.
-A test fails if an advertised operation is missing from OpenAPI or IDs collide.
+An operation has a stable ID, method, canonical v1 path, authentication mode,
+and description. Tests fail if an advertised operation is missing from OpenAPI,
+IDs collide, or its matching Pages Function does not explicitly export the
+documented HTTP method.
 
 ### 3. Setup and health
 
@@ -110,9 +115,10 @@ rejected. API v1 errors use `{ apiVersion, error: { code, message, details? } }`
 Legacy handlers keep their old response shape, and errors are normalized when
 they cross into v1.
 
-All v1 responses are JSON, `Cache-Control: no-store`,
+All v1 responses use `Cache-Control: no-store`,
 `X-Content-Type-Options: nosniff`, and link to `/openapi.json` as the service
-description.
+description. JSON errors use the coded envelope; successful file and streaming
+responses retain their native content type and body.
 
 ### 7. Contract and guidance
 
@@ -126,8 +132,15 @@ from that contract. Agent guidance documents the supported first-party auth
 boundary, safe human OAuth handoffs, config concurrency, resource ownership,
 routing, retry behavior, and errors.
 
+All 60 first-party application paths are published under `/api/v1`. The only
+three OpenAPI paths outside that namespace are NoxSpot's anonymous browser
+capture endpoints, which already use their own `/api/spots/public/v1/*`
+contract and separate origin. Explicit compatibility route modules keep the
+unversioned application handlers available without advertising them to new
+clients.
+
 NoxCue ingestion now has a stable same-origin public gateway at
-`/api/cues/public/v1/events`. It forwards through the private service binding,
+`/api/v1/cues/public/events`. It forwards through the private service binding,
 so client snippets no longer depend on a temporary Worker hostname.
 
 ### 8. Verification
@@ -140,25 +153,26 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
 ## Final verification results
 
 - Focused documentation/API contract run: passed.
-- Complete Vitest run: 172 files and 1,328 tests passed.
+- Complete Vitest run: 180 files and 1,366 tests passed.
 - ESLint: passed.
 - Pages Functions TypeScript check: passed.
 - Production Vite build: passed.
 - HTML validation: passed.
-- OpenAPI: valid JSON; 63 paths and 86 operations; deterministic drift check
-  passed. Redocly validates the contract with one pre-existing ambiguity warning
-  between the project-routing and project-archive path templates.
+- OpenAPI: valid JSON; 63 paths and 86 operations; deterministic drift and
+  route/method coverage checks passed. Canonical project routing uses
+  `/api/v1/projects/{projectId}/routing`, removing the former dynamic-route
+  ambiguity with project archive.
 - Patch hygiene: `git diff --check` passed.
 - Dependency audit: production and complete dependency trees both report zero
   known vulnerabilities after refreshing the lockfile within existing semver
   ranges (React Router 7.18.3, Vite 7.3.6, and Vitest 4.1.11).
 - Local end-to-end runtime: Wrangler 4.129.0 started NoxConnect, NoxSpot,
   NoxFeed, NoxCue, the cron Worker, and a disposable RPC caller against one fresh
-  local D1 database. All 88 readiness and functional checks passed, including
+  local D1 database. All 92 readiness and functional checks passed, including
   live GitHub identity plus opaque browser- and native-session authentication,
   native access/refresh rotation, CSRF rejection,
   project-scoped API-token create/list/rotate/revoke and adversarial isolation,
-  private RPC, service-bound NoxCue ingest,
+  canonical/legacy compatibility parity, private RPC, service-bound NoxCue ingest,
   persisted metrics, NoxSpot Queue submission, config compare-and-swap, and
   webhook HMAC verification. No production provider credential was loaded.
 - API-token lifecycle: actual local HTTP calls created a one-time

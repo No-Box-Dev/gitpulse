@@ -33,17 +33,22 @@ describe("API authentication primitives", () => {
     expect(requiredApiTokenScope("/api/v1/services/noxspot/config", "PATCH")).toBe("noxspot:write");
     expect(requiredApiTokenScope("/api/features/12", "DELETE")).toBeNull();
     expect(requiredApiTokenScope("/api/prs", "GET")).toBe("noxfeed:read");
+    expect(requiredApiTokenScope("/api/v1/prs", "GET")).toBe("noxfeed:read");
     expect(requiredApiTokenScope("/api/projects/proj_1/backfill-prs", "POST")).toBe("noxfeed:write");
     expect(requiredApiTokenScope("/api/cues/sources", "POST")).toBe("noxcue:write");
+    expect(requiredApiTokenScope("/api/v1/cues/sources", "POST")).toBe("noxcue:write");
   });
 
   it("allows only resource-safe project token routes", () => {
     expect(projectScopedApiTokenPathSupported("/api/v1/feed", "GET")).toBe(true);
     expect(projectScopedApiTokenPathSupported("/api/spots/sites/site-1", "PATCH")).toBe(true);
+    expect(projectScopedApiTokenPathSupported("/api/v1/spots/sites/site-1", "PATCH")).toBe(true);
     expect(projectScopedApiTokenPathSupported("/api/cues/sources/source-1/keys", "POST")).toBe(true);
+    expect(projectScopedApiTokenPathSupported("/api/v1/cues/sources/source-1/keys", "POST")).toBe(true);
     expect(projectScopedApiTokenPathSupported("/api/v1/services/noxfeed/config", "GET")).toBe(false);
     expect(projectScopedApiTokenPathSupported("/api/llm-settings", "GET")).toBe(false);
     expect(projectScopedApiTokenPathSupported("/api/features", "GET")).toBe(false);
+    expect(projectScopedApiTokenPathSupported("/api/v1/features", "GET")).toBe(false);
   });
 
   it("issues a hardened opaque session cookie and separate CSRF cookie", () => {

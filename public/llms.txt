@@ -12,7 +12,7 @@ NoxConnect is the shared connection and workspace foundation for every Nox servi
 - [NoxCue capabilities](/api/v1/services/noxcue)
 - [Per-service setup, config, and health contract](/docs/ai-setup.md#safe-configuration-updates)
 - [Agent setup guide](/docs/ai-setup.md)
-- [Resumable setup state](/api/integrations/setup)
+- [Resumable setup state](/api/v1/integrations/setup)
 
 Browser authentication uses GitHub OAuth to create an opaque HttpOnly NoxConnect session; provider tokens remain encrypted server-side. Automation uses an expiring `Authorization: Bearer nox_sk_…` token bound to one organization, one enabled project, and explicit NoxFeed/NoxSpot/NoxCue read/write scopes. Cross-project resources are hidden as not found. Public ingestion keys and private Worker bindings are separate credential classes. API-token lifecycle and provider setup require an organization-admin browser session.
 
@@ -20,6 +20,6 @@ Every service has `/api/v1/services/{service}/setup`, `/config`, and `/health`. 
 
 Each capability includes an `operations` array with its stable operation ID, HTTP method, path, authentication mode, and description. Follow those operations rather than guessing legacy routes. API v1 errors use `{ apiVersion, error: { code, message, details? } }`.
 
-An agent may initiate GitHub or Slack OAuth. Treat the returned `userAction.url` as a temporary secret and have a human open it in a browser; never prefetch or log it. Poll `/api/integrations/setup` no more than once every five seconds after approval. All channel discovery, organization routing, project/repository routing, verification, and disconnect operations are API-callable. Discover shared project routing at `/api/projects/routing`.
+An agent may initiate GitHub or Slack OAuth. Treat the returned `userAction.url` as a temporary secret and have a human open it in a browser; never prefetch or log it. Poll `/api/v1/integrations/setup` no more than once every five seconds after approval. All channel discovery, organization routing, project/repository routing, verification, and disconnect operations are API-callable. Discover shared project routing at `/api/v1/projects/routing`.
 
-Use `x-change-safety` in OpenAPI before writes. Do not blindly retry destructive or non-idempotent operations, honor `Retry-After` on `429`, and require user confirmation for deletes, disconnects, revocations, archives, and restores. NoxCue server applications ingest idempotent lifecycle events through `POST /api/cues/public/v1/events` with `X-Nox-Ingest-Key`.
+Use `x-change-safety` in OpenAPI before writes. Do not blindly retry destructive or non-idempotent operations, honor `Retry-After` on `429`, and require user confirmation for deletes, disconnects, revocations, archives, and restores. NoxCue server applications ingest idempotent lifecycle events through `POST /api/v1/cues/public/events` with `X-Nox-Ingest-Key`.

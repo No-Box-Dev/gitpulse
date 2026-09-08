@@ -114,11 +114,11 @@ export function applyServiceConfigPatch(service: ServiceId, current: NoxSettings
 export function serviceConfigLinks(service: ServiceId) {
   const base = `/api/v1/services/${service}`;
   const resources: Record<ServiceId, Record<string, string>> = {
-    noxconnect: { connections: "/api/integrations/connections", repositories: "/api/projects", people: "/api/actors" },
-    noxticket: { features: "/api/features", specifications: "/api/specs" },
-    noxfeed: { feed: "/api/v1/feed", aiSettings: "/api/llm-settings" },
-    noxspot: { sites: "/api/spots/sites" },
-    noxcue: { sources: "/api/cues/sources", metrics: "/api/cues/metrics" },
+    noxconnect: { connections: "/api/v1/integrations/connections", repositories: "/api/v1/projects", people: "/api/v1/actors" },
+    noxticket: { features: "/api/v1/features", specifications: "/api/v1/specs" },
+    noxfeed: { feed: "/api/v1/feed", aiSettings: "/api/v1/llm-settings" },
+    noxspot: { sites: "/api/v1/spots/sites" },
+    noxcue: { sources: "/api/v1/cues/sources", metrics: "/api/v1/cues/metrics" },
   };
   return { self: `${base}/config`, setup: `${base}/setup`, health: `${base}/health`, resources: resources[service] };
 }

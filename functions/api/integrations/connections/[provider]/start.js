@@ -25,7 +25,7 @@ export async function onRequestPost(context) {
       },
       resume: {
         method: "GET",
-        href: "/api/integrations/setup",
+        href: "/api/v1/integrations/setup",
         until: "steps.connect_github.state is complete",
       },
     });

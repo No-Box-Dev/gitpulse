@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { onRequest } from "../../_middleware.js";
 
 describe("v1 middleware errors", () => {
@@ -37,5 +37,45 @@ describe("v1 middleware errors", () => {
     });
     expect(continued).toBe(true);
     expect(response.status).toBe(204);
+  });
+
+  it("applies the v1 response contract after a canonical public handler runs", async () => {
+    const response = await onRequest({
+      request: new Request("https://app.noxhere.com/api/v1/cues/public/events", { method: "POST" }),
+      env: {},
+      data: {},
+      next() {
+        return new Response(JSON.stringify({ error: "Unknown source" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", "X-Trace-ID": "trace-1" },
+        });
+      },
+    });
+    expect(response.status).toBe(404);
+    expect(response.headers.get("X-Trace-ID")).toBe("trace-1");
+    expect(response.headers.get("Link")).toContain("/openapi.json");
+    expect(await response.json()).toEqual({
+      apiVersion: 1,
+      error: { code: "not_found", message: "Unknown source" },
+    });
+  });
+
+  it("does not expose an exception thrown by a canonical handler", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await onRequest({
+        request: new Request("https://app.noxhere.com/api/v1/cues/public/events", { method: "POST" }),
+        env: {},
+        data: {},
+        next() { throw new Error("database password was secret"); },
+      });
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({
+        apiVersion: 1,
+        error: { code: "internal_error", message: "Request failed" },
+      });
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 });

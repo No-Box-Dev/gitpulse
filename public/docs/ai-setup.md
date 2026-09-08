@@ -1,6 +1,6 @@
 # Nox setup for AI agents
 
-Use this workflow to configure NoxConnect without relying on the Settings UI. The canonical schema is [`/openapi.json`](/openapi.json), and current progress is always available from `GET /api/integrations/setup`.
+Use this workflow to configure NoxConnect without relying on the Settings UI. The canonical schema is [`/openapi.json`](/openapi.json), and current progress is always available from `GET /api/v1/integrations/setup`.
 
 ## Discover services and capabilities
 
@@ -56,7 +56,7 @@ or sources. Attempting to patch a resource-scoped service config returns
 
 ## Error contract
 
-New `/api/v1/services` endpoints use one error envelope:
+All canonical `/api/v1/*` endpoints use one error envelope:
 
 ```json
 {
@@ -77,31 +77,47 @@ responses so the current UI remains compatible.
 
 ## Authentication
 
-Send both headers on every `/api` request:
+Use the credential class that matches the client:
+
+- The web app authenticates with an opaque HttpOnly NoxConnect session cookie.
+  Browser mutations also send the matching CSRF proof. JavaScript never reads
+  the session or the encrypted GitHub provider token behind it.
+- First-party native apps use a short-lived `nox_at_…` bearer token and rotate it
+  with a `nox_rt_…` refresh token through `/api/v1/auth/native/*`.
+- User-approved automation uses an expiring, one-project `nox_sk_…` bearer token
+  with explicit service scopes. The token supplies its own organization and
+  project context; an optional `X-Org` or `X-Project-ID` may only repeat, never
+  override, those bounds.
+- Public NoxCue ingestion uses `X-Nox-Ingest-Key`. It never accepts a browser,
+  native, automation, GitHub, or Slack credential.
+
+A native or automation request uses:
 
 ```http
-Authorization: Bearer <GitHub OAuth access token>
-X-Org: <GitHub organization login>
+Authorization: Bearer <nox_at_… or nox_sk_…>
+X-Org: <GitHub organization login>  # required for native; optional for nox_sk
 ```
 
-The user must belong to the organization. Setup mutations require a Nox organization admin. Never place provider secrets or Slack bot tokens in request bodies; Nox stores provider credentials server-side.
+The user must belong to the organization. Setup mutations require a Nox
+organization admin browser session. Never place GitHub credentials or Slack bot
+tokens in request bodies; Nox stores provider credentials server-side.
 
 The hosted API is currently for first-party Nox clients and user-approved
-automation. It does not issue third-party OAuth client credentials. Obtain its
-bearer token through Nox's normal GitHub App sign-in flow and pass it to an agent
-only through the user's approved secret manager or runtime environment. Never
-extract a token from browser storage, ask a user to paste one into chat, or print
-or persist it in logs. A GitHub personal access token is supported only by the
-local read-only development flow described in the repository README; it is not
-the hosted API's integration model.
+automation. It does not issue third-party OAuth client credentials. Create an
+automation token from an authenticated organization-admin browser session and
+pass it to an agent only through the user's approved secret manager or runtime
+environment. Never extract a browser cookie, ask a user to paste a credential
+into chat, or print or persist it in logs. Direct GitHub bearer authentication is
+a temporary compatibility path for existing local clients; it is not the
+supported hosted API integration model.
 
 ## Resumable workflow
 
-1. Call `GET /api/integrations/setup` for the global onboarding workflow, or a service's `/setup` endpoint for its bounded view.
+1. Call `GET /api/v1/integrations/setup` for the global onboarding workflow, or a service's `/setup` endpoint for its bounded view.
 2. Execute actions whose `state` is `available` and whose `automatable` value is `true`.
 3. For a connection step, call its action. The result has `status: requires_user_action` and a `userAction.url`.
 4. Give that URL to the user and ask them to open it in a browser and approve the provider. Do not fetch it in a headless HTTP client.
-5. Poll `GET /api/integrations/setup` no more than once every five seconds until that step is `complete`, then continue.
+5. Poll `GET /api/v1/integrations/setup` no more than once every five seconds until that step is `complete`, then continue.
 
 GitHub and Slack consent are intentionally human actions. The Slack URL is a
 signed, single-purpose first-party browser handoff: opening it sets the OAuth
@@ -117,13 +133,13 @@ Slack connection step to obtain a fresh URL.
 Discover channels:
 
 ```http
-GET /api/slack/channels
+GET /api/v1/slack/channels
 ```
 
 Patch only the routes that should change:
 
 ```http
-PATCH /api/integrations/slack/routing
+PATCH /api/v1/integrations/slack/routing
 Content-Type: application/json
 
 {
@@ -142,15 +158,15 @@ Use `null` to clear a route. Service routes fall back to `fallback`; NoxSpot fir
 Project routing is owned by NoxConnect. Discover project candidates, their explicit enabled state, installed repositories, and current named destinations with:
 
 ```http
-GET /api/projects/routing
+GET /api/v1/projects/routing
 ```
 
-Update one project atomically with `PUT /api/projects/routing/{projectId}`. The body sets `enabled`, assigns its `repositories`, and supplies the `noxfeedPosts`, `noxfeedReleaseNotes`, and `noxCue` workspace/channel pairs. Repository mirror rows never participate until explicitly enabled. A repository belongs to one enabled project; assigning it here moves future traffic from its previous project. Empty destination pairs use the corresponding organization route. A project-assigned Slack workspace cannot be used by another project.
+Update one project atomically with `PUT /api/v1/projects/{projectId}/routing`. The body sets `enabled`, assigns its `repositories`, and supplies the `noxfeedPosts`, `noxfeedReleaseNotes`, and `noxCue` workspace/channel pairs. Repository mirror rows never participate until explicitly enabled. A repository belongs to one enabled project; assigning it here moves future traffic from its previous project. Empty destination pairs use the corresponding organization route. A project-assigned Slack workspace cannot be used by another project.
 
 Verify a saved route:
 
 ```http
-POST /api/integrations/slack/test
+POST /api/v1/integrations/slack/test
 Content-Type: application/json
 
 { "route": "noxfeed_release_notes" }
@@ -162,13 +178,13 @@ An optional `channelId` tests a candidate channel before saving it.
 
 After connections and organization routes are ready, feature-specific resources remain API-first:
 
-- NoxSpot sites: `GET`/`POST /api/spots/sites` and `PATCH /api/spots/sites/{siteId}`.
-- NoxCue sources: `GET/POST /api/cues/sources`, project metrics: `GET/PUT /api/cues/projects/{projectId}/metrics`, GitHub incident policy: `GET/PUT /api/cues/github-issues`, keys: `POST /api/cues/sources/{sourceId}/keys`, custom feature health under `/features`, and custom activity statistics under `/custom-metrics`. Register every `custom.*` name before ingest; linked staging and production sources share the project catalog, while an unlinked source stays isolated. Feature failures retain their actual technical error. Each custom activity event is idempotent and NoxCue derives total plus total per registered user. Unknown or paused names become bounded unregistered errors instead of creating definitions. GitHub incident routing additionally requires NoxConnect's GitHub connection and a repository linked to the selected project. A source destination overrides its linked project's `noxCue` route; otherwise the organization route is used. A newly created ingest key is returned only once; transfer it securely and never log it.
-- Public NoxCue clients submit events to the stable same-origin gateway `POST /api/cues/public/v1/events`; it forwards to NoxCue through a private service binding. Put the source key in `X-Nox-Ingest-Key`, not the Nox bearer-token headers. Configure each source's workspace, channel, IANA timezone, and local delivery time through its source API. Reusing the same event identity is idempotent.
+- NoxSpot sites: `GET`/`POST /api/v1/spots/sites` and `PATCH /api/v1/spots/sites/{siteId}`.
+- NoxCue sources: `GET/POST /api/v1/cues/sources`, project metrics: `GET/PUT /api/v1/cues/projects/{projectId}/metrics`, GitHub incident policy: `GET/PUT /api/v1/cues/github-issues`, keys: `POST /api/v1/cues/sources/{sourceId}/keys`, custom feature health under `/features`, and custom activity statistics under `/custom-metrics`. Register every `custom.*` name before ingest; linked staging and production sources share the project catalog, while an unlinked source stays isolated. Feature failures retain their actual technical error. Each custom activity event is idempotent and NoxCue derives total plus total per registered user. Unknown or paused names become bounded unregistered errors instead of creating definitions. GitHub incident routing additionally requires NoxConnect's GitHub connection and a repository linked to the selected project. A source destination overrides its linked project's `noxCue` route; otherwise the organization route is used. A newly created ingest key is returned only once; transfer it securely and never log it.
+- Public NoxCue clients submit events to the stable same-origin gateway `POST /api/v1/cues/public/events`; it forwards to NoxCue through a private service binding. Put the source key in `X-Nox-Ingest-Key`, not the Nox bearer-token headers. Configure each source's workspace, channel, IANA timezone, and local delivery time through its source API. Reusing the same event identity is idempotent.
 - NoxFeed resolves each GitHub repository through NoxConnect project routing before using the organization `noxfeed_posts` or `noxfeed_release_notes` route.
 - NoxTicket uses the `noxticket` route.
 
-Read the live endpoint response before acting; action links and state in `/api/integrations/setup` take precedence over this narrative guide.
+Read the live endpoint response before acting; action links and state in `/api/v1/integrations/setup` take precedence over this narrative guide.
 
 ## Mutation and retry safety
 

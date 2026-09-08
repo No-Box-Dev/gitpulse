@@ -21,7 +21,7 @@ function apiAction(method: string, href: string, bodySchema?: Record<string, unk
   return { method, href, ...(bodySchema ? { bodySchema } : {}) };
 }
 
-// GET /api/integrations/setup
+// GET /api/v1/integrations/setup
 // A resumable, machine-readable setup plan. Agents poll this endpoint after a
 // human completes either OAuth handoff and execute every available API action.
 export async function onRequestGet(context: Ctx): Promise<Response> {
@@ -56,7 +56,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       state: githubComplete ? "complete" : (isAdmin ? "available" : "blocked"),
       automatable: false,
       reason: githubComplete ? null : "GitHub requires a human to approve the App installation.",
-      action: githubComplete ? null : apiAction("POST", "/api/integrations/connections/github/start"),
+      action: githubComplete ? null : apiAction("POST", "/api/v1/integrations/connections/github/start"),
     },
     connect_slack: {
       title: "Connect Slack",
@@ -64,7 +64,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       state: slackComplete ? "complete" : (isAdmin ? "available" : "blocked"),
       automatable: false,
       reason: slackComplete ? null : "Slack requires a human workspace admin to approve OAuth.",
-      action: slackComplete ? null : apiAction("POST", "/api/integrations/connections/slack/start"),
+      action: slackComplete ? null : apiAction("POST", "/api/v1/integrations/connections/slack/start"),
     },
     configure_slack_routing: {
       title: "Configure Slack delivery routes",
@@ -73,9 +73,9 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       state: !slackComplete || !isAdmin ? "blocked" : (configuredRouteCount > 0 ? "complete" : "available"),
       automatable: true,
       action: slackComplete && isAdmin
-        ? apiAction("PATCH", "/api/integrations/slack/routing", SLACK_ROUTING_BODY_SCHEMA)
+        ? apiAction("PATCH", "/api/v1/integrations/slack/routing", SLACK_ROUTING_BODY_SCHEMA)
         : null,
-      discover: slackComplete && isAdmin ? apiAction("GET", "/api/slack/channels") : null,
+      discover: slackComplete && isAdmin ? apiAction("GET", "/api/v1/slack/channels") : null,
     },
     configure_project_routing: {
       title: "Group repositories and configure project routes",
@@ -83,8 +83,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       dependsOn: ["connect_github"],
       state: !githubComplete || !isAdmin ? "blocked" : (Number(projectRouteCount?.count || 0) > 0 ? "complete" : "available"),
       automatable: true,
-      action: githubComplete && isAdmin ? apiAction("PUT", "/api/projects/routing/{projectId}") : null,
-      discover: githubComplete && isAdmin ? apiAction("GET", "/api/projects/routing") : null,
+      action: githubComplete && isAdmin ? apiAction("PUT", "/api/v1/projects/{projectId}/routing") : null,
+      discover: githubComplete && isAdmin ? apiAction("GET", "/api/v1/projects/routing") : null,
       instructions: "Explicitly enable the NoxConnect projects you use, assign one or more repositories, and optionally set NoxFeed or NoxCue destinations.",
     },
     configure_noxfeed: {
@@ -93,7 +93,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       dependsOn: ["connect_slack"],
       state: !slackComplete || !isAdmin ? "blocked" : (hasRoute("postsChannelId") && hasRoute("releaseNotesChannelId") ? "complete" : "available"),
       automatable: true,
-      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing", {
+      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/v1/integrations/slack/routing", {
         type: "object",
         properties: { routes: { type: "object", properties: { noxfeed_posts: { type: ["string", "null"] }, noxfeed_release_notes: { type: ["string", "null"] }, noxfeed_daily_summary: { type: ["string", "null"] } } } },
       }) : null,
@@ -104,7 +104,7 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       dependsOn: ["connect_slack"],
       state: !slackComplete || !isAdmin ? "blocked" : (hasRoute("noxTicketChannelId") ? "complete" : "available"),
       automatable: true,
-      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/integrations/slack/routing") : null,
+      action: slackComplete && isAdmin ? apiAction("PATCH", "/api/v1/integrations/slack/routing") : null,
     },
     configure_noxcue: {
       title: "Configure NoxCue",
@@ -112,8 +112,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       dependsOn: ["connect_slack"],
       state: !slackComplete || !isAdmin ? "blocked" : (Number(cueCount?.count || 0) > 0 ? "complete" : "available"),
       automatable: true,
-      action: slackComplete && isAdmin ? apiAction("POST", "/api/cues/sources") : null,
-      discover: isAdmin ? apiAction("GET", "/api/cues/sources") : null,
+      action: slackComplete && isAdmin ? apiAction("POST", "/api/v1/cues/sources") : null,
+      discover: isAdmin ? apiAction("GET", "/api/v1/cues/sources") : null,
       instructions: "Create a user-stat source, link it to a project, select report metrics and a Slack destination, then create a one-time server ingest key.",
     },
     configure_noxspot: {
@@ -122,8 +122,8 @@ export async function onRequestGet(context: Ctx): Promise<Response> {
       dependsOn: ["connect_github"],
       state: !githubComplete || !isAdmin ? "blocked" : (Number(spotCount?.count || 0) > 0 ? "complete" : "available"),
       automatable: true,
-      action: githubComplete && isAdmin ? apiAction("POST", "/api/spots/sites") : null,
-      discover: githubComplete ? apiAction("GET", "/api/spots/sites") : null,
+      action: githubComplete && isAdmin ? apiAction("POST", "/api/v1/spots/sites") : null,
+      discover: githubComplete ? apiAction("GET", "/api/v1/spots/sites") : null,
     },
   };
 

@@ -33,9 +33,17 @@ describe("server app state", () => {
 
   it("maps only service-owned entry points and delivery work", () => {
     expect(appForApiPath("/api/features/12")).toBe("noxticket");
+    expect(appForApiPath("/api/v1/features/12")).toBe("noxticket");
     expect(appForApiPath("/api/v1/feed")).toBe("noxfeed");
+    expect(appForApiPath("/api/issues")).toBe("noxfeed");
+    expect(appForApiPath("/api/v1/issues")).toBe("noxfeed");
+    expect(appForApiPath("/api/v1/prs/close")).toBe("noxfeed");
+    expect(appForApiPath("/api/v1/engineer-activity")).toBe("noxfeed");
+    expect(appForApiPath("/api/v1/llm-settings")).toBe("noxfeed");
     expect(appForApiPath("/api/spots/sites")).toBe("noxspot");
+    expect(appForApiPath("/api/v1/spots/sites")).toBe("noxspot");
     expect(appForApiPath("/api/cues/sources")).toBe("noxcue");
+    expect(appForApiPath("/api/v1/cues/sources")).toBe("noxcue");
     expect(appForApiPath("/api/repos")).toBeNull();
     expect(appForDeliverySource("release_notes")).toBe("noxfeed");
     expect(appForDeliverySource("noxfeed_daily_summary")).toBe("noxfeed");

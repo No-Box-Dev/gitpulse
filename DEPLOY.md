@@ -135,7 +135,7 @@ Posts and Release Notes routes; NoxSpot can override the fallback per site. Priv
 channels must invite the same NoxConnect bot before they can be selected.
 
 Nox clients discover and manage these shared providers through the authenticated
-`/api/integrations/connections` registry. Connection start/disconnect actions are
+`/api/v1/integrations/connections` registry. Connection start/disconnect actions are
 admin-only and reuse the provider's existing OAuth security flow; the API never
 returns provider credentials or encrypted tokens.
 
@@ -203,7 +203,7 @@ response Worker is built from the NoxFeed repository's `service/` directory.
 The safe manual order is NoxSpot API, NoxCue, NoxFeed response, Pages, then
 cron. See `docs/SERVICE_BOUNDARIES.md` for the ownership and contract rules.
 Public NoxCue clients use the stable Pages gateway
-`https://app.noxhere.com/api/cues/public/v1/events`. It forwards through the
+`https://app.noxhere.com/api/v1/cues/public/events`. It forwards through the
 private `NOXCUE_RESPONSE` service binding, so copyable snippets do not expose or
 depend on the product Worker's deployment hostname. Keep the direct Worker URL
 for operator diagnostics only; it is not part of the public contract.

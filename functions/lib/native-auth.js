@@ -16,11 +16,28 @@ export class NativeAuthError extends Error {
 
 export async function nativeAuthRateLimit(env, request, operation) {
   const limiter = env?.NATIVE_AUTH_RATE_LIMITER;
-  if (!limiter || typeof limiter.limit !== "function") return "unavailable";
   const ip = request.headers.get("CF-Connecting-IP") || "local";
   const key = await sha256(`${operation}:${ip}`);
   try {
-    return (await limiter.limit({ key })).success ? "allowed" : "limited";
+    if (limiter && typeof limiter.limit === "function") {
+      return (await limiter.limit({ key })).success ? "allowed" : "limited";
+    }
+    if (!env?.DB) return "unavailable";
+    const windowStart = Math.floor(Date.now() / 60_000) * 60;
+    const row = await env.DB.prepare(
+      `INSERT INTO native_auth_rate_limits (rate_key, window_start, attempt_count, updated_at)
+       VALUES (?, ?, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+       ON CONFLICT(rate_key) DO UPDATE SET
+         attempt_count = CASE
+           WHEN native_auth_rate_limits.window_start = excluded.window_start
+             THEN native_auth_rate_limits.attempt_count + 1
+           ELSE 1
+         END,
+         window_start = excluded.window_start,
+         updated_at = excluded.updated_at
+       RETURNING attempt_count`,
+    ).bind(key, windowStart).first();
+    return Number(row?.attempt_count) <= 10 ? "allowed" : "limited";
   } catch {
     return "unavailable";
   }

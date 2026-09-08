@@ -38,6 +38,7 @@
       <div class="nav-group">
         <p class="nav-label">Platform</p>
         <a href="#services">Services</a>
+        <a href="#noxcue-sdk">NoxCue SDK</a>
         <a href="#control-plane">Control plane</a>
         <a href="#configuration">Configuration</a>
       </div>
@@ -188,6 +189,77 @@
             <div class="pills"><span class="pill">Sources</span><span class="pill">Ingest keys</span><span class="pill">Health metrics</span><span class="pill">GitHub incidents</span><span class="pill">Delivery</span></div>
           </article>
         </div>
+      </section>
+
+      <section class="section" id="noxcue-sdk">
+        <p class="section-kicker">NoxCue SDK</p>
+        <h2>Know when the product experience breaks</h2>
+        <p class="section-intro">NoxCue turns a few meaningful app outcomes into immediate, actionable alerts and a completed-day product pulse. It detects and preserves evidence; it never retries a user action, changes application state, or tries to replace logs, traces, and observability.</p>
+
+        <ol class="flow" aria-label="NoxCue setup flow">
+          <li class="flow-step"><span class="flow-number">01</span><strong>Create a source</strong><span>In NoxConnect, open NoxCue and create one source for each app environment. Link it to a project when the organization has more than one project.</span></li>
+          <li class="flow-step"><span class="flow-number">02</span><strong>Choose delivery</strong><span>Select the Slack workspace and channels for daily statistics and immediate alerts. Optionally connect a GitHub repository for deduplicated incident issues.</span></li>
+          <li class="flow-step"><span class="flow-number">03</span><strong>Create the right key</strong><span>Use an origin-restricted <code>nox_pub_…</code> publishable key in browsers or mobile clients. Keep a <code>nox_secret_…</code> key in the server's secret store for trusted user and activity facts.</span></li>
+          <li class="flow-step"><span class="flow-number">04</span><strong>Add outcome calls</strong><span>Wrap critical user journeys such as sign-up, login, password reset, and email verification. Send registration and meaningful activity facts from the trusted server.</span></li>
+          <li class="flow-step"><span class="flow-number">05</span><strong>Verify end to end</strong><span>Run <code>noxcue.test()</code> from the app. Setup becomes live only after NoxCue stores the event and Slack confirms delivery.</span></li>
+        </ol>
+
+        <div class="code-block">
+          <div class="code-head"><span>terminal · install</span><button class="copy-button" type="button" data-copy="noxcue-install">Copy</button></div>
+          <pre id="noxcue-install"><code>npm install @noxcue/sdk</code></pre>
+        </div>
+
+        <div class="callouts">
+          <article class="callout">
+            <h3>Browser outcomes</h3>
+            <p>Use a publishable key restricted to the exact production or staging origins. The wrapper returns the original result and rethrows the original application error unchanged.</p>
+            <div class="code-block compact-code">
+              <div class="code-head"><span>typescript · browser</span><button class="copy-button" type="button" data-copy="noxcue-browser">Copy</button></div>
+              <pre id="noxcue-browser"><code>import { createNoxCue } from <span class="token-string">"@noxcue/sdk/browser"</span>;
+
+const noxcue = createNoxCue({
+  key: import.meta.env.PUBLIC_NOXCUE_KEY,
+  environment: <span class="token-string">"production"</span>,
+  release: APP_VERSION,
+});
+
+await noxcue.auth.signup(() =&gt; auth.signUp(input));</code></pre>
+            </div>
+          </article>
+          <article class="callout">
+            <h3>Trusted product facts</h3>
+            <p>Use a secret key on the server. NoxCue hashes user identifiers, deduplicates facts, and computes daily totals, active users, stickiness, comparisons, and registered custom metrics centrally.</p>
+            <div class="code-block compact-code">
+              <div class="code-head"><span>typescript · server</span><button class="copy-button" type="button" data-copy="noxcue-server">Copy</button></div>
+              <pre id="noxcue-server"><code>import { createNoxCue } from <span class="token-string">"@noxcue/sdk/server"</span>;
+
+const noxcue = createNoxCue({
+  key: process.env.NOXCUE_INGEST_KEY!,
+  environment: <span class="token-string">"production"</span>,
+  release: process.env.APP_RELEASE,
+});
+
+await noxcue.user.registered(user.id);</code></pre>
+            </div>
+          </article>
+        </div>
+
+        <div class="principle">
+          <div class="principle-mark" aria-hidden="true">✓</div>
+          <div>
+            <h3>The SDK adds the evidence</h3>
+            <p>Every report includes occurrence time, source, environment, release, runtime, SDK version, duration, a safe URL, classification, and redacted error details. Delivery uses short timeouts, retries one transient failure with the same event ID, and never makes NoxCue availability part of the app's success path.</p>
+          </div>
+        </div>
+
+        <div class="callouts">
+          <article class="callout safe"><h3>Standard features</h3><p>Sign up, log in, password reset, and email verification work without inventing event names. A user rejection is recorded separately from a system failure, so invalid credentials do not become incidents.</p></article>
+          <article class="callout"><h3>Custom features and metrics</h3><p>Register every <code>custom.*</code> feature or activity name in NoxConnect first. Unknown names become one bounded configuration error instead of silently creating ungoverned telemetry.</p></article>
+          <article class="callout caution"><h3>Detection, not diagnosis theatre</h3><p>NoxCue groups equivalent failures under a readable fingerprint, keeps the original message and technical error, and provides possible causes and fixes for a developer to investigate. A later successful user action does not automatically close an incident.</p></article>
+          <article class="callout"><h3>Separate environments</h3><p>Production, staging, preview, development, and test each have their own source and key. Collection, daily digests, and alerts can be enabled independently, preventing staging noise from reaching production channels.</p></article>
+        </div>
+
+        <p class="field-note">Browser code can report feature outcomes and safe errors. Trusted user statistics and custom activity facts require the server entry point. Never ship a <code>nox_secret_…</code> key to a browser.</p>
       </section>
 
       <section class="section" id="control-plane">

@@ -29,4 +29,14 @@ describe("developer documentation", () => {
     expect(guide).toContain("POST /api/cues/public/v1/events");
     expect(guide).toContain("honor `Retry-After`");
   });
+
+  it("documents the minimal, environment-scoped NoxCue SDK flow", () => {
+    expect(html).toContain('id="noxcue-sdk"');
+    expect(html).toContain("npm install @noxcue/sdk");
+    expect(html).toContain('from <span class="token-string">"@noxcue/sdk/browser"</span>');
+    expect(html).toContain('from <span class="token-string">"@noxcue/sdk/server"</span>');
+    expect(html).toContain("await noxcue.auth.signup");
+    expect(html).toContain("await noxcue.user.registered");
+    expect(html).toContain("Never ship a <code>nox_secret_…</code> key to a browser");
+  });
 });

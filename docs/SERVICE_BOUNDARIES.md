@@ -9,14 +9,16 @@ services receive bounded domain records or public GitHub URLs only; they never
 receive an installation token, App private key, GitHub client, or permission to
 call GitHub directly. Generic issue transport lives in `functions/lib/github-issues.js`.
 Browser and native clients use `/api/auth/profile`, `/api/github/details`, and
-the other NoxConnect APIs rather than Octokit or `api.github.com`.
+the other NoxConnect APIs rather than Octokit or `api.github.com`. Native apps
+receive NoxConnect `nox_at_…`/`nox_rt_…` sessions; they do not keep or forward
+GitHub credentials after the one-time upgrade from an older release.
 
 | Product | Owns | Shared NoxConnect plumbing it uses |
 | --- | --- | --- |
 | NoxFeed | Narration prompts, release-note policy, Posts/Release Notes Slack blocks, delivery-test content | GitHub event intake, org/project data, LLM provider invocation, channel selection, outbox and delivery |
 | NoxSpot | Widget and capture runtime, issue rendering, feedback Slack blocks, delivery-test content | org/site administration, GitHub installation, destination selection, outbox and delivery |
 | NoxTicket | Feature/backlog behavior and ticket Slack content | GitHub issue transport, org/repository selection, destination selection, outbox and delivery |
-| NoxCue | Closed user-event validation, identity hashing, and Slack digest presentation | source/key administration, event facts, project metric selection, daily aggregation, destination selection, outbox and delivery |
+| NoxCue | Closed user-event validation, identity hashing, incident detection/repeat policy, and Slack digest presentation | source/key administration, event facts, project metric selection, daily aggregation, GitHub issue transport, destination selection, outbox and delivery |
 
 ## Runtime contracts
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Routes, Route, useSearchParams } from "react-router-dom";
+import { Routes, Route, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useOrgs } from "@/hooks/useGitHub";
 import { LoginPage } from "@/pages/LoginPage";
@@ -47,6 +47,7 @@ const PublicProjectSharePage = lazy(() =>
 const PublicNoxCueDashboardPage = lazy(() =>
   import("@/pages/PublicNoxCueDashboardPage").then((m) => ({ default: m.PublicNoxCueDashboardPage })),
 );
+const OperatorPage = lazy(() => import("@/pages/OperatorPage"));
 
 function PageFallback() {
   return (
@@ -81,6 +82,8 @@ function PrivateApp() {
   const { user, isLoading, authError, selectedOrg, setSelectedOrg } = useAuth();
   const { data: orgs, isLoading: orgsLoading } = useOrgs();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const isOperatorRoute = location.pathname === "/operator";
 
   // Shared links carry `?org=` (see lib/share-links.ts) so a colleague lands
   // on the right workspace even if their last-selected org differs. Apply it
@@ -150,6 +153,7 @@ function PrivateApp() {
   }
 
   if (!user) return <><Toaster /><LoginPage /></>;
+  if (isOperatorRoute) return <><Toaster /><Suspense fallback={<PageFallback />}><OperatorPage /></Suspense></>;
   if (!selectedOrg) return <><Toaster /><OrgPickerPage /></>;
   return <><Toaster /><AuthenticatedRoutes /></>;
 }

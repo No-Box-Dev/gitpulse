@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronDown, LogOut, Search, Settings } from "lucide-react";
+import { ArrowLeftRight, BarChart3, ChevronDown, LogOut, Search, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useIsAdmin, useRateLimit, useUnacknowledgedRepos } from "@/hooks/useGitHub";
+import { useIsAdmin, useMe, useRateLimit, useUnacknowledgedRepos } from "@/hooks/useGitHub";
 import { getDefaultEnabledTab, type NoxAppId } from "@/lib/apps";
 import { cn } from "@/lib/cn";
 import type { TabId } from "@/lib/types";
@@ -29,6 +29,7 @@ export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enable
   const { data: rateLimit } = useRateLimit();
   const isRateLimited = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2;
   const isAdmin = useIsAdmin();
+  const me = useMe();
   const unacked = useUnacknowledgedRepos();
   const newRepoCount = isAdmin ? unacked.length : 0;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -128,6 +129,11 @@ export function TopNav({ activeTab, pendingTab, onTabChange, onTabIntent, enable
                   <div className="truncate text-sm text-stone-700">{user?.name ?? user?.login}</div>
                   {user?.name ? <div className="truncate text-xs text-stone-400">@{user.login}</div> : null}
                 </div>
+                {me.data?.isPlatformOperator ? (
+                  <a href="/operator" onClick={() => setMenuOpen(false)} className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-stone-600 hover:bg-stone-50">
+                    <BarChart3 className="h-4 w-4" /> Business overview
+                  </a>
+                ) : null}
                 <button type="button" onClick={() => { setSelectedOrg(null); setMenuOpen(false); }} className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-stone-600 hover:bg-stone-50">
                   <ArrowLeftRight className="h-4 w-4" /> Switch Organisation
                 </button>

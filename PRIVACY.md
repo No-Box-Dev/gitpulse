@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: 2026-06-03_
+_Last updated: 2026-09-06_
 
 This describes how the **hosted** NoxConnect service at [app.unticket.ai](https://app.unticket.ai), operated by No-Box-Dev, handles data. Self-hosted instances store everything in your own Cloudflare account and are not covered here.
 
@@ -14,6 +14,9 @@ When you connect a GitHub organisation, NoxConnect syncs and stores GitHub data 
 - **Organisation members and teams**
 - **Activity events** (PR opens/merges/closes, issue activity, reviews, pushes, releases)
 - **Configuration you create** in the app (tracked repos, people, board settings, agent rules)
+- **Product lifecycle metadata** (GitHub account, organization, Nox product,
+  first registration, and most recent active day) used to operate the service
+  and understand aggregate product adoption
 
 We do not store your source code.
 
@@ -35,6 +38,11 @@ NoxConnect can narrate certain activity (currently pull-request merges) using An
 
 - No third-party analytics, advertising, or tracking pixels
 - No selling or sharing of your data with third parties (other than the infrastructure and LLM providers needed to run the service: Cloudflare and the configured LLM provider)
+
+Authorized No-Box-Dev operators can view aggregate organization, account, and
+product-activity counts for service operation and commercial planning. This
+internal view does not include repository content, issues, pull requests,
+prompts, feed content, access tokens, or secrets.
 
 ## Sub-processors
 

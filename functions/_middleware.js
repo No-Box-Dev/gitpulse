@@ -42,7 +42,7 @@ async function validateGitHubToken(token) {
   const cacheKey = await hashToken(token);
   const cached = tokenCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return { login: cached.login, _cacheKey: cacheKey };
+    return { login: cached.login, id: cached.id, _cacheKey: cacheKey };
   }
 
   const res = await fetch("https://api.github.com/user", {
@@ -71,9 +71,19 @@ async function validateGitHubToken(token) {
   const user = await res.json();
   tokenCache.set(cacheKey, {
     login: user.login,
+    id: user.id,
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
-  return { login: user.login, _cacheKey: cacheKey };
+  return { login: user.login, id: user.id, _cacheKey: cacheKey };
+}
+
+export function isPlatformOperator(env, githubUserId) {
+  if (!Number.isSafeInteger(githubUserId)) return false;
+  const allowed = String(env.PLATFORM_ADMIN_GITHUB_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return allowed.includes(String(githubUserId));
 }
 
 /**
@@ -179,6 +189,8 @@ export async function onRequest(context) {
   let credentialId;
   let token = null;
   let userLogin;
+  let userId;
+  let platformOperator = false;
   let orgLogin;
   let orgRow;
   let isAdmin = false;
@@ -304,6 +316,23 @@ export async function onRequest(context) {
     }
 
     userLogin = validation.login;
+    userId = Number(validation.id);
+    platformOperator = isPlatformOperator(context.env, userId);
+
+    // Global operator reads use the same verified GitHub identity but are
+    // deliberately outside customer organization and project scope.
+    if (url.pathname.startsWith("/api/operator/")) {
+      if (!platformOperator) {
+        return apiError(url, "operator_forbidden", "Platform operator access required", 403);
+      }
+      context.data.userLogin = userLogin;
+      context.data.userId = userId;
+      context.data.isPlatformOperator = true;
+      context.data.token = token;
+      context.data.auth = { type: credentialType, id: credentialId, scopes: [], projectId: null };
+      return context.next();
+    }
+
     if (!presentedOrg) return apiError(url, "missing_organization", "Missing X-Org header or org query param", 400);
     orgLogin = presentedOrg;
     const isMember = await verifyOrgMembership(token, validation._cacheKey, orgLogin, userLogin);
@@ -416,8 +445,10 @@ export async function onRequest(context) {
   context.data.orgId = orgRow.id;
   context.data.orgLogin = orgLogin;
   context.data.userLogin = userLogin;
+  context.data.userId = userId;
   context.data.token = token;
   context.data.isAdmin = isAdmin;
+  context.data.isPlatformOperator = platformOperator;
   context.data.projectId = projectId;
   context.data.auth = { type: credentialType, id: credentialId, scopes, projectId };
 

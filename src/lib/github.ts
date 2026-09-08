@@ -32,6 +32,7 @@ export interface MeResponse {
   login: string;
   org: string;
   isAdmin: boolean;
+  isPlatformOperator: boolean;
 }
 
 // App-level identity + admin flag. Backed by `/api/me`, which reads the

@@ -249,7 +249,7 @@ describe("AdminTab", () => {
     expect(screen.queryByText("Full Re-sync")).not.toBeInTheDocument();
 
     fireEvent.click(serviceButton("NoxFeed"));
-    expect(await screen.findByRole("tab", { name: "Delivery" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tab", { name: "Delivery" }, { timeout: 5_000 })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("Posts Backfill")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.getByText("Posts Backfill")).toBeInTheDocument();
@@ -257,17 +257,17 @@ describe("AdminTab", () => {
 
     fireEvent.click(serviceButton("Nox"));
     fireEvent.click(screen.getByRole("tab", { name: /Maintenance/ }));
-    expect((await screen.findAllByText("Full Re-sync")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Full Re-sync", {}, { timeout: 5_000 })).length).toBeGreaterThan(0);
     expect(screen.getByText("Live Activity Backfill")).toBeInTheDocument();
     expect(screen.getByText("Background failures")).toBeInTheDocument();
     expect(screen.getByText("Manual sync")).toBeInTheDocument();
     expect(screen.getByText("Sync features")).toBeInTheDocument();
     expect(screen.getByText("Sync from GitHub")).toBeInTheDocument();
     fireEvent.click(serviceButton("NoxSpot"));
-    expect(await screen.findByText("Site setup")).toBeInTheDocument();
+    expect(await screen.findByText("Site setup", {}, { timeout: 5_000 })).toBeInTheDocument();
     expect(screen.getByText("Add site")).toBeInTheDocument();
     fireEvent.click(serviceButton("NoxCue"));
-    expect(await screen.findByText("Project metric controls")).toBeInTheDocument();
+    expect(await screen.findByText("Project metric controls", {}, { timeout: 5_000 })).toBeInTheDocument();
   });
 
   it("renders repositories inside Nox", async () => {

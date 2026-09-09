@@ -62,12 +62,12 @@ export interface SlackChannel {
 }
 
 export function fetchSlackStatus(): Promise<SlackStatus> {
-  return apiGet<SlackStatus>("/api/slack/status");
+  return apiGet<SlackStatus>("/api/v1/slack/status");
 }
 
 export function fetchSlackChannels(connectionId?: string): Promise<{ connectionId: string; channels: SlackChannel[] }> {
   const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : "";
-  return apiGet<{ connectionId: string; channels: SlackChannel[] }>(`/api/slack/channels${query}`);
+  return apiGet<{ connectionId: string; channels: SlackChannel[] }>(`/api/v1/slack/channels${query}`);
 }
 
 // Kicks off the OAuth dance — returns a Slack authorize URL the caller
@@ -87,9 +87,9 @@ export function updateSlackConnectionProject(
   connectionId: string,
   projectId: string | null,
 ): Promise<{ ok: true; connectionId: string; projectId: string | null; projectName: string | null }> {
-  return apiPatch(`/api/slack/connections/${encodeURIComponent(connectionId)}`, { projectId });
+  return apiPatch(`/api/v1/slack/connections/${encodeURIComponent(connectionId)}`, { projectId });
 }
 
 export function disconnectSlack(connectionId: string): Promise<{ ok: true; provider: "slack"; status: "disconnected" }> {
-  return apiPost("/api/slack/disconnect", { connectionId });
+  return apiPost("/api/v1/slack/disconnect", { connectionId });
 }

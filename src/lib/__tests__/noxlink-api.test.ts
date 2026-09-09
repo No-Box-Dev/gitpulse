@@ -39,7 +39,7 @@ describe("fetchActors", () => {
   it("returns the actors array from the wrapper response", async () => {
     mockGet.mockResolvedValue({ actors: [{ id: "a1" }, { id: "a2" }] });
     await expect(fetchActors()).resolves.toEqual([{ id: "a1" }, { id: "a2" }]);
-    expect(mockGet).toHaveBeenCalledWith("/api/actors");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/actors");
   });
 });
 
@@ -47,7 +47,7 @@ describe("fetchActor", () => {
   it("encodes the id in the URL", async () => {
     mockGet.mockResolvedValue({ actor: { id: "actor_x" } });
     await fetchActor("actor with space");
-    expect(mockGet).toHaveBeenCalledWith("/api/actors/actor%20with%20space");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/actors/actor%20with%20space");
   });
 
   it("returns the unwrapped actor", async () => {
@@ -60,7 +60,7 @@ describe("patchActor", () => {
   it("PATCHes the encoded URL with the fields", async () => {
     mockPatch.mockResolvedValue({ actor: { id: "a1", name: "New" } });
     const result = await patchActor("a1", { name: "New", tone: "T" });
-    expect(mockPatch).toHaveBeenCalledWith("/api/actors/a1", { name: "New", tone: "T" });
+    expect(mockPatch).toHaveBeenCalledWith("/api/v1/actors/a1", { name: "New", tone: "T" });
     expect(result).toEqual({ id: "a1", name: "New" });
   });
 });
@@ -69,7 +69,7 @@ describe("fetchProjects", () => {
   it("returns the projects array", async () => {
     mockGet.mockResolvedValue({ projects: [{ id: "p1" }] });
     await expect(fetchProjects()).resolves.toEqual([{ id: "p1" }]);
-    expect(mockGet).toHaveBeenCalledWith("/api/projects");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/projects");
   });
 });
 
@@ -78,7 +78,7 @@ describe("backfillProjectPrs", () => {
     mockPost.mockResolvedValue({});
     await backfillProjectPrs("proj-1");
     expect(mockPost).toHaveBeenCalledWith(
-      "/api/projects/proj-1/backfill-prs",
+      "/api/v1/projects/proj-1/backfill-prs",
       { days: 3, rewriteOtherModels: false },
     );
   });
@@ -87,7 +87,7 @@ describe("backfillProjectPrs", () => {
     mockPost.mockResolvedValue({});
     await backfillProjectPrs("proj-1", 14);
     expect(mockPost).toHaveBeenCalledWith(
-      "/api/projects/proj-1/backfill-prs",
+      "/api/v1/projects/proj-1/backfill-prs",
       { days: 14, rewriteOtherModels: false },
     );
   });
@@ -96,7 +96,7 @@ describe("backfillProjectPrs", () => {
     mockPost.mockResolvedValue({});
     await backfillProjectPrs("proj-1", 7, true);
     expect(mockPost).toHaveBeenCalledWith(
-      "/api/projects/proj-1/backfill-prs",
+      "/api/v1/projects/proj-1/backfill-prs",
       { days: 7, rewriteOtherModels: true },
     );
   });
@@ -112,13 +112,13 @@ describe("archiveProject / unarchiveProject", () => {
   it("archiveProject POSTs an empty body", async () => {
     mockPost.mockResolvedValue({ ok: true });
     await archiveProject("p1");
-    expect(mockPost).toHaveBeenCalledWith("/api/projects/p1/archive", {});
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/projects/p1/archive", {});
   });
 
   it("unarchiveProject DELETEs the archive endpoint", async () => {
     mockDelete.mockResolvedValue({ ok: true });
     await unarchiveProject("p1");
-    expect(mockDelete).toHaveBeenCalledWith("/api/projects/p1/archive");
+    expect(mockDelete).toHaveBeenCalledWith("/api/v1/projects/p1/archive");
   });
 });
 
@@ -126,21 +126,21 @@ describe("fetchEvent", () => {
   it("returns the unwrapped event", async () => {
     mockGet.mockResolvedValue({ event: { id: 42, type: "narrative" } });
     await expect(fetchEvent(42)).resolves.toEqual({ id: 42, type: "narrative" });
-    expect(mockGet).toHaveBeenCalledWith("/api/events/42");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/events/42");
   });
 });
 
 describe("fetchEvents URL builder", () => {
-  it("hits /api/events with no query string when no filters", async () => {
+  it("hits /api/v1/events with no query string when no filters", async () => {
     mockGet.mockResolvedValue({ events: [], nextCursor: null });
     await fetchEvents();
-    expect(mockGet).toHaveBeenCalledWith("/api/events");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/events");
   });
 
   it("scopes timeline history to one repository and pull request", async () => {
     mockGet.mockResolvedValue({ events: [], nextCursor: null });
     await fetchEvents({ repo: "noxconnect", prNumber: 42, limit: 200 });
-    expect(mockGet).toHaveBeenCalledWith("/api/events?limit=200&repo=noxconnect&pr_number=42");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/events?limit=200&repo=noxconnect&pr_number=42");
   });
 
   it("loads every page of a long pull-request timeline", async () => {
@@ -150,8 +150,8 @@ describe("fetchEvents URL builder", () => {
       .mockResolvedValueOnce({ events: [{ id: 100 }], nextCursor: "cursor-3" });
 
     await expect(fetchPrTimeline("api", 7)).resolves.toHaveLength(201);
-    expect(mockGet).toHaveBeenNthCalledWith(1, "/api/events?limit=200&repo=api&pr_number=7");
-    expect(mockGet).toHaveBeenNthCalledWith(2, "/api/events?limit=200&before=cursor-2&repo=api&pr_number=7");
+    expect(mockGet).toHaveBeenNthCalledWith(1, "/api/v1/events?limit=200&repo=api&pr_number=7");
+    expect(mockGet).toHaveBeenNthCalledWith(2, "/api/v1/events?limit=200&before=cursor-2&repo=api&pr_number=7");
   });
 
   it("encodes type, limit, before, project_id, actor_id, trigger_types", async () => {

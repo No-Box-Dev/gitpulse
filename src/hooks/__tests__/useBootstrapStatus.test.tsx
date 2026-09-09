@@ -43,12 +43,12 @@ describe("useBootstrapStatus", () => {
     expect(mockGet).not.toHaveBeenCalled();
   });
 
-  it("queries /api/bootstrap-status and returns bootstrapping flag", async () => {
+  it("queries /api/v1/bootstrap-status and returns bootstrapping flag", async () => {
     mockGet.mockResolvedValue({ bootstrapping: true });
     const { wrapper } = createQueryWrapper();
     const { result } = renderHook(() => useBootstrapStatus(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockGet).toHaveBeenCalledWith("/api/bootstrap-status");
+    expect(mockGet).toHaveBeenCalledWith("/api/v1/bootstrap-status");
     expect(result.current.data).toEqual({ bootstrapping: true });
   });
 

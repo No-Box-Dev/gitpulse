@@ -21,12 +21,12 @@ beforeEach(() => {
 });
 
 describe("fetchPeople (D1-backed)", () => {
-  it("reads from /api/config/people", async () => {
+  it("reads from /api/v1/config/people", async () => {
     mockApiGet.mockResolvedValue([
       { github: "alice", name: "Alice", role: "dev", team: "Backend" },
     ]);
     const result = await fetchPeople();
-    expect(mockApiGet).toHaveBeenCalledWith("/api/config/people");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/config/people");
     expect(result[0].team).toEqual("Backend");
   });
 
@@ -38,11 +38,11 @@ describe("fetchPeople (D1-backed)", () => {
 });
 
 describe("savePeople (D1-backed)", () => {
-  it("writes to /api/config/people", async () => {
+  it("writes to /api/v1/config/people", async () => {
     mockApiPut.mockResolvedValue(undefined);
     const people = [{ github: "alice", name: "Alice", role: "dev", team: "Backend" }];
     await savePeople(people);
-    expect(mockApiPut).toHaveBeenCalledWith("/api/config/people", people);
+    expect(mockApiPut).toHaveBeenCalledWith("/api/v1/config/people", people);
   });
 });
 
@@ -66,10 +66,10 @@ describe("createConfigRepo", () => {
     await createConfigRepo();
 
     const paths = mockApiPut.mock.calls.map((c) => c[0]);
-    expect(paths).toContain("/api/config/people");
-    expect(paths).toContain("/api/config/settings");
-    expect(paths).not.toContain("/api/config/sprint");
-    expect(paths).not.toContain("/api/config/features");
+    expect(paths).toContain("/api/v1/config/people");
+    expect(paths).toContain("/api/v1/config/settings");
+    expect(paths).not.toContain("/api/v1/config/sprint");
+    expect(paths).not.toContain("/api/v1/config/features");
     expect(mockApiPut).toHaveBeenCalledTimes(2);
   });
 });

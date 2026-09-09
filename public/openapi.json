@@ -4963,6 +4963,2017 @@
         ],
         "x-change-safety": "write_not_safe_to_retry"
       }
+    },
+    "/api/v1/auth/profile": {
+      "get": {
+        "operationId": "getIdentityProfile",
+        "summary": "Read the signed-in GitHub identity and organizations",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "security": [
+          {
+            "browserSession": []
+          },
+          {
+            "nativeSession": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": true,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/app-activity": {
+      "post": {
+        "operationId": "recordAppActivity",
+        "summary": "Record bounded first-party app activity",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/assign": {
+      "post": {
+        "operationId": "assignIssue",
+        "summary": "Assign a tracked GitHub issue",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxTicket"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/bootstrap-status": {
+      "get": {
+        "operationId": "getBootstrapStatus",
+        "summary": "Read initial GitHub synchronization status",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/config/{key}": {
+      "parameters": [
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getWorkspaceConfig",
+        "summary": "Read one shared workspace configuration document",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      },
+      "put": {
+        "operationId": "putWorkspaceConfig",
+        "summary": "Replace one shared workspace configuration document",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/cues/shares": {
+      "get": {
+        "operationId": "listNoxCueDashboardShares",
+        "summary": "List active NoxCue dashboard shares",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      },
+      "post": {
+        "operationId": "upsertNoxCueDashboardShare",
+        "summary": "Create or rotate a NoxCue dashboard share",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/cues/sources/{sourceId}/health/test": {
+      "parameters": [
+        {
+          "name": "sourceId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "testNoxCueSource",
+        "summary": "Test a NoxCue source destination",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "admin",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/engineer-stats": {
+      "get": {
+        "operationId": "getEngineerStats",
+        "summary": "Read current work counts by engineer",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "listFeedEvents",
+        "summary": "List detailed NoxFeed events",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/events/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getFeedEvent",
+        "summary": "Read one detailed NoxFeed event",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/github/comments": {
+      "get": {
+        "operationId": "getGitHubComments",
+        "summary": "Read comments for a tracked pull request",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/github/details": {
+      "get": {
+        "operationId": "getGitHubDetails",
+        "summary": "Read live details for a tracked issue or pull request",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/github/rate-limit": {
+      "get": {
+        "operationId": "getGitHubRateLimit",
+        "summary": "Read the connected GitHub installation rate limit",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/integrations/status": {
+      "get": {
+        "operationId": "getIntegrationStatus",
+        "summary": "Read credential-free integration readiness",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/issue-state": {
+      "post": {
+        "operationId": "setIssueState",
+        "summary": "Open or close a tracked GitHub issue",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxTicket"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getCurrentMember",
+        "summary": "Read membership and NoxConnect role for the current organization",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/members": {
+      "get": {
+        "operationId": "listMembers",
+        "summary": "List members visible through the connected GitHub organization",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/noxfeed/release-notes-prompt": {
+      "get": {
+        "operationId": "getNoxFeedDefaultPrompt",
+        "summary": "Read the server-owned NoxFeed release-notes prompt",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/op-failures": {
+      "get": {
+        "operationId": "listOperationFailures",
+        "summary": "List recent background-operation failures",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/operator/usage": {
+      "get": {
+        "operationId": "getOperatorUsage",
+        "summary": "Read platform-wide operator usage",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "security": [
+          {
+            "browserSession": []
+          },
+          {
+            "nativeSession": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "platform_operator",
+        "x-first-party-client": true,
+        "x-organization-optional": true,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "platform_operator",
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/projects/{projectId}/backfill-prs": {
+      "parameters": [
+        {
+          "name": "projectId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "backfillProjectPullRequests",
+        "summary": "Queue bounded NoxFeed pull-request history",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/recover-repo-history": {
+      "post": {
+        "operationId": "recoverRepositoryHistory",
+        "summary": "Recover bounded repository history",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "searchWorkspace",
+        "summary": "Search tracked work and people",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxFeed"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/slack/disconnect": {
+      "post": {
+        "operationId": "disconnectSlackWorkspace",
+        "summary": "Disconnect one Slack workspace",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "destructive"
+      }
+    },
+    "/api/v1/slack/status": {
+      "get": {
+        "operationId": "getSlackStatus",
+        "summary": "Read Slack connections and delivery health",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/slack/test": {
+      "post": {
+        "operationId": "testSlackDestination",
+        "summary": "Send a test message to a Slack destination",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/spots/shares": {
+      "post": {
+        "operationId": "upsertNoxSpotProjectShare",
+        "summary": "Create or rotate a NoxSpot project share",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/sync": {
+      "get": {
+        "operationId": "getSyncStatus",
+        "summary": "Read GitHub synchronization freshness",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      },
+      "post": {
+        "operationId": "syncGitHubData",
+        "summary": "Synchronize bounded GitHub data",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/sync-events": {
+      "post": {
+        "operationId": "syncGitHubEvents",
+        "summary": "Backfill bounded GitHub activity events",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "write_not_safe_to_retry"
+      }
+    },
+    "/api/v1/teams": {
+      "get": {
+        "operationId": "listGitHubTeams",
+        "summary": "List teams visible through the connected GitHub organization",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "member",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxConnect"
+        ],
+        "x-authentication": "member",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "safe_read"
+      }
+    },
+    "/api/v1/cues/shares/{shareId}": {
+      "parameters": [
+        {
+          "name": "shareId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "delete": {
+        "operationId": "deleteNoxCueDashboardShare",
+        "summary": "Disable a NoxCue dashboard share",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxCue"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "destructive"
+      }
+    },
+    "/api/v1/spots/shares/{shareId}": {
+      "parameters": [
+        {
+          "name": "shareId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "delete": {
+        "operationId": "deleteNoxSpotProjectShare",
+        "summary": "Disable a NoxSpot project share",
+        "description": "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/V1Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/V1Error"
+          }
+        },
+        "x-required-role": "admin",
+        "x-first-party-client": true,
+        "x-organization-optional": false,
+        "tags": [
+          "NoxSpot"
+        ],
+        "x-authentication": "admin",
+        "security": [
+          {
+            "browserSession": [],
+            "organization": []
+          },
+          {
+            "nativeSession": [],
+            "organization": []
+          },
+          {
+            "bearerAuth": [],
+            "organization": []
+          }
+        ],
+        "x-change-safety": "destructive"
+      }
     }
   },
   "components": {

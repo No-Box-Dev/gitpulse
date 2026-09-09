@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Tracking must never block or log out the user if NoxCue is unavailable.
   useEffect(() => {
     if (!user || !selectedOrg) return;
-    void apiFetch("/api/app-activity", { method: "POST" }).then((response) => {
+    void apiFetch("/api/v1/app-activity", { method: "POST" }).then((response) => {
       if (!response.ok) {
         console.warn(`[noxconnect] NoxCue user tracking returned ${response.status}`);
       }

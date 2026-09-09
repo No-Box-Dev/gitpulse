@@ -243,7 +243,7 @@ function formatOccurredAt(raw: string): string {
 function RecentFailuresSection() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["op-failures"],
-    queryFn: () => apiGet<{ failures: OpFailure[] }>("/api/op-failures?limit=25"),
+    queryFn: () => apiGet<{ failures: OpFailure[] }>("/api/v1/op-failures?limit=25"),
     staleTime: 30_000,
   });
 

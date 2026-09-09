@@ -47,7 +47,7 @@ export function ApiTokensSection() {
   });
   const projects = useQuery({
     queryKey: ["projects"],
-    queryFn: () => apiGet<{ projects: Project[] }>("/api/projects"),
+    queryFn: () => apiGet<{ projects: Project[] }>("/api/v1/projects"),
   });
   const availableProjects = useMemo(
     () => projects.data?.projects.filter((project) => project.routing_enabled === 1 && project.archived !== 1) ?? [],

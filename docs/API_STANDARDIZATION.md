@@ -4,8 +4,8 @@ This document tracks the eight local standardization gates for the API served by
 `app.noxhere.com`. NoxConnect remains the shared foundation; the product services
 remain bounded by capability and storage ownership.
 
-Last integrated verification: **2026-09-08**, based on `origin/main` at
-`40bd5b1`.
+Last integrated verification: **2026-09-09**, based on `origin/main` at
+`07464a1` plus the all-service client migration described here.
 
 ## Progress
 
@@ -17,8 +17,8 @@ Last integrated verification: **2026-09-08**, based on `origin/main` at
 | 4 | Service-scoped config ownership and validation | Complete | strict `/config` schemas and explicit service/resource ownership |
 | 5 | Authentication, authorization, and project scoping | Complete | HttpOnly browser sessions + CSRF; brokered native sessions; hashed, expiring, one-project API tokens; server-enforced service/resource scopes; secure GitHub-owner admin bootstrap |
 | 6 | Safe writes, revisions, errors, and compatibility | Complete | ETag/If-Match CAS, coded v1 errors, normalized legacy boundary |
-| 7 | OpenAPI, machine guidance, and overview | Complete | 63 paths and 86 classified operations, generated reference, agent guide, this overview |
-| 8 | Local verification | Complete | full regression suite plus a 92-check real multi-Worker end-to-end run |
+| 7 | OpenAPI, machine guidance, and overview | Complete | 95 paths and 121 classified operations, generated reference, agent guide, this overview |
+| 8 | Local verification | Complete | full regression suite plus a 102-check real multi-Worker end-to-end run |
 
 ## Service ownership
 
@@ -33,9 +33,9 @@ Last integrated verification: **2026-09-08**, based on `origin/main` at
 ## Compatibility rules
 
 - This is the supported API contract, not an inventory of private callbacks,
-  webhooks, or UI-only compatibility handlers.
-- Existing unversioned `/api/*` routes and the current UI remain operational as
-  compatibility adapters during migration.
+  signed webhooks, runner routes, or password-protected share sessions.
+- Existing unversioned `/api/*` routes remain operational as compatibility
+  adapters for older deployed clients; current first-party clients use v1.
 - Every first-party operation advertised for new clients is canonical under
   `/api/v1/*`. New automation starts at `/api/v1/services` and follows those
   advertised operations.
@@ -54,7 +54,8 @@ Last integrated verification: **2026-09-08**, based on `origin/main` at
 The API surface was classified into the five services above. Shared provider
 connections, identity, projects, delivery routing, and organization policy stay
 with NoxConnect. Product data remains with the product that owns it. Existing UI
-routes were treated as compatibility contracts rather than rewritten in place.
+routes were first preserved as compatibility contracts, then given physical v1
+adapters before the web and native clients moved to canonical paths.
 
 ### 2. Capability discovery
 
@@ -127,12 +128,12 @@ features/specs/attachments, NoxFeed work/activity/AI settings, NoxSpot sites and
 public capture, and NoxCue sources/keys/events/metrics. The capability catalog and
 OpenAPI are mechanically checked for alignment. Every operation classifies its
 authentication and change/retry safety, and every non-empty response has a
-machine-readable body. The developer page renders all 86 operations directly
+machine-readable body. The developer page renders all 121 operations directly
 from that contract. Agent guidance documents the supported first-party auth
 boundary, safe human OAuth handoffs, config concurrency, resource ownership,
 routing, retry behavior, and errors.
 
-All 60 first-party application paths are published under `/api/v1`. The only
+All 118 first-party operations are published under `/api/v1`. The only
 three OpenAPI paths outside that namespace are NoxSpot's anonymous browser
 capture endpoints, which already use their own `/api/spots/public/v1/*`
 contract and separate origin. Explicit compatibility route modules keep the
@@ -158,7 +159,7 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
 - Pages Functions TypeScript check: passed.
 - Production Vite build: passed.
 - HTML validation: passed.
-- OpenAPI: valid JSON; 63 paths and 86 operations; deterministic drift and
+- OpenAPI: valid JSON; 95 paths and 121 operations; deterministic drift and
   route/method coverage checks passed. Canonical project routing uses
   `/api/v1/projects/{projectId}/routing`, removing the former dynamic-route
   ambiguity with project archive.
@@ -168,7 +169,7 @@ The exact setup is documented in [LOCAL_E2E.md](./LOCAL_E2E.md).
   ranges (React Router 7.18.3, Vite 7.3.6, and Vitest 4.1.11).
 - Local end-to-end runtime: Wrangler 4.129.0 started NoxConnect, NoxSpot,
   NoxFeed, NoxCue, the cron Worker, and a disposable RPC caller against one fresh
-  local D1 database. All 92 readiness and functional checks passed, including
+  local D1 database. All 102 readiness and functional checks passed, including
   live GitHub identity plus opaque browser- and native-session authentication,
   native access/refresh rotation, CSRF rejection,
   project-scoped API-token create/list/rotate/revoke and adversarial isolation,

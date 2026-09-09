@@ -130,7 +130,7 @@ describe("NoxCue setup progress", () => {
     expect(screen.getByText("Slack delivery issue")).toBeInTheDocument();
     expect(screen.getAllByText(/not_in_channel/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Retry test" }));
-    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/api/slack/test", {
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/api/v1/slack/test", {
       kind: "noxcue",
       connectionId: "conn-1",
       channelId: "C123",

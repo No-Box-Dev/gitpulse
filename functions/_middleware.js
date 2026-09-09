@@ -142,7 +142,8 @@ export async function onRequest(context) {
   }
 
   // Skip auth for OAuth callback and webhook
-  if (url.pathname.startsWith("/api/auth/") || isNativeAuthPath(url.pathname) || url.pathname === "/api/webhook") {
+  if (url.pathname.startsWith("/api/auth/") || url.pathname === "/api/v1/auth/profile"
+      || isNativeAuthPath(url.pathname) || url.pathname === "/api/webhook") {
     return nextApiResponse(context, url);
   }
 

@@ -114,12 +114,12 @@ describe("fetchFeaturesFromD1", () => {
 });
 
 describe("createFeature", () => {
-  it("POSTs to /api/features with the requested fields", async () => {
+  it("POSTs to /api/v1/features with the requested fields", async () => {
     mockPost.mockResolvedValue({
       id: 5, title: "Add login", status: "todo", owners: [],
     });
     const result = await createFeature("org", "Add login", { status: "todo" });
-    expect(mockPost).toHaveBeenCalledWith("/api/features", {
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/features", {
       title: "Add login", status: "todo", owners: [],
     });
     expect(result.id).toBe(5);
@@ -129,7 +129,7 @@ describe("createFeature", () => {
   it("forwards owners when provided (no plan field — retired)", async () => {
     mockPost.mockResolvedValue({ id: 5, title: "X", status: "staging", owners: ["alice"] });
     await createFeature("org", "X", { status: "staging", owners: ["alice"] });
-    expect(mockPost).toHaveBeenCalledWith("/api/features", {
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/features", {
       title: "X", status: "staging", owners: ["alice"],
     });
   });
@@ -141,14 +141,14 @@ describe("createFeature", () => {
 });
 
 describe("updateFeature", () => {
-  it("PATCHes /api/features/:id with title, status, owners (no plan)", async () => {
+  it("PATCHes /api/v1/features/:id with title, status, owners (no plan)", async () => {
     mockPatch.mockResolvedValue({
       id: 5, title: "X", status: "ready", owners: ["alice"],
     });
     const result = await updateFeature("org", {
       id: 5, title: "X", status: "ready", owners: ["alice"],
     });
-    expect(mockPatch).toHaveBeenCalledWith("/api/features/5", {
+    expect(mockPatch).toHaveBeenCalledWith("/api/v1/features/5", {
       title: "X", status: "ready", owners: ["alice"], backlog: false,
       specLinks: [],
     });
@@ -158,7 +158,7 @@ describe("updateFeature", () => {
   it("always sends specLinks so a cleared list patches through", async () => {
     mockPatch.mockResolvedValue({ id: 5, title: "X", status: "todo", owners: [] });
     await updateFeature("org", { id: 5, title: "X", status: "todo", owners: [] });
-    expect(mockPatch).toHaveBeenCalledWith("/api/features/5", {
+    expect(mockPatch).toHaveBeenCalledWith("/api/v1/features/5", {
       title: "X", status: "todo", owners: [], backlog: false,
       specLinks: [],
     });
@@ -172,10 +172,10 @@ describe("updateFeature", () => {
 });
 
 describe("deleteFeature", () => {
-  it("DELETEs /api/features/:id", async () => {
+  it("DELETEs /api/v1/features/:id", async () => {
     mockDelete.mockResolvedValue({ ok: true });
     await deleteFeature("org", 5);
-    expect(mockDelete).toHaveBeenCalledWith("/api/features/5");
+    expect(mockDelete).toHaveBeenCalledWith("/api/v1/features/5");
   });
 
   it("propagates the error when the API helper rejects", async () => {

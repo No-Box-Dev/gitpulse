@@ -153,6 +153,19 @@
               <tr><td><span class="method write">POST</span>/api/v1/auth/native/device/poll</td><td>Complete approval server-side and return only NoxConnect credentials.</td><td>Opaque device handle</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/auth/native/refresh</td><td>Rotate the access and refresh credentials.</td><td><code>nox_rt_…</code> refresh token</td></tr>
               <tr><td><span class="method write">POST</span>/api/v1/auth/native/revoke</td><td>Revoke the current native session on sign-out, including after access expiry.</td><td><code>nox_rt_…</code> rotating refresh credential</td></tr>
+              <tr><td><span class="method">GET</span>/api/v1/auth/profile</td><td>Resolve the approved GitHub identity and organizations without exposing the provider credential.</td><td>Browser or <code>nox_at_…</code> session; no organization required</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Client or service</th><th>Connection to NoxConnect</th><th>Credential boundary</th></tr></thead>
+            <tbody>
+              <tr><td>NoxConnect and NoxTicket web UI</td><td>Same-origin <code>/api/v1</code></td><td>HttpOnly browser session; CSRF proof on writes</td></tr>
+              <tr><td>NoxFeed for macOS</td><td><code>https://app.noxhere.com/api/v1</code></td><td>Short-lived <code>nox_at_…</code> plus rotating <code>nox_rt_…</code>; no GitHub token in the app</td></tr>
+              <tr><td>NoxCue SDK</td><td><code>POST /api/v1/cues/public/events</code></td><td>Source-scoped <code>X-Nox-Ingest-Key</code></td></tr>
+              <tr><td>NoxSpot widget</td><td><code>https://api.noxspot.dev/api/spots/public/v1</code></td><td>Origin-bound site identity; no organization credential in the browser</td></tr>
+              <tr><td>NoxSpot, NoxCue, and NoxFeed Workers</td><td>Private Cloudflare service bindings</td><td>No public bearer token and no provider credential between Workers</td></tr>
             </tbody>
           </table>
         </div>
@@ -319,7 +332,7 @@ curl -X PATCH https://app.noxhere.com/api/v1/services/noxfeed/config \
   <span class="token-key">"description"</span>: <span class="token-string">"Update project scope or release-notes prompt with If-Match."</span>
 }</code></pre>
         </div>
-        <p>The supported API reference below is rendered directly from <a href="/openapi.json">OpenAPI 3.1</a>, so routes, methods, access levels, server overrides, and change-safety labels do not have to be copied into this page by hand. It intentionally excludes private provider callbacks, webhooks, and UI-only handlers. Older supported compatibility endpoints may still expose loosely typed response bodies; those are labelled as legacy JSON in the schema.</p>
+        <p>The supported API reference below is rendered directly from <a href="/openapi.json">OpenAPI 3.1</a>, so routes, methods, access levels, server overrides, and change-safety labels do not have to be copied into this page by hand. It includes the complete first-party client surface and excludes private provider callbacks, signed webhooks, runner endpoints, and password-protected share sessions. Older supported compatibility endpoints may still expose loosely typed response bodies; those are labelled as legacy JSON in the schema.</p>
         <div class="reference-tools">
           <label for="operation-search">Find an operation</label>
           <div class="reference-controls">

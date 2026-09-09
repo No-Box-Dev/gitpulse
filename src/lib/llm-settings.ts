@@ -7,7 +7,7 @@ export type LlmSettings = {
   managed: { provider: "anthropic"; model: string; available: boolean };
 };
 
-export const fetchLlmSettings = () => apiGet<LlmSettings>("/api/llm-settings");
+export const fetchLlmSettings = () => apiGet<LlmSettings>("/api/v1/llm-settings");
 
 export const setAiMode = (mode: AiMode) =>
-  apiPut<LlmSettings>("/api/llm-settings", { mode });
+  apiPut<LlmSettings>("/api/v1/llm-settings", { mode });

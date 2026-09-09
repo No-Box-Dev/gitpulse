@@ -276,7 +276,7 @@ export function SetupProgress({
     setTestingDelivery(true);
     setTestFeedback(null);
     try {
-      await apiPost("/api/slack/test", {
+      await apiPost("/api/v1/slack/test", {
         kind: "noxcue",
         connectionId: source.effectiveSlackConnectionId,
         channelId: source.effectiveSlackChannelId,
@@ -810,7 +810,7 @@ function HealthBadge({ status }: { status: "waiting" | "healthy" | "issue" }) {
 
 function RequestExample({ environment }: { environment: NoxCueEnvironment }) {
   const [copied, setCopied] = useState(false);
-  const command = `await fetch("https://app.noxhere.com/api/cues/public/v1/events", {
+  const command = `await fetch("https://app.noxhere.com/api/v1/cues/public/v1/events", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",

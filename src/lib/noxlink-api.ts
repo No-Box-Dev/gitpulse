@@ -43,16 +43,16 @@ export interface FeedEvent {
 }
 
 export const fetchActors = () =>
-  apiGet<{ actors: FeedActor[] }>("/api/actors").then((r) => r.actors);
+  apiGet<{ actors: FeedActor[] }>("/api/v1/actors").then((r) => r.actors);
 
 export const fetchActor = (id: string) =>
-  apiGet<{ actor: FeedActor }>(`/api/actors/${encodeURIComponent(id)}`).then((r) => r.actor);
+  apiGet<{ actor: FeedActor }>(`/api/v1/actors/${encodeURIComponent(id)}`).then((r) => r.actor);
 
 export const patchActor = (id: string, fields: Partial<Pick<FeedActor, "name" | "avatar_url" | "tone" | "kind" | "github_user_id">>) =>
-  apiPatch<{ actor: FeedActor }>(`/api/actors/${encodeURIComponent(id)}`, fields).then((r) => r.actor);
+  apiPatch<{ actor: FeedActor }>(`/api/v1/actors/${encodeURIComponent(id)}`, fields).then((r) => r.actor);
 
 export const fetchProjects = () =>
-  apiGet<{ projects: FeedProject[] }>("/api/projects").then((r) => r.projects);
+  apiGet<{ projects: FeedProject[] }>("/api/v1/projects").then((r) => r.projects);
 
 export interface BackfillResult {
   ok: boolean;
@@ -70,19 +70,19 @@ export const backfillProjectPrs = (
   rewriteOtherModels = false,
 ) =>
   apiPost<BackfillResult>(
-    `/api/projects/${encodeURIComponent(id)}/backfill-prs`,
+    `/api/v1/projects/${encodeURIComponent(id)}/backfill-prs`,
     { days, rewriteOtherModels },
   );
 
 export const archiveProject = (id: string) =>
   apiPost<{ ok: true; id: string; archived: boolean }>(
-    `/api/projects/${encodeURIComponent(id)}/archive`,
+    `/api/v1/projects/${encodeURIComponent(id)}/archive`,
     {},
   );
 
 export const unarchiveProject = (id: string) =>
   apiDelete<{ ok: true; id: string; archived: boolean }>(
-    `/api/projects/${encodeURIComponent(id)}/archive`,
+    `/api/v1/projects/${encodeURIComponent(id)}/archive`,
   );
 
 export interface EventQuery {
@@ -102,7 +102,7 @@ export interface EventsPage {
 }
 
 export const fetchEvent = (id: number) =>
-  apiGet<{ event: FeedEvent }>(`/api/events/${id}`).then((r) => r.event);
+  apiGet<{ event: FeedEvent }>(`/api/v1/events/${id}`).then((r) => r.event);
 
 function buildEventsUrl(q: EventQuery): string {
   const params = new URLSearchParams();
@@ -115,7 +115,7 @@ function buildEventsUrl(q: EventQuery): string {
   if (q.repo) params.set("repo", q.repo);
   if (q.repo && q.prNumber != null) params.set("pr_number", String(q.prNumber));
   const qs = params.toString();
-  return `/api/events${qs ? `?${qs}` : ""}`;
+  return `/api/v1/events${qs ? `?${qs}` : ""}`;
 }
 
 export const fetchEvents = (q: EventQuery = {}) =>

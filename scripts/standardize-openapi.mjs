@@ -168,6 +168,65 @@ document.paths["/api/v1/auth/native/revoke"] = {
   },
 };
 
+// First-party clients use the same versioned boundary as external consumers.
+// These routes retain their established response payloads while gaining the
+// v1 error, cache, discovery, authentication, and service-gating contract.
+const clientRouteContracts = [
+  ["/api/v1/auth/profile", [["get", "getIdentityProfile", "Read the signed-in GitHub identity and organizations", "member", false]]],
+  ["/api/v1/app-activity", [["post", "recordAppActivity", "Record bounded first-party app activity", "member"]]],
+  ["/api/v1/assign", [["post", "assignIssue", "Assign a tracked GitHub issue", "member"]]],
+  ["/api/v1/bootstrap-status", [["get", "getBootstrapStatus", "Read initial GitHub synchronization status", "member"]]],
+  ["/api/v1/config/{key}", [
+    ["get", "getWorkspaceConfig", "Read one shared workspace configuration document", "member"],
+    ["put", "putWorkspaceConfig", "Replace one shared workspace configuration document", "admin"],
+  ]],
+  ["/api/v1/cues/shares", [
+    ["get", "listNoxCueDashboardShares", "List active NoxCue dashboard shares", "admin"],
+    ["post", "upsertNoxCueDashboardShare", "Create or rotate a NoxCue dashboard share", "admin"],
+  ]],
+  ["/api/v1/cues/shares/{shareId}", [["delete", "deleteNoxCueDashboardShare", "Disable a NoxCue dashboard share", "admin"]]],
+  ["/api/v1/cues/sources/{sourceId}/health/test", [["post", "testNoxCueSource", "Test a NoxCue source destination", "admin"]]],
+  ["/api/v1/engineer-stats", [["get", "getEngineerStats", "Read current work counts by engineer", "member"]]],
+  ["/api/v1/events", [["get", "listFeedEvents", "List detailed NoxFeed events", "member"]]],
+  ["/api/v1/events/{id}", [["get", "getFeedEvent", "Read one detailed NoxFeed event", "member"]]],
+  ["/api/v1/github/comments", [["get", "getGitHubComments", "Read comments for a tracked pull request", "member"]]],
+  ["/api/v1/github/details", [["get", "getGitHubDetails", "Read live details for a tracked issue or pull request", "member"]]],
+  ["/api/v1/github/rate-limit", [["get", "getGitHubRateLimit", "Read the connected GitHub installation rate limit", "member"]]],
+  ["/api/v1/integrations/status", [["get", "getIntegrationStatus", "Read credential-free integration readiness", "member"]]],
+  ["/api/v1/issue-state", [["post", "setIssueState", "Open or close a tracked GitHub issue", "member"]]],
+  ["/api/v1/me", [["get", "getCurrentMember", "Read membership and NoxConnect role for the current organization", "member"]]],
+  ["/api/v1/members", [["get", "listMembers", "List members visible through the connected GitHub organization", "member"]]],
+  ["/api/v1/noxfeed/release-notes-prompt", [["get", "getNoxFeedDefaultPrompt", "Read the server-owned NoxFeed release-notes prompt", "admin"]]],
+  ["/api/v1/op-failures", [["get", "listOperationFailures", "List recent background-operation failures", "admin"]]],
+  ["/api/v1/operator/usage", [["get", "getOperatorUsage", "Read platform-wide operator usage", "platform_operator", false]]],
+  ["/api/v1/projects/{projectId}/backfill-prs", [["post", "backfillProjectPullRequests", "Queue bounded NoxFeed pull-request history", "admin"]]],
+  ["/api/v1/recover-repo-history", [["post", "recoverRepositoryHistory", "Recover bounded repository history", "admin"]]],
+  ["/api/v1/search", [["get", "searchWorkspace", "Search tracked work and people", "member"]]],
+  ["/api/v1/slack/disconnect", [["post", "disconnectSlackWorkspace", "Disconnect one Slack workspace", "admin"]]],
+  ["/api/v1/slack/status", [["get", "getSlackStatus", "Read Slack connections and delivery health", "member"]]],
+  ["/api/v1/slack/test", [["post", "testSlackDestination", "Send a test message to a Slack destination", "admin"]]],
+  ["/api/v1/spots/shares", [["post", "upsertNoxSpotProjectShare", "Create or rotate a NoxSpot project share", "admin"]]],
+  ["/api/v1/spots/shares/{shareId}", [["delete", "deleteNoxSpotProjectShare", "Disable a NoxSpot project share", "admin"]]],
+  ["/api/v1/sync", [
+    ["get", "getSyncStatus", "Read GitHub synchronization freshness", "member"],
+    ["post", "syncGitHubData", "Synchronize bounded GitHub data", "admin"],
+  ]],
+  ["/api/v1/sync-events", [["post", "syncGitHubEvents", "Backfill bounded GitHub activity events", "admin"]]],
+  ["/api/v1/teams", [["get", "listGitHubTeams", "List teams visible through the connected GitHub organization", "member"]]],
+];
+delete document.paths["/api/v1/cues/shares/{id}"];
+delete document.paths["/api/v1/spots/shares/{id}"];
+for (const [path, methods] of clientRouteContracts) {
+  document.paths[path] ??= {};
+  const pathParameters = [...path.matchAll(/\{([^}]+)\}/g)].map(([, name]) => ({
+    name, in: "path", required: true, schema: { type: "string", minLength: 1 },
+  }));
+  if (pathParameters.length) document.paths[path].parameters ??= pathParameters;
+  for (const [method, operationId, summary, role, organization = true] of methods) {
+    document.paths[path][method] ??= firstPartyClientOperation(operationId, summary, role, organization, method);
+  }
+}
+
 document.paths["/api/v1/cues/github-issues"] = {
   get: {
     operationId: "getNoxCueGitHubIssueSettings",
@@ -297,6 +356,7 @@ for (const [path, pathItem] of Object.entries(document.paths)) {
     }
     if (["member", "admin"].includes(operation["x-authentication"])
         && !operation["x-browser-session-only"]
+        && !operation["x-organization-optional"]
         && !acceptsProjectToken(path, method)) {
       operation.security = [
         { browserSession: [], organization: [] },
@@ -362,10 +422,35 @@ function nativeAuthOperation(operationId, summary, requestSchema, description) {
   };
 }
 
+function firstPartyClientOperation(operationId, summary, role, organization, method) {
+  const requestBody = ["post", "put", "patch"].includes(method);
+  const security = role === "platform_operator"
+    ? [{ browserSession: [] }, { nativeSession: [] }, { bearerAuth: [] }]
+    : organization === false
+      ? [{ browserSession: [] }, { nativeSession: [] }, { bearerAuth: [] }]
+      : undefined;
+  return {
+    operationId,
+    summary,
+    description: "Canonical first-party client operation. Its established success payload remains compatible while all failures use the API v1 error envelope.",
+    ...(security ? { security } : {}),
+    ...(requestBody ? { requestBody: {
+      required: false,
+      content: { "application/json": { schema: { "$ref": "#/components/schemas/JsonValue" } } },
+    } } : {}),
+    responses: { "200": { description: "Success" } },
+    "x-required-role": role,
+    "x-first-party-client": true,
+    "x-organization-optional": !organization,
+  };
+}
+
 function serviceTag(path) {
   const compatibilityPath = compatibilityApiPath(path);
-  if (compatibilityPath.startsWith("/api/features") || compatibilityPath.startsWith("/api/specs")) return "NoxTicket";
-  if (path === "/api/v1/feed" || compatibilityPath.startsWith("/api/issues") || compatibilityPath.startsWith("/api/prs") || compatibilityPath.startsWith("/api/engineer-activity") || compatibilityPath.startsWith("/api/llm-settings")) return "NoxFeed";
+  if (/^\/api\/(?:features|specs|assign|issue-state)(?:\/|$)/.test(compatibilityPath)) return "NoxTicket";
+  if (path === "/api/v1/feed"
+      || /^\/api\/(?:issues|prs|events|engineer-activity|engineer-stats|search|llm-settings|noxfeed)(?:\/|$)/.test(compatibilityPath)
+      || /^\/api\/github\/(?:comments|details)$/.test(compatibilityPath)) return "NoxFeed";
   if (compatibilityPath.startsWith("/api/spots")) return "NoxSpot";
   if (compatibilityPath.startsWith("/api/cues")) return "NoxCue";
   return "NoxConnect";
@@ -392,6 +477,7 @@ function compatibilityApiPath(path) {
 }
 
 function authenticationFor(operation) {
+  if (operation["x-required-role"] === "platform_operator") return "platform_operator";
   if (operation["x-native-refresh"]) return "native_refresh";
   if (Array.isArray(operation.security) && operation.security.length === 0) return "public";
   if (operation.security?.some((entry) => Object.hasOwn(entry, "noxCueKey"))) return "ingest_key";

@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Browser-side feature CRUD. All mutations go through Pages Functions
-// (functions/api/features*) so the GitHub write + D1 mirror happen in one
+// (functions/api/v1/features*) so the GitHub write + D1 mirror happen in one
 // place on the server — see functions/lib/feature-issues.js. The browser
 // never talks directly to GitHub for features: the read path hits D1
-// directly (fetchFeaturesFromD1) and writes hit /api/features.
+// directly (fetchFeaturesFromD1) and writes hit /api/v1/features.
 import { apiGet, apiPost, apiPatch, apiDelete } from "./api";
 import type { Feature, FeatureStatus, SpecLink, StatusHistoryEntry } from "./types";
 
-// D1-backed row shape returned by /api/features
+// D1-backed row shape returned by /api/v1/features
 interface D1FeatureRow {
   number: number;
   title: string;
@@ -105,7 +105,7 @@ function d1RowToFeature(row: D1FeatureRow): Feature {
 }
 
 export async function fetchFeaturesFromD1(state: "open" | "closed" = "open"): Promise<Feature[]> {
-  const rows = await apiGet<D1FeatureRow[]>(`/api/features?state=${state}`);
+  const rows = await apiGet<D1FeatureRow[]>(`/api/v1/features?state=${state}`);
   return rows
     .filter((row) => {
       const names = new Set(row.labels.map((l) => l.name));
@@ -118,7 +118,7 @@ export async function fetchFeaturesFromD1(state: "open" | "closed" = "open"): Pr
 //
 // All writes go through the shared api helpers so failures broadcast `ut:error`
 // (surfaced as a toast) instead of throwing silently. The server response shape
-// from /api/features* is already the Feature shape (ghIssueToFeature on the
+// from /api/v1/features* is already the Feature shape (ghIssueToFeature on the
 // server). We trust it and return as-is.
 
 export async function createFeature(
@@ -130,7 +130,7 @@ export async function createFeature(
     backlog?: boolean;
   },
 ): Promise<Feature> {
-  return apiPost<Feature>("/api/features", {
+  return apiPost<Feature>("/api/v1/features", {
     title,
     status: opts.status,
     owners: opts.owners ?? [],
@@ -139,7 +139,7 @@ export async function createFeature(
 }
 
 export async function updateFeature(_org: string, updated: Feature): Promise<Feature> {
-  return apiPatch<Feature>(`/api/features/${updated.id}`, {
+  return apiPatch<Feature>(`/api/v1/features/${updated.id}`, {
     title: updated.title,
     status: updated.status,
     owners: updated.owners,
@@ -149,5 +149,5 @@ export async function updateFeature(_org: string, updated: Feature): Promise<Fea
 }
 
 export async function deleteFeature(_org: string, issueNumber: number): Promise<void> {
-  await apiDelete<unknown>(`/api/features/${issueNumber}`);
+  await apiDelete<unknown>(`/api/v1/features/${issueNumber}`);
 }

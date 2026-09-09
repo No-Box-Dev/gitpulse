@@ -34,5 +34,5 @@ export interface OperatorUsageResponse {
 }
 
 export function fetchOperatorUsage() {
-  return apiGet<OperatorUsageResponse>("/api/operator/usage");
+  return apiGet<OperatorUsageResponse>("/api/v1/operator/usage");
 }

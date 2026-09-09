@@ -8,7 +8,7 @@ export interface RateLimitInfo {
 }
 
 export async function fetchRateLimit(): Promise<RateLimitInfo> {
-  return apiGet<RateLimitInfo>("/api/github/rate-limit");
+  return apiGet<RateLimitInfo>("/api/v1/github/rate-limit");
 }
 
 export async function fetchUser() {
@@ -35,13 +35,13 @@ export interface MeResponse {
   isPlatformOperator: boolean;
 }
 
-// App-level identity + admin flag. Backed by `/api/me`, which reads the
+// App-level identity + admin flag. Backed by `/api/v1/me`, which reads the
 // `org_admins` table populated by a verified GitHub organization-owner
 // bootstrap. This replaced a direct GitHub call against
 // `/orgs/{org}/memberships/{user}` — GitHub org role and app-level admin are
 // no longer coupled.
 export async function fetchMe(): Promise<MeResponse> {
-  return apiGet<MeResponse>("/api/me");
+  return apiGet<MeResponse>("/api/v1/me");
 }
 
 // ---------- Sync ----------
@@ -57,7 +57,7 @@ interface SyncResponse {
 
 export async function triggerSync() {
   // Phase 1: init — get repo list
-  const init = await apiPost<SyncResponse>("/api/sync");
+  const init = await apiPost<SyncResponse>("/api/v1/sync");
 
   if (init.done) {
     return { ok: true, synced: { repos: 0, prs: 0, issues: 0, members: 0 } };
@@ -68,7 +68,7 @@ export async function triggerSync() {
   const maxIterations = (init.repos ?? 0) + 5;
   let iterations = 0;
   while (cursor && iterations < maxIterations) {
-    const res = await apiPost<SyncResponse>(`/api/sync?cursor=${encodeURIComponent(cursor)}`);
+    const res = await apiPost<SyncResponse>(`/api/v1/sync?cursor=${encodeURIComponent(cursor)}`);
     if (res.done) break;
     cursor = res.cursor;
     iterations++;
@@ -100,7 +100,7 @@ export async function triggerSyncWithProgress(
   let init: SyncResponse;
   try {
     onProgress({ phase: "init", synced: 0, total: 0 });
-    init = await apiPost<SyncResponse>("/api/sync");
+    init = await apiPost<SyncResponse>("/api/v1/sync");
   } catch (err) {
     if (signal?.aborted) return;
     const msg = err instanceof Error ? err.message : "Sync failed";
@@ -127,7 +127,7 @@ export async function triggerSyncWithProgress(
     if (signal?.aborted) return;
     onProgress({ phase: "syncing", repo, synced, total, failed: [...failed] });
     try {
-      await apiPost<SyncResponse>(`/api/sync?cursor=${encodeURIComponent(repo)}${forceParam}`);
+      await apiPost<SyncResponse>(`/api/v1/sync?cursor=${encodeURIComponent(repo)}${forceParam}`);
       synced++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -142,12 +142,12 @@ export async function triggerSyncWithProgress(
 }
 
 export async function fetchSyncStatus() {
-  return apiGet<{ isStale: boolean; lastSync: string | null }>("/api/sync");
+  return apiGet<{ isStale: boolean; lastSync: string | null }>("/api/v1/sync");
 }
 
 // Admin-only: backfill missing rows in the events table for every active
 // repo. Same cursor-batched shape as triggerSyncWithProgress, just hits
-// /api/sync-events. Used by Settings → Live Activity Backfill.
+// /api/v1/sync-events. Used by Settings → Live Activity Backfill.
 export async function triggerEventsBackfillWithProgress(
   onProgress: (status: SyncProgress) => void,
   signal?: AbortSignal,
@@ -155,7 +155,7 @@ export async function triggerEventsBackfillWithProgress(
   let init: SyncResponse;
   try {
     onProgress({ phase: "init", synced: 0, total: 0 });
-    init = await apiPost<SyncResponse>("/api/sync-events");
+    init = await apiPost<SyncResponse>("/api/v1/sync-events");
   } catch (err) {
     if (signal?.aborted) return;
     const msg = err instanceof Error ? err.message : "Backfill failed";
@@ -179,7 +179,7 @@ export async function triggerEventsBackfillWithProgress(
     onProgress({ phase: "syncing", repo, synced, total, failed: [...failed] });
     try {
       await apiPost<SyncResponse>(
-        `/api/sync-events?cursor=${encodeURIComponent(repo)}`,
+        `/api/v1/sync-events?cursor=${encodeURIComponent(repo)}`,
       );
       synced++;
     } catch (err) {
@@ -208,7 +208,7 @@ export async function recoverRepoHistoryWithProgress(
   try {
     onProgress({ phase: "init", synced: 0, total: 0 });
     init = await apiPost<SyncResponse & { repoList?: string[] }>(
-      `/api/recover-repo-history${sourceQuery}`,
+      `/api/v1/recover-repo-history${sourceQuery}`,
     );
   } catch (err) {
     if (signal?.aborted) return;
@@ -225,7 +225,7 @@ export async function recoverRepoHistoryWithProgress(
     onProgress({ phase: "syncing", repo, synced, total: repos.length, failed: [...failed] });
     try {
       const result = await apiPost<{ recovered: boolean; inaccessible?: boolean }>(
-        `/api/recover-repo-history?cursor=${encodeURIComponent(repo)}${sourceOrg?.trim()
+        `/api/v1/recover-repo-history?cursor=${encodeURIComponent(repo)}${sourceOrg?.trim()
           ? `&sourceOrg=${encodeURIComponent(sourceOrg.trim())}`
           : ""}`,
       );
@@ -239,7 +239,7 @@ export async function recoverRepoHistoryWithProgress(
 }
 
 export async function triggerFeatureSync() {
-  return apiPost<{ done: true; scope: "features" }>("/api/sync?scope=features");
+  return apiPost<{ done: true; scope: "features" }>("/api/v1/sync?scope=features");
 }
 
 // ---------- DB-backed API types ----------
@@ -347,7 +347,7 @@ function transformIssue(issue: ApiIssue) {
 // (each row carries an `inactive` flag in that case).
 export async function fetchRepos(opts?: { includeAll?: boolean }) {
   const query = opts?.includeAll ? "?include=all" : "";
-  const repos = await apiGet<ApiRepo[]>(`/api/repos${query}`);
+  const repos = await apiGet<ApiRepo[]>(`/api/v1/repos${query}`);
   return repos.map((r) => ({
     id: 0,
     name: r.name,
@@ -375,7 +375,7 @@ export async function fetchRepos(opts?: { includeAll?: boolean }) {
 export async function acknowledgeRepos(names: string[]) {
   if (names.length === 0) return { acknowledged: [], changes: 0 };
   return apiPost<{ acknowledged: string[]; changes: number }>(
-    "/api/repos/acknowledge",
+    "/api/v1/repos/acknowledge",
     { names },
   );
 }
@@ -394,7 +394,7 @@ async function fetchAllPRPages(baseParams: Record<string, string>) {
 
   while (true) {
     const params = new URLSearchParams({ ...baseParams, page_size: String(PAGE_SIZE), page: String(page) });
-    const res = await apiGet<PaginatedPRResponse | ApiPR[]>(`/api/prs?${params}`);
+    const res = await apiGet<PaginatedPRResponse | ApiPR[]>(`/api/v1/prs?${params}`);
     // Handle both old (array) and new (paginated) response formats
     if (Array.isArray(res)) {
       all.push(...res);
@@ -425,26 +425,26 @@ export function fetchAllPRs(since?: string) {
 }
 
 export async function fetchOpenIssues() {
-  const res = await apiGet<{ data: ApiIssue[]; totalCount: number }>("/api/issues?state=open");
+  const res = await apiGet<{ data: ApiIssue[]; totalCount: number }>("/api/v1/issues?state=open");
   return res.data.map(transformIssue);
 }
 
 export async function fetchClosedIssues(since?: string) {
   const params = new URLSearchParams({ state: "closed", page_size: "5000" });
   if (since) params.set("closed_since", since);
-  const res = await apiGet<{ data: ApiIssue[]; totalCount: number }>(`/api/issues?${params}`);
+  const res = await apiGet<{ data: ApiIssue[]; totalCount: number }>(`/api/v1/issues?${params}`);
   return res.data.map(transformIssue);
 }
 
 export async function fetchAllIssues(since?: string) {
   const params = new URLSearchParams({ state: "all", page_size: "5000" });
   if (since) params.set("since", since);
-  const res = await apiGet<{ data: ApiIssue[]; totalCount: number }>(`/api/issues?${params}`);
+  const res = await apiGet<{ data: ApiIssue[]; totalCount: number }>(`/api/v1/issues?${params}`);
   return res.data.map(transformIssue);
 }
 
 export async function updateIssueState(repo: string, issueNumber: number, state: "open" | "closed") {
-  return apiPost<{ ok: boolean; state: string; closed_at: string | null }>("/api/issue-state", {
+  return apiPost<{ ok: boolean; state: string; closed_at: string | null }>("/api/v1/issue-state", {
     repo,
     issue_number: issueNumber,
     state,
@@ -452,7 +452,7 @@ export async function updateIssueState(repo: string, issueNumber: number, state:
 }
 
 export async function fetchOrgMembers() {
-  const members = await apiGet<ApiMember[]>("/api/members");
+  const members = await apiGet<ApiMember[]>("/api/v1/members");
   return members.map((m) => ({
     login: m.login,
     avatar_url: m.avatar_url ?? "",
@@ -468,7 +468,7 @@ export interface TeamsResponse {
 }
 
 export async function fetchTeams(): Promise<TeamsResponse> {
-  return apiGet<TeamsResponse>("/api/teams");
+  return apiGet<TeamsResponse>("/api/v1/teams");
 }
 
 // ---------- Paginated issues ----------
@@ -524,7 +524,7 @@ export async function fetchPaginatedIssues(params: IssueQueryParams): Promise<Pa
   if (params.closedBefore) qs.set("closed_before", params.closedBefore);
 
   const raw = await apiGet<{ data: ApiIssue[]; totalCount: number; page: number; pageSize: number }>(
-    `/api/issues?${qs}`,
+    `/api/v1/issues?${qs}`,
   );
   return {
     data: raw.data.map(transformIssue),
@@ -535,7 +535,7 @@ export async function fetchPaginatedIssues(params: IssueQueryParams): Promise<Pa
 }
 
 export async function fetchIssueLabels(): Promise<{ name: string; color: string }[]> {
-  return apiGet<{ name: string; color: string }[]>("/api/issues?meta=labels");
+  return apiGet<{ name: string; color: string }[]>("/api/v1/issues?meta=labels");
 }
 
 export async function fetchPaginatedPrs(
@@ -554,7 +554,7 @@ export async function fetchPaginatedPrs(
   if (params.sortDir) qs.set("sort_dir", params.sortDir);
 
   const raw = await apiGet<{ data: ApiPR[]; totalCount: number; page: number; pageSize: number }>(
-    `/api/prs?${qs}`,
+    `/api/v1/prs?${qs}`,
   );
   return {
     data: raw.data.map(transformPR),
@@ -566,14 +566,14 @@ export async function fetchPaginatedPrs(
 
 export async function fetchIssueDetail(repo: string, number: number) {
   const raw = await apiGet<{ issue: ApiIssue }>(
-    `/api/issues/${encodeURIComponent(repo)}/${number}`,
+    `/api/v1/issues/${encodeURIComponent(repo)}/${number}`,
   );
   return transformIssue(raw.issue);
 }
 
 export async function fetchPrDetail(repo: string, number: number) {
   const raw = await apiGet<{ pr: ApiPR }>(
-    `/api/prs/${encodeURIComponent(repo)}/${number}`,
+    `/api/v1/prs/${encodeURIComponent(repo)}/${number}`,
   );
   return transformPR(raw.pr);
 }
@@ -589,7 +589,7 @@ export async function fetchIssueBody(
   repo: string,
   number: number,
 ): Promise<IssueBody> {
-  return apiGet<IssueBody>(`/api/github/details?kind=issue&repo=${encodeURIComponent(repo)}&number=${number}`);
+  return apiGet<IssueBody>(`/api/v1/github/details?kind=issue&repo=${encodeURIComponent(repo)}&number=${number}`);
 }
 
 export interface PrBody {
@@ -608,7 +608,7 @@ export async function fetchPrBody(
   repo: string,
   number: number,
 ): Promise<PrBody> {
-  return apiGet<PrBody>(`/api/github/details?kind=pr&repo=${encodeURIComponent(repo)}&number=${number}`);
+  return apiGet<PrBody>(`/api/v1/github/details?kind=pr&repo=${encodeURIComponent(repo)}&number=${number}`);
 }
 
 export interface IssueStats {
@@ -623,7 +623,7 @@ export interface IssueStats {
 export async function fetchIssueStats(repos?: string[]): Promise<IssueStats> {
   const params = new URLSearchParams({ meta: "stats" });
   if (repos && repos.length > 0) params.set("repos", repos.join(","));
-  return apiGet<IssueStats>(`/api/issues?${params}`);
+  return apiGet<IssueStats>(`/api/v1/issues?${params}`);
 }
 
 export interface PRStats {
@@ -634,18 +634,18 @@ export interface PRStats {
 }
 
 export async function fetchPRStats(): Promise<PRStats> {
-  return apiGet<PRStats>("/api/prs?meta=stats");
+  return apiGet<PRStats>("/api/v1/prs?meta=stats");
 }
 
-// Admin-only. Closes a PR on GitHub via /api/prs/close and mirrors the
+// Admin-only. Closes a PR on GitHub via /api/v1/prs/close and mirrors the
 // state=closed change to D1 so the caller can invalidate PR queries and see
 // the row drop out immediately.
 export async function closePR(repo: string, number: number): Promise<void> {
-  await apiPost<{ ok: true }>("/api/prs/close", { repo, number });
+  await apiPost<{ ok: true }>("/api/v1/prs/close", { repo, number });
 }
 
 // Per-member counts for the Engineers tab, aggregated server-side. Each map is
-// keyed by GitHub login. See functions/api/engineer-stats.ts.
+// keyed by GitHub login. See functions/api/v1/engineer-stats.ts.
 export interface EngineerStats {
   openPRs: Record<string, number>;
   reviewing: Record<string, number>;
@@ -675,7 +675,7 @@ export interface EngineerStats {
 }
 
 export async function fetchEngineerStats(): Promise<EngineerStats> {
-  return apiGet<EngineerStats>("/api/engineer-stats");
+  return apiGet<EngineerStats>("/api/v1/engineer-stats");
 }
 
 // Tracked-repository contribution counts for one engineer. Daily maps are keyed
@@ -697,7 +697,7 @@ export interface EngineerActivity {
 export async function fetchEngineerActivity(login: string, month?: string): Promise<EngineerActivity> {
   const qs = new URLSearchParams({ login });
   if (month) qs.set("month", month);
-  return apiGet<EngineerActivity>(`/api/engineer-activity?${qs}`);
+  return apiGet<EngineerActivity>(`/api/v1/engineer-activity?${qs}`);
 }
 
 export async function updateIssueAssignees(
@@ -705,5 +705,5 @@ export async function updateIssueAssignees(
   issueNumber: number,
   assignees: string[],
 ): Promise<{ assignees: { login: string; avatar_url: string }[] }> {
-  return apiPost("/api/assign", { repo, issue_number: issueNumber, assignees });
+  return apiPost("/api/v1/assign", { repo, issue_number: issueNumber, assignees });
 }

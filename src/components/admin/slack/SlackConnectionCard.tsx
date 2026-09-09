@@ -266,7 +266,7 @@ function SlackConnectionRow({
     setFeedback(null);
     setTesting(true);
     try {
-      await apiPost("/api/slack/test", {
+      await apiPost("/api/v1/slack/test", {
         connectionId: connection.id,
         channelId,
         kind: "connection",

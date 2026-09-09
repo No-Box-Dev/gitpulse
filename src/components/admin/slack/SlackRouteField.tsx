@@ -9,7 +9,7 @@ import { SlackChannelStatusBadge } from "@/components/admin/slack/SlackChannelSt
 import { findSlackChannelStatus } from "@/lib/slack-channel-status";
 import { actionableSlackFeedback } from "@/lib/slack-feedback";
 
-// Slack test-message kinds understood by /api/slack/test. Kept in sync with
+// Slack test-message kinds understood by /api/v1/slack/test. Kept in sync with
 // the server's kind validation.
 export type SlackKind =
   | "fallback"
@@ -159,7 +159,7 @@ export function SlackRouteField({
     setTesting(true);
     setTestStatus(null);
     try {
-      await apiPost("/api/slack/test", { connectionId, channelId, kind });
+      await apiPost("/api/v1/slack/test", { connectionId, channelId, kind });
       await statusQuery.status.refetch();
       const channelName = options.find((option) => option.value === channelId)?.label ?? "the selected channel";
       setTestStatus({ ok: true, msg: `Test delivered to ${channelName}. This route is ready; click Save if you changed it.` });

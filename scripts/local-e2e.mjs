@@ -9,7 +9,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { encryptToken } from "../functions/lib/crypto.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const codebase = resolve(root, "../..");
+const codebase = resolve(root, "..");
 const noxCueDir = resolve(process.env.NOXCUE_DIR || join(codebase, "NoxAlert"));
 const noxFeedDir = resolve(process.env.NOXFEED_SERVICE_DIR || join(codebase, "noxfeed-mac/service"));
 const noxSpotDir = join(root, "workers/noxspot-capture");
@@ -193,7 +193,7 @@ function makeRpcSmokeWorker() {
   writeFileSync(join(rpcDir, "wrangler.jsonc"), JSON.stringify({
     name: "noxconnect-local-rpc-smoke",
     main: "index.js",
-    compatibility_date: "2026-09-03",
+    compatibility_date: "2026-09-09",
     services: [
       { binding: "NOXSPOT", service: "noxspot-api" },
       { binding: "NOXCUE", service: "noxcue" },
@@ -314,6 +314,18 @@ async function main() {
   await request("native NoxConnect session resolves the GitHub identity facade", "/api/auth/profile?scope=user", {
     headers: { Authorization: `Bearer ${nativeAccessToken}` },
   });
+  await request("NoxFeed native session resolves identity through canonical v1 without organization context", "/api/v1/auth/profile?scope=user", {
+    headers: { Authorization: `Bearer ${nativeAccessToken}` },
+  });
+  await request("NoxFeed native session reads its organization role", "/api/v1/me", authOptions(nativeAccessToken));
+  await request("NoxFeed native session reads integration readiness", "/api/v1/integrations/status", authOptions(nativeAccessToken));
+  await request("NoxFeed native session reads bootstrap status", "/api/v1/bootstrap-status", authOptions(nativeAccessToken));
+  await request("NoxFeed native session reads detailed events", "/api/v1/events?limit=1", authOptions(nativeAccessToken));
+  await request("NoxFeed native session reads engineer counts", "/api/v1/engineer-stats", authOptions(nativeAccessToken));
+  await request("NoxFeed native session searches its organization", "/api/v1/search?q=allowed", authOptions(nativeAccessToken));
+  await request("NoxFeed native session reads members", "/api/v1/members", authOptions(nativeAccessToken));
+  await request("NoxFeed native session reads Slack health without receiving credentials", "/api/v1/slack/status", authOptions(nativeAccessToken));
+  await request("NoxFeed native admin reads its bound default prompt", "/api/v1/noxfeed/release-notes-prompt", authOptions(nativeAccessToken));
   const nativeRotated = await request("native refresh rotates both NoxConnect credentials", "/api/v1/auth/native/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

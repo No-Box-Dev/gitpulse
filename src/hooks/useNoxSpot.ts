@@ -7,7 +7,7 @@ export function useNoxSpotSites() {
   const { selectedOrg } = useAuth();
   return useQuery({
     queryKey: ["noxspot-sites", selectedOrg],
-    queryFn: async () => (await apiGet<{ sites: NoxSpotSite[] }>("/api/spots/sites")).sites,
+    queryFn: async () => (await apiGet<{ sites: NoxSpotSite[] }>("/api/v1/spots/sites")).sites,
     enabled: Boolean(selectedOrg),
   });
 }
@@ -17,7 +17,7 @@ export function useCreateNoxSpotSite() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; projectId: string }) =>
-      apiPost<{ site: NoxSpotSite }>("/api/spots/sites", input),
+      apiPost<{ site: NoxSpotSite }>("/api/v1/spots/sites", input),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });
 }
@@ -27,7 +27,7 @@ export function useUpdateNoxSpotSite() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...changes }: { id: string; slackChannelId?: string | null; slackConnectionId?: string | null; dailySummaryEnabled?: boolean; autoErrorLogging?: boolean; widgetMode?: "development" | "release"; buttonColor?: string; buttonText?: string; environments?: NoxSpotEnvironment[]; blocks?: NoxSpotBlock[] }) =>
-      apiPatch<{ ok: true }>(`/api/spots/sites/${encodeURIComponent(id)}`, changes),
+      apiPatch<{ ok: true }>(`/api/v1/spots/sites/${encodeURIComponent(id)}`, changes),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });
 }
@@ -36,7 +36,7 @@ export function useDeleteNoxSpotSite() {
   const { selectedOrg } = useAuth();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (siteId: string) => apiDelete<{ ok: true }>(`/api/spots/sites/${encodeURIComponent(siteId)}`),
+    mutationFn: (siteId: string) => apiDelete<{ ok: true }>(`/api/v1/spots/sites/${encodeURIComponent(siteId)}`),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });
 }
@@ -45,7 +45,7 @@ export function useTestNoxSpotSlack() {
   const { selectedOrg } = useAuth();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (channelId: string) => apiPost<{ ok: true }>("/api/slack/test", { channelId, kind: "noxspot" }),
+    mutationFn: (channelId: string) => apiPost<{ ok: true }>("/api/v1/slack/test", { channelId, kind: "noxspot" }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] });
       client.invalidateQueries({ queryKey: ["integrations-status"] });
@@ -58,7 +58,7 @@ export function useRetryNoxSpotDeliveries() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (siteId: string) => apiPost<{ ok: true; queued: number }>(
-      `/api/spots/sites/${encodeURIComponent(siteId)}/retry-deliveries`,
+      `/api/v1/spots/sites/${encodeURIComponent(siteId)}/retry-deliveries`,
       {},
     ),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
@@ -70,7 +70,7 @@ export function useUpsertNoxSpotExternalShare() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { projectId: string; password: string }) =>
-      apiPost<{ share: { id: string; slug: string; enabled: boolean } }>("/api/spots/shares", input),
+      apiPost<{ share: { id: string; slug: string; enabled: boolean } }>("/api/v1/spots/shares", input),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });
 }
@@ -79,7 +79,7 @@ export function useDeleteNoxSpotExternalShare() {
   const { selectedOrg } = useAuth();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (shareId: string) => apiDelete<{ ok: true }>(`/api/spots/shares/${encodeURIComponent(shareId)}`),
+    mutationFn: (shareId: string) => apiDelete<{ ok: true }>(`/api/v1/spots/shares/${encodeURIComponent(shareId)}`),
     onSuccess: () => client.invalidateQueries({ queryKey: ["noxspot-sites", selectedOrg] }),
   });
 }

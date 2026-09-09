@@ -8,8 +8,8 @@ pull-request synchronization, GitHub reads, and GitHub mutations. Product
 services receive bounded domain records or public GitHub URLs only; they never
 receive an installation token, App private key, GitHub client, or permission to
 call GitHub directly. Generic issue transport lives in `functions/lib/github-issues.js`.
-Browser and native clients use `/api/auth/profile`, `/api/github/details`, and
-the other NoxConnect APIs rather than Octokit or `api.github.com`. Native apps
+Browser and native clients use `/api/v1/auth/profile`, `/api/v1/github/details`, and
+the other canonical NoxConnect APIs rather than Octokit or `api.github.com`. Native apps
 receive NoxConnect `nox_at_…`/`nox_rt_…` sessions; they do not keep or forward
 GitHub credentials after the one-time upgrade from an older release.
 
@@ -31,6 +31,6 @@ Every adapter validates the contract version, structure, and Slack payload size 
 
 ## Control plane versus product policy
 
-The Admin UI and authenticated `/api` endpoints remain the control plane. They may read and write shared D1 configuration because that is setup and routing, not product behavior. Turning a product off keeps its data but gates its public/runtime paths. Product Workers own public product execution and presentation policy.
+The Admin UI and authenticated `/api/v1` endpoints remain the control plane. They may read and write shared D1 configuration because that is setup and routing, not product behavior. Turning a product off keeps its data but gates its public/runtime paths. Product Workers own public product execution and presentation policy.
 
 When adding behavior, use this rule: if the code answers “what should this product do or say?”, it belongs to that product. If it answers “who is connected, where should this go, and was it delivered?”, it belongs to NoxConnect.

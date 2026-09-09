@@ -19,11 +19,11 @@ export function fetchSpecs(opts: {
   }
   if (opts.includeArchived) params.set("include", "all");
   const qs = params.toString();
-  return apiGet<SpecListResponse>(`/api/specs${qs ? `?${qs}` : ""}`);
+  return apiGet<SpecListResponse>(`/api/v1/specs${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchSpec(id: number): Promise<Spec> {
-  return apiGet<Spec>(`/api/specs/${id}`);
+  return apiGet<Spec>(`/api/v1/specs/${id}`);
 }
 
 export function createSpec(input: {
@@ -32,7 +32,7 @@ export function createSpec(input: {
   featureNumber?: number | null;
   links?: SpecLink[];
 }): Promise<Spec> {
-  return apiPost<Spec>("/api/specs", input);
+  return apiPost<Spec>("/api/v1/specs", input);
 }
 
 export function updateSpec(
@@ -45,7 +45,7 @@ export function updateSpec(
     links?: SpecLink[];
   },
 ): Promise<Spec> {
-  return apiPatch<Spec>(`/api/specs/${id}`, patch);
+  return apiPatch<Spec>(`/api/v1/specs/${id}`, patch);
 }
 
 export interface ArchiveSpecResponse {
@@ -55,11 +55,11 @@ export interface ArchiveSpecResponse {
 }
 
 export function archiveSpec(id: number): Promise<ArchiveSpecResponse> {
-  return apiPost<ArchiveSpecResponse>(`/api/specs/${id}/archive`);
+  return apiPost<ArchiveSpecResponse>(`/api/v1/specs/${id}/archive`);
 }
 
 export function unarchiveSpec(id: number): Promise<ArchiveSpecResponse> {
-  return apiDelete<ArchiveSpecResponse>(`/api/specs/${id}/archive`);
+  return apiDelete<ArchiveSpecResponse>(`/api/v1/specs/${id}/archive`);
 }
 
 // ---------- Attachments ----------
@@ -69,7 +69,7 @@ export interface AttachmentListResponse {
 }
 
 export function fetchAttachments(specId: number): Promise<AttachmentListResponse> {
-  return apiGet<AttachmentListResponse>(`/api/specs/${specId}/attachments`);
+  return apiGet<AttachmentListResponse>(`/api/v1/specs/${specId}/attachments`);
 }
 
 /** Uploads via multipart — apiPost only speaks JSON, so this uses apiFetch
@@ -79,7 +79,7 @@ export async function uploadAttachment(specId: number, file: File): Promise<Spec
   form.append("file", file);
   // apiFetch detects FormData and skips its default Content-Type so the
   // browser can set `multipart/form-data; boundary=...` itself.
-  const res = await apiFetch(`/api/specs/${specId}/attachments`, {
+  const res = await apiFetch(`/api/v1/specs/${specId}/attachments`, {
     method: "POST",
     body: form,
   });
@@ -93,7 +93,7 @@ export async function uploadAttachment(specId: number, file: File): Promise<Spec
 
 export function deleteAttachment(specId: number, attachmentId: number): Promise<{ ok: true; id: number }> {
   return apiDelete<{ ok: true; id: number }>(
-    `/api/specs/${specId}/attachments/${attachmentId}`,
+    `/api/v1/specs/${specId}/attachments/${attachmentId}`,
   );
 }
 
@@ -106,7 +106,7 @@ export async function fetchAttachmentBlob(
   opts: { download?: boolean } = {},
 ): Promise<Blob> {
   const qs = opts.download ? "?disposition=attachment" : "";
-  const res = await apiFetch(`/api/specs/${specId}/attachments/${attachmentId}${qs}`);
+  const res = await apiFetch(`/api/v1/specs/${specId}/attachments/${attachmentId}${qs}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
     const message = (body as { error?: string }).error ?? `Fetch failed: ${res.status}`;

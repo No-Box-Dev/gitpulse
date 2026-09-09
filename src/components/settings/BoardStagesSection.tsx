@@ -138,7 +138,7 @@ export function BoardStagesSection() {
         color: color.toLowerCase(),
       }));
       const nextSettings = { ...(settings ?? {}), boardStages: cleanStages };
-      const res = await apiFetch("/api/config/settings", {
+      const res = await apiFetch("/api/v1/config/settings", {
         method: "PUT",
         body: JSON.stringify(nextSettings),
       });

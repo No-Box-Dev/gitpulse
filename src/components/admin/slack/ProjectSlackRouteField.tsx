@@ -34,7 +34,7 @@ export function ProjectSlackRouteField({
     setTesting(true);
     setMessage(null);
     try {
-      await apiPost("/api/slack/test", {
+      await apiPost("/api/v1/slack/test", {
         connectionId: value.connectionId,
         channelId: value.channelId,
         kind,

@@ -10,12 +10,15 @@
     "types": "wrangler types worker-configuration.d.ts"
   },
   "dependencies": {
-    "hono": "^4.13.2"
+    "hono": "^4.13.7"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "typescript": "~5.9.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.125.0"
+    "wrangler": "^4.130.0"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
   }
 }

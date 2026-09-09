@@ -66,11 +66,11 @@ describe("NoxConnect GitHub facade", () => {
   it("loads rate limits and live issue/PR details through core APIs", async () => {
     mockApiGet.mockResolvedValue({ body: "Details" });
     await fetchRateLimit();
-    expect(mockApiGet).toHaveBeenCalledWith("/api/github/rate-limit");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/github/rate-limit");
     await fetchIssueBody("ignored-owner", "web", 3);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/github/details?kind=issue&repo=web&number=3");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/github/details?kind=issue&repo=web&number=3");
     await fetchPrBody("ignored-owner", "web", 4);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/github/details?kind=pr&repo=web&number=4");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/github/details?kind=pr&repo=web&number=4");
   });
 });
 
@@ -261,7 +261,7 @@ describe("fetchPaginatedPrs", () => {
 // ---------- fetchIssueDetail / fetchPrDetail ----------
 
 describe("fetchIssueDetail", () => {
-  it("calls /api/issues/:repo/:number and transforms result", async () => {
+  it("calls /api/v1/issues/:repo/:number and transforms result", async () => {
     mockApiGet.mockResolvedValue({
       issue: {
         id: 99, repo: "my-repo", number: 7, title: "T", state: "open",
@@ -273,7 +273,7 @@ describe("fetchIssueDetail", () => {
       },
     });
     const issue = await fetchIssueDetail("my-repo", 7);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/issues/my-repo/7");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/issues/my-repo/7");
     expect(issue.user).toEqual({ login: "alice", avatar_url: "https://img/alice" });
     expect(issue.assignees).toEqual([{ login: "bob", avatar_url: "" }]);
   });
@@ -288,12 +288,12 @@ describe("fetchIssueDetail", () => {
       },
     });
     await fetchIssueDetail("repo.dot", 1);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/issues/repo.dot/1");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/issues/repo.dot/1");
   });
 });
 
 describe("fetchPrDetail", () => {
-  it("calls /api/prs/:repo/:number and transforms result", async () => {
+  it("calls /api/v1/prs/:repo/:number and transforms result", async () => {
     mockApiGet.mockResolvedValue({
       pr: {
         id: 99, repo: "r", number: 12, title: "PR", state: "open",
@@ -305,7 +305,7 @@ describe("fetchPrDetail", () => {
       },
     });
     const pr = await fetchPrDetail("r", 12);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/prs/r/12");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/prs/r/12");
     expect(pr.draft).toBe(true);
     expect(pr.head.repo).toEqual({ name: "r", full_name: "r" });
   });
@@ -346,7 +346,7 @@ describe("fetchEngineerStats", () => {
     mockApiGet.mockResolvedValue(payload);
 
     const stats = await fetchEngineerStats();
-    expect(mockApiGet).toHaveBeenCalledWith("/api/engineer-stats");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/engineer-stats");
     expect(stats).toEqual(payload);
   });
 });
@@ -364,7 +364,7 @@ describe("fetchEngineerActivity", () => {
     };
     mockApiGet.mockResolvedValue(payload);
     const res = await fetchEngineerActivity("alice");
-    expect(mockApiGet).toHaveBeenCalledWith("/api/engineer-activity?login=alice");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/v1/engineer-activity?login=alice");
     expect(res).toEqual(payload);
   });
 

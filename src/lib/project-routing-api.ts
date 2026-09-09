@@ -30,10 +30,10 @@ export interface SaveProjectRouting {
   routes: ProjectRouting["routes"];
 }
 
-export const fetchProjectRouting = () => apiGet<ProjectRoutingResponse>("/api/projects/routing");
+export const fetchProjectRouting = () => apiGet<ProjectRoutingResponse>("/api/v1/projects/routing");
 
 export const saveProjectRouting = (projectId: string, routing: SaveProjectRouting) =>
   apiPut<{ ok: true; projectId: string; enabled: boolean; repositories: string[] }>(
-    `/api/projects/routing/${encodeURIComponent(projectId)}`,
+    `/api/v1/projects/routing/${encodeURIComponent(projectId)}`,
     routing,
   );

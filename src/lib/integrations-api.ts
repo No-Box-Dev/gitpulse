@@ -91,7 +91,7 @@ export interface IntegrationConnection {
 }
 
 export function fetchIntegrationsStatus(): Promise<IntegrationsStatus> {
-  return apiGet<IntegrationsStatus>("/api/integrations/connections");
+  return apiGet<IntegrationsStatus>("/api/v1/integrations/connections");
 }
 
 export interface ConnectionStart {
@@ -118,7 +118,7 @@ export function startIntegrationConnection(
   const body: Record<string, unknown> = {};
   if (options.team !== undefined) body.team = options.team;
   if (options.projectId !== undefined) body.projectId = options.projectId;
-  return apiPost<ConnectionStart>(`/api/integrations/connections/${provider}/start`, body);
+  return apiPost<ConnectionStart>(`/api/v1/integrations/connections/${provider}/start`, body);
 }
 
 export function disconnectIntegrationConnection(provider: IntegrationProvider): Promise<{
@@ -126,5 +126,5 @@ export function disconnectIntegrationConnection(provider: IntegrationProvider): 
   provider: IntegrationProvider;
   status: "disconnected";
 }> {
-  return apiPost(`/api/integrations/connections/${provider}/disconnect`, {});
+  return apiPost(`/api/v1/integrations/connections/${provider}/disconnect`, {});
 }

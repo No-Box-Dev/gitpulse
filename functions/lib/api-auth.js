@@ -230,7 +230,10 @@ export function requiredApiTokenScope(pathname, method) {
   if (match) return `${match[1]}:${access}`;
   if (pathname === "/api/v1/services" && access === "read") return "services:read";
   pathname = compatibilityApiPath(pathname);
-  if (pathname === "/api/v1/feed" || /^\/api\/(issues|prs|engineer-activity|llm-settings)(?:\/|$)/.test(pathname) || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return `noxfeed:${access}`;
+  if (pathname === "/api/v1/feed"
+      || /^\/api\/(issues|prs|events|engineer-activity|engineer-stats|search|llm-settings|noxfeed)(?:\/|$)/.test(pathname)
+      || /^\/api\/github\/(comments|details)$/.test(pathname)
+      || /^\/api\/projects\/[^/]+\/backfill-prs$/.test(pathname)) return `noxfeed:${access}`;
   if (/^\/api\/spots(?:\/|$)/.test(pathname)) return `noxspot:${access}`;
   if (/^\/api\/cues(?:\/|$)/.test(pathname)) return `noxcue:${access}`;
   return null;

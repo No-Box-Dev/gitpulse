@@ -73,7 +73,7 @@ Clients should branch on `error.code`, not message text. Every `/api/v1/*`
 response, including authentication, organization, rate-limit, and service
 availability failures raised by middleware, uses this envelope. Existing
 unversioned `/api/*` product routes retain their legacy `{ "error": "..." }`
-responses so the current UI remains compatible.
+responses for older deployed clients while first-party clients use `/api/v1`.
 
 ## Authentication
 

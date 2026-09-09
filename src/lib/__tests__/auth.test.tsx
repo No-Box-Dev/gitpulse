@@ -127,7 +127,7 @@ describe("useAuth", () => {
     render(<AuthProvider><TestConsumer /></AuthProvider>);
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith("/api/app-activity", expect.objectContaining({ method: "POST" }));
+      expect(fetch).toHaveBeenCalledWith("/api/v1/app-activity", expect.objectContaining({ method: "POST" }));
     });
   });
 
